@@ -18,11 +18,12 @@ import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
  * #risk, [[risk]]      label, see {@link KeywordRules}
  * Description:         bold or another text style, see {@link KeywordRules}
  * [table] 'CONSTANT' {variable}   coloured text
+ * [[asset:flow.png]], [[asset:docs/SLA.pdf|the SLA]], asset:flow.png   a file of the model's Assets folder
  * </pre>
  */
 public final class RichText {
 
-    public enum InlineKind { TEXT, BREAK, URL, TAG, STYLED, TABLE, CONSTANT, VARIABLE }
+    public enum InlineKind { TEXT, BREAK, URL, TAG, STYLED, TABLE, CONSTANT, VARIABLE, ASSET }
 
     public static final class Inline {
         public final InlineKind kind;
@@ -30,16 +31,23 @@ public final class RichText {
         public final TagColour colour;
         /** How styled text and tokens look. */
         public final TextStyle style;
+        /** What an asset shows as: a picture's alternative text, a file link's text. Null for the file name. */
+        public final String label;
 
         Inline(InlineKind kind, String text, TagColour colour) {
             this(kind, text, colour, null);
         }
 
         Inline(InlineKind kind, String text, TagColour colour, TextStyle style) {
+            this(kind, text, colour, style, null);
+        }
+
+        Inline(InlineKind kind, String text, TagColour colour, TextStyle style, String label) {
             this.kind = kind;
             this.text = text;
             this.colour = colour;
             this.style = style;
+            this.label = label;
         }
     }
 
@@ -63,6 +71,8 @@ public final class RichText {
             "(?is)<sql>(?<sql>.*?)(?:</sql>|\\z)|<#>(?<note>.*?)(?:</#>|\\n[ \\t]*\\n|\\z)");
     private static final Pattern PREFIX = Pattern.compile("^\\s*([^:]{1,40}):\\s*(.*)$");
     private static final Pattern INLINE = Pattern.compile("(?<url>https?://[^\\s<>\"]+)"
+            + "|\\[\\[\\s*(?i:asset):(?<asset>[^\\]|\\n]+)(?:\\|(?<assetLabel>[^\\]\\n]*))?]]"
+            + "|(?<![\\p{L}\\p{N}_/:])(?i:asset):(?<bareAsset>[^\\s<>\"\\[\\]|]+)"
             + "|\\[\\[(?<bracket>[^\\]\\n]+)]]"
             + "|(?<table>\\[[^\\[\\]\\n]+])"
             // not the apostrophes of don't or the '90s
@@ -133,7 +143,22 @@ public final class RichText {
             TagColour colour = keyword != null ? rules.tag(keyword) : null;
             InlineKind token = m.group("table") != null ? InlineKind.TABLE : m.group("constant") != null ? InlineKind.CONSTANT
                     : m.group("variable") != null ? InlineKind.VARIABLE : null;
-            if (url != null) {
+            if (m.group("asset") != null) {
+                addText(inlines, text.substring(done, m.start()), rules);
+                String label = m.group("assetLabel") == null || m.group("assetLabel").isBlank() ? null
+                        : m.group("assetLabel").strip();
+                inlines.add(new Inline(InlineKind.ASSET, m.group("asset").strip(), null, null, label));
+                done = m.end();
+            } else if (m.group("bareAsset") != null) {
+                // like a URL: the full stop or bracket after it belongs to the sentence
+                String name = m.group("bareAsset").replaceAll("[.,;:!?)]+$", "");
+                if (name.isEmpty()) {
+                    continue;
+                }
+                addText(inlines, text.substring(done, m.start()), rules);
+                inlines.add(new Inline(InlineKind.ASSET, name, null));
+                done = m.start("bareAsset") + name.length();
+            } else if (url != null) {
                 url = url.replaceAll("[.,;:!?)\\]]+$", "");
                 addText(inlines, text.substring(done, m.start()), rules);
                 inlines.add(new Inline(InlineKind.URL, url, null));

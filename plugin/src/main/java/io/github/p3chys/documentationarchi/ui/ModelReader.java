@@ -33,6 +33,7 @@ import com.archimatetool.model.IFolder;
 import com.archimatetool.model.INameable;
 import com.archimatetool.model.IProperty;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
@@ -155,7 +156,9 @@ final class ModelReader {
             pages.forEach(p -> overview.contents.add(new Link(p.id, p.title)));
             pages.add(0, overview);
         }
-        return new Doc(label(model), pages);
+        // the Assets folder next to the model file; a model never saved has none
+        return new Doc(label(model), pages,
+                Assets.in(model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().getParent()));
     }
 
     private DocPage viewPage(IDiagramModel view) {

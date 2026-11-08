@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
@@ -21,17 +23,20 @@ final class PageBody {
     private final DocPage page;
     private final Dialect dialect;
     private final KeywordRules rules;
+    private final Set<Assets.Asset> used;
     private final StringBuilder out = new StringBuilder();
 
-    private PageBody(Doc doc, DocPage page, Dialect dialect, KeywordRules rules) {
+    private PageBody(Doc doc, DocPage page, Dialect dialect, KeywordRules rules, Set<Assets.Asset> used) {
         this.doc = doc;
         this.page = page;
         this.dialect = dialect;
         this.rules = rules;
+        this.used = used;
     }
 
-    static String render(Doc doc, DocPage page, Dialect dialect, KeywordRules rules) {
-        PageBody body = new PageBody(doc, page, dialect, rules);
+    /** @param used gets the assets the page shows or links to */
+    static String render(Doc doc, DocPage page, Dialect dialect, KeywordRules rules, Set<Assets.Asset> used) {
+        PageBody body = new PageBody(doc, page, dialect, rules, used);
         body.page();
         return body.out.toString();
     }
@@ -195,6 +200,7 @@ final class PageBody {
                     String url = Xml.escape(i.text);
                     s.append("<a href=\"").append(url).append("\">").append(url).append("</a>");
                     break;
+                case ASSET: s.append(asset(i)); break;
                 case STYLED:
                 case TABLE:
                 case CONSTANT:
@@ -206,5 +212,15 @@ final class PageBody {
             }
         }
         return s.toString();
+    }
+
+    /** A reference to a file that isn't there stays visible in red, so whoever reads the page notices. */
+    private String asset(RichText.Inline reference) {
+        Assets.Asset asset = doc.assets.find(reference.text, page.title);
+        if (asset == null) {
+            return "<span style=\"color: rgb(191,38,0);\">[missing asset: " + Xml.escape(reference.text) + "]</span>";
+        }
+        used.add(asset);
+        return dialect.asset(asset, Xml.escape(reference.label != null ? reference.label : asset.name));
     }
 }

@@ -3,10 +3,13 @@ package io.github.p3chys.documentationarchi.ui;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -104,6 +107,26 @@ class ModelReaderTest {
         assertThat(overview.documentation).isEqualTo("Why it exists");
         assertThat(overview.contents).extracting(l -> l.label).containsExactly("First", "Second", "Elements not in any view");
         assertThat(doc.pages.get(3).entries).extracting(e -> e.name).containsExactly("Node");
+    }
+
+    @Test
+    void assetsComeFromTheAssetsFolderNextToTheModelFile(@TempDir Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("Assets"));
+        Files.writeString(dir.resolve("Assets/flow.png"), "picture");
+        model.setFile(dir.resolve("model.archimate").toFile());
+
+        Doc doc = read(model);
+
+        assertThat(doc.assets.find("flow.png", "First").file).isEqualTo(dir.resolve("Assets/flow.png"));
+        assertThat(doc.assets.problems()).isEmpty();
+    }
+
+    @Test
+    void unsavedModelHasNoAssets() {
+        Doc doc = read(model);
+
+        assertThat(doc.assets.find("flow.png", "First")).isNull();
+        assertThat(doc.assets.problems()).singleElement().asString().contains("there is no Assets folder");
     }
 
     @Test

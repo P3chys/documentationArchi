@@ -160,6 +160,34 @@ class RichTextTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Line 2").hasMessageContaining(message);
     }
 
+    @ParameterizedTest
+    @CsvSource(delimiter = ';', value = {
+        "See [[asset:docs/SLA smlouva.pdf]] here;docs/SLA smlouva.pdf;",
+        "See [[ Asset: flow.png | The flow ]] here;flow.png;The flow",
+        "See asset:flow.png here;flow.png;",
+        "See ASSET:diagrams/flow.png. here;diagrams/flow.png;",
+        "See [[asset:flow.png|]] here;flow.png;"})
+    void assetReferencesNameTheFileAndOptionallyALabel(String text, String file, String label) {
+        List<Inline> inlines = RichText.inlines(text, rules);
+
+        assertThat(inlines).extracting(i -> i.kind).containsExactly(InlineKind.TEXT, InlineKind.ASSET, InlineKind.TEXT);
+        assertThat(inlines.get(1).text).isEqualTo(file);
+        assertThat(inlines.get(1).label).isEqualTo(label);
+        assertThat(inlines.get(0).text).isEqualTo("See ");
+        assertThat(inlines.get(2).text).endsWith(" here");
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {"disasset:x.png", "https://example.com/asset:x.png", "asset: x.png", "asset:"})
+    void otherAssetWordsStayText(String text) {
+        assertThat(RichText.inlines(text, rules)).noneMatch(i -> i.kind == InlineKind.ASSET);
+    }
+
+    @Test
+    void assetInSqlStaysSql() {
+        assertThat(RichText.parse("<sql>select 'asset:x.png'</sql>", rules).get(0).sql).isEqualTo("select 'asset:x.png'");
+    }
+
     private static List<InlineKind> kinds(Block block) {
         return block.inlines.stream().map(i -> i.kind).collect(Collectors.toList());
     }

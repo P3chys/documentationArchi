@@ -10,6 +10,7 @@ existing ones are updated (a new page version), the others created, so the same 
 import argparse
 import base64
 import json
+import mimetypes
 import os
 import sys
 import urllib.error
@@ -73,8 +74,9 @@ class Confluence:
 
     def attach(self, page_id, file):
         boundary = uuid.uuid4().hex
+        content_type = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
         body = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{file.name}"\r\n'
-                f"Content-Type: image/png\r\n\r\n").encode() + file.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
+                f"Content-Type: {content_type}\r\n\r\n").encode() + file.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
         headers = {"Content-Type": f"multipart/form-data; boundary={boundary}", "X-Atlassian-Token": "nocheck"}
         query = urllib.parse.urlencode({"filename": file.name})
         existing = self.call("GET", f"/content/{page_id}/child/attachment?{query}")["results"]

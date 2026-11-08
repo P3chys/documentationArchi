@@ -96,7 +96,8 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         Label hint = new Label(c, SWT.WRAP);
         hint.setText("Default is how the export looks when nothing is changed; Reset brings a page part back to it. "
                 + "Keywords: a text style anywhere in a description, a label for #keyword or [[keyword]], or a panel "
-                + "for a line starting with \"keyword:\". Keywords ignore case.");
+                + "for a line starting with \"keyword:\". Keywords ignore case. Files of the Assets folder next to the "
+                + "model go into the export with [[asset:name]] (pictures are shown, other files attached).");
         GridDataFactory.fillDefaults().span(2, 1).hint(620, SWT.DEFAULT).applyTo(hint);
 
         try {

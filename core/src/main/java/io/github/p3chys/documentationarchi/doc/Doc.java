@@ -24,18 +24,26 @@ public final class Doc {
 
     public final String title;
     public final List<DocPage> pages;
+    /** Files that descriptions refer to with [[asset:name]]. */
+    public final Assets assets;
     private final Map<String, Location> locations = new HashMap<>();
 
     public Doc(String title, List<DocPage> pages) {
+        this(title, pages, Assets.none());
+    }
+
+    public Doc(String title, List<DocPage> pages, Assets assets) {
         if (pages.isEmpty()) {
             throw new IllegalArgumentException("A document needs at least one page");
         }
         this.title = title;
         this.pages = List.copyOf(pages);
+        this.assets = assets;
         Set<String> slugs = new HashSet<>();
         for (DocPage page : pages) {
             page.slug = slugs.isEmpty() ? "index" : unique(slug(page.title), slugs);
             slugs.add(page.slug);
+            assets.reserve(page.slug + ".png"); // the picture of the view, next to the assets in the export
             locations.put(page.id, new Location(page, null));
             for (Entry entry : page.entries) {
                 locations.put(entry.id, new Location(page, entry.anchor()));

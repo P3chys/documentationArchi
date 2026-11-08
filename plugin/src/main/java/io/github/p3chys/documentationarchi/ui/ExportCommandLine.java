@@ -33,7 +33,10 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
             return;
         }
         Path folder = Path.of(line.getOptionValue(FOLDER));
-        ExportHandler.export(ModelReader.Selection.of(List.of(model)), folder, formats(line.getOptionValue(FORMATS)));
+        for (String problem : ExportHandler.export(ModelReader.Selection.of(List.of(model)), folder,
+                formats(line.getOptionValue(FORMATS)))) {
+            logError(problem);
+        }
         logMessage("Exported documentation to " + folder);
     }
 

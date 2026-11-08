@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -29,6 +30,8 @@ import io.github.p3chys.documentationarchi.render.Exporter.Format;
 
 /** The right-click "Export Documentation..." of the model tree and the diagram editors. */
 public class ExportHandler extends AbstractHandler {
+
+    private static final int MAX_PROBLEMS = 15;
 
     @Override
     public Object execute(ExecutionEvent event) {
@@ -91,8 +94,8 @@ public class ExportHandler extends AbstractHandler {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    export(selection, folder, formats);
-                    display.asyncExec(() -> finished(display, folder));
+                    List<String> problems = export(selection, folder, formats);
+                    display.asyncExec(() -> finished(display, folder, problems));
                     return Status.OK_STATUS;
                 } catch (IOException | RuntimeException e) {
                     Activator.log("Export failed", e);
@@ -106,16 +109,26 @@ public class ExportHandler extends AbstractHandler {
         job.schedule();
     }
 
-    static void export(ModelReader.Selection selection, Path folder, Set<Format> formats) throws IOException {
+    /** @return references to assets that found no file */
+    static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats) throws IOException {
         // the PDF library uses AWT classes, which must not start a GUI next to SWT (it would hang on macOS)
         System.setProperty("java.awt.headless", "true");
         Doc doc = ModelReader.read(selection, ViewImages::render);
-        new Exporter(doc, Prefs.rules()).export(folder, formats);
+        Exporter exporter = new Exporter(doc, Prefs.rules());
+        exporter.export(folder, formats);
+        return exporter.problems();
     }
 
-    private static void finished(Display display, Path folder) {
-        MessageDialog dialog = new MessageDialog(display.getActiveShell(), "Export Documentation", null,
-                "Exported to " + folder, MessageDialog.INFORMATION, new String[] { "Open Folder", "Close" }, 0);
+    private static void finished(Display display, Path folder, List<String> problems) {
+        String message = "Exported to " + folder;
+        if (!problems.isEmpty()) {
+            message += "\n\nThese assets are missing from the export (shown in red on their pages):\n"
+                    + problems.stream().limit(MAX_PROBLEMS).map(p -> "- " + p).collect(Collectors.joining("\n"))
+                    + (problems.size() > MAX_PROBLEMS ? "\n... and " + (problems.size() - MAX_PROBLEMS) + " more" : "");
+        }
+        MessageDialog dialog = new MessageDialog(display.getActiveShell(), "Export Documentation", null, message,
+                problems.isEmpty() ? MessageDialog.INFORMATION : MessageDialog.WARNING,
+                new String[] { "Open Folder", "Close" }, 0);
         if (dialog.open() == 0) {
             Program.launch(folder.toString());
         }

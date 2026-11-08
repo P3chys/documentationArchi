@@ -117,7 +117,7 @@ class ModelReaderTest {
 
         Doc doc = read(model);
 
-        assertThat(doc.assets.find("flow.png", "First").file).isEqualTo(dir.resolve("Assets/flow.png"));
+        assertThat(doc.assets.find("flow.png", "First").file).isEqualTo(dir.resolve("Assets/flow.png").toRealPath());
         assertThat(doc.assets.problems()).isEmpty();
     }
 

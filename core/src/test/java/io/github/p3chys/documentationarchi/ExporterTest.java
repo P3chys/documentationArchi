@@ -348,6 +348,21 @@ class ExporterTest {
         assertThat(Files.list(folder.resolve("confluence/attachments")).count()).isZero();
     }
 
+    @Test
+    void assetsFolderThatLinksElsewhereIsNotUsed(@TempDir Path model, @TempDir Path elsewhere) throws Exception {
+        Files.writeString(elsewhere.resolve("id_rsa"), "private key");
+        try {
+            Files.createSymbolicLink(model.resolve("Assets"), elsewhere);
+        } catch (IOException | UnsupportedOperationException e) {
+            Assumptions.abort("cannot create symbolic links here: " + e);
+        }
+
+        Assets assets = Assets.in(model);
+
+        assertThat(assets.find("id_rsa", "View")).isNull();
+        assertThat(assets.problems()).anyMatch(p -> p.contains("links to another folder"));
+    }
+
     private static void deleteTree(Path root) throws IOException {
         try (var paths = Files.walk(root)) {
             for (Path p : paths.sorted(Comparator.reverseOrder()).collect(Collectors.toList())) {

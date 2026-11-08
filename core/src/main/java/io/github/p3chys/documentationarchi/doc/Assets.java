@@ -97,8 +97,11 @@ public final class Assets {
     private final Set<String> taken = new HashSet<>();
     private final Set<String> problems = new LinkedHashSet<>();
 
-    private Assets(Path folder) {
+    private Assets(Path folder, String problem) {
         this.folder = folder;
+        if (problem != null) {
+            problems.add(problem);
+        }
         if (folder == null) {
             return;
         }
@@ -106,13 +109,14 @@ public final class Assets {
             Path real = folder.toRealPath();
             for (Path f : files.filter(Files::isRegularFile).collect(Collectors.toList())) {
                 // a link to a file elsewhere (a shared model can bring one) would copy that file into the export
-                if (!f.toRealPath().startsWith(real)) {
+                Path file = f.toRealPath(); // read from there later, so a link put in meanwhile changes nothing
+                if (!file.startsWith(real)) {
                     problems.add("Skipped " + folder.relativize(f) + ": it links to a file outside " + folder);
                     continue;
                 }
                 String path = folder.relativize(f).toString().replace('\\', '/').toLowerCase(Locale.ROOT);
-                byPath.put(path, f);
-                byName.computeIfAbsent(f.getFileName().toString().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(f);
+                byPath.put(path, file);
+                byName.computeIfAbsent(f.getFileName().toString().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(file);
             }
         } catch (IOException e) {
             problems.add("Cannot read " + folder + ": " + e.getMessage());
@@ -121,7 +125,7 @@ public final class Assets {
 
     /** No Assets folder: every reference is a problem. */
     public static Assets none() {
-        return new Assets(null);
+        return new Assets(null, null);
     }
 
     /** The Assets folder in this folder (the model's), if there is one. */
@@ -130,8 +134,14 @@ public final class Assets {
             return none();
         }
         try (Stream<Path> children = Files.list(modelFolder)) {
-            return new Assets(children.filter(Files::isDirectory)
-                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(FOLDER)).findFirst().orElse(null));
+            Path folder = children.filter(Files::isDirectory)
+                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(FOLDER)).findFirst().orElse(null);
+            // a link or junction would make any folder of the computer the assets (a shared model can bring one)
+            if (folder != null && (Files.isSymbolicLink(folder)
+                    || !folder.toRealPath().equals(modelFolder.toRealPath().resolve(folder.getFileName())))) {
+                return new Assets(null, folder + " links to another folder, assets are not taken from there");
+            }
+            return new Assets(folder, null);
         } catch (IOException e) {
             return none();
         }

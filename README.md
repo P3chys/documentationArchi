@@ -48,12 +48,19 @@ refer to them in the documentation of the model, a view, an element or a relatio
 | `[[asset:smlouvy/SLA 2026.pdf\|the SLA]]` | a link "the SLA" that opens the file |
 | `asset:sazebnik.csv` | short form, for names without spaces |
 
+Or let the plugin do it: right-click an element, relationship, view, note or the model (in the Models tree or a view)
+and choose **Add Asset...**, then pick one or more files. Files from elsewhere are copied into `Assets` (created when
+missing; a different file with the same name gets `-2`), and a `[[asset:...]]` line per file is added at the end of
+the description. Undo removes the lines; the copies stay. The model has to be saved first.
+
 A file name alone is enough when only one file in `Assets` has it; otherwise give its path inside `Assets`. Case and
 `/` or `\` don't matter. Pictures are PNG, JPEG, GIF, BMP and SVG; anything else is a file to open.
 
 Every export carries its own copy of what it uses, so it can be zipped, mailed or moved without breaking anything:
 the HTML pages get them in `html/assets/`, the PDF holds them inside itself (pictures drawn, other files as PDF
 attachments behind the link; SVG goes in as an attachment too), and Confluence pages get them as page attachments.
+Only files really inside `Assets` are used: a link from there to a file elsewhere, or an `Assets` folder that is
+itself a link, is ignored and reported, so a shared model can't pull other files of your computer into an export.
 A reference that finds no file shows as a red *[missing asset: name]* on its page and is listed when the export
 finishes (on the command line as errors). `sample/` has an example.
 

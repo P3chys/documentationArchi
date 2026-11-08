@@ -6,6 +6,8 @@
             description="Export the selected model, views or elements as HTML, PDF and Confluence pages"/>
       <command id="io.github.p3chys.documentationarchi.printOrder" name="Print Order..."
             description="Set the order in which the documentation export describes the elements of the view"/>
+      <command id="io.github.p3chys.documentationarchi.addAsset" name="Add Asset..."
+            description="Copy files into the model's Assets folder and refer to them in the description"/>
       <command id="io.github.p3chys.documentationarchi.keywordStyles" name="Documentation Formatting..."
             description="How the documentation export formats headings, tokens, SQL and keywords"/>
    </extension>
@@ -13,6 +15,7 @@
    <extension point="org.eclipse.ui.handlers">
       <handler commandId="io.github.p3chys.documentationarchi.export" class="io.github.p3chys.documentationarchi.ui.ExportHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.printOrder" class="io.github.p3chys.documentationarchi.ui.PrintOrderHandler"/>
+      <handler commandId="io.github.p3chys.documentationarchi.addAsset" class="io.github.p3chys.documentationarchi.ui.AddAssetHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.keywordStyles" class="io.github.p3chys.documentationarchi.ui.KeywordStylesHandler"/>
    </extension>
 
@@ -25,6 +28,21 @@
                   <instanceof value="org.eclipse.gef.EditPart"/>
                </or>
             </iterate>
+         </with>
+      </definition>
+      <definition id="io.github.p3chys.documentationarchi.assetTarget">
+         <with variable="activeMenuSelection">
+            <and>
+               <count value="1"/>
+               <iterate>
+                  <or>
+                     <instanceof value="com.archimatetool.model.IDocumentable"/>
+                     <instanceof value="com.archimatetool.model.ITextContent"/>
+                     <instanceof value="com.archimatetool.model.IArchimateModel"/>
+                     <instanceof value="org.eclipse.gef.EditPart"/>
+                  </or>
+               </iterate>
+            </and>
          </with>
       </definition>
       <definition id="io.github.p3chys.documentationarchi.archimateView">
@@ -47,11 +65,19 @@
          </command>
       </menuContribution>
       <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
+         <command commandId="io.github.p3chys.documentationarchi.addAsset">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
          <command commandId="io.github.p3chys.documentationarchi.printOrder">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.archimateView"/></visibleWhen>
          </command>
       </menuContribution>
       <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.addAsset">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+         </command>
          <command commandId="io.github.p3chys.documentationarchi.export">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
          </command>
@@ -60,11 +86,17 @@
          </command>
       </menuContribution>
       <menuContribution locationURI="popup:SketchEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.addAsset">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+         </command>
          <command commandId="io.github.p3chys.documentationarchi.export">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
          </command>
       </menuContribution>
       <menuContribution locationURI="popup:CanvasEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.addAsset">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+         </command>
          <command commandId="io.github.p3chys.documentationarchi.export">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
          </command>

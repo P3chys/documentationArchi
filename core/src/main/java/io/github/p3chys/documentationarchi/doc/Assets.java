@@ -133,18 +133,41 @@ public final class Assets {
         if (modelFolder == null || !Files.isDirectory(modelFolder)) {
             return none();
         }
-        try (Stream<Path> children = Files.list(modelFolder)) {
-            Path folder = children.filter(Files::isDirectory)
-                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(FOLDER)).findFirst().orElse(null);
-            // a link or junction would make any folder of the computer the assets (a shared model can bring one)
-            if (folder != null && (Files.isSymbolicLink(folder)
-                    || !folder.toRealPath().equals(modelFolder.toRealPath().resolve(folder.getFileName())))) {
-                return new Assets(null, folder + " links to another folder, assets are not taken from there");
-            }
-            return new Assets(folder, null);
+        try {
+            return new Assets(folderIn(modelFolder), null);
+        } catch (LinkedFolderException e) {
+            return new Assets(null, e.getMessage());
         } catch (IOException e) {
             return none();
         }
+    }
+
+    /** An Assets folder that is a link or junction to another folder. */
+    public static final class LinkedFolderException extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        LinkedFolderException(Path folder) {
+            super(folder + " links to another folder, assets are not taken from or put there");
+        }
+    }
+
+    /**
+     * The Assets folder in the model's folder, found ignoring case; null when there is none.
+     *
+     * @throws LinkedFolderException when it is a link or junction: that would make any folder of the computer the
+     *         assets, and a shared model can bring one
+     */
+    public static Path folderIn(Path modelFolder) throws IOException {
+        Path folder;
+        try (Stream<Path> children = Files.list(modelFolder)) {
+            folder = children.filter(Files::isDirectory)
+                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(FOLDER)).findFirst().orElse(null);
+        }
+        if (folder != null && (Files.isSymbolicLink(folder)
+                || !folder.toRealPath().equals(modelFolder.toRealPath().resolve(folder.getFileName())))) {
+            throw new LinkedFolderException(folder);
+        }
+        return folder;
     }
 
     /** A file name the export uses for something else (the pictures of views), which assets must not take. */

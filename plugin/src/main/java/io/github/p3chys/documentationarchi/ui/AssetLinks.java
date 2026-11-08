@@ -3,10 +3,10 @@ package io.github.p3chys.documentationarchi.ui;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Stream;
 
 import org.eclipse.emf.ecore.EAttribute;
 import org.eclipse.emf.ecore.EObject;
@@ -40,20 +40,25 @@ final class AssetLinks {
         return o instanceof ITextContent ? IArchimatePackage.Literals.TEXT_CONTENT__CONTENT : null;
     }
 
-    /** The Assets folder next to the model file, whatever its case; Assets/ when there is none yet. */
+    /**
+     * The Assets folder next to the model file, whatever its case; Assets/ when there is none yet.
+     *
+     * @throws Assets.LinkedFolderException when it links to another folder
+     */
     static Path assetsFolder(Path modelFolder) throws IOException {
-        try (Stream<Path> children = Files.list(modelFolder)) {
-            return children.filter(Files::isDirectory).filter(p -> p.getFileName().toString().equalsIgnoreCase(Assets.FOLDER))
-                    .findFirst().orElse(modelFolder.resolve(Assets.FOLDER));
-        }
+        Path folder = Assets.folderIn(modelFolder);
+        return folder != null ? folder : modelFolder.resolve(Assets.FOLDER);
     }
 
     /**
      * The path to write after {@code asset:} for a chosen file. A file inside the Assets folder stays where it is;
-     * any other is copied into it, under a new name if a different file already has its name.
+     * any other is copied into it, under a new name if a different file (or a link) already has its name.
      */
     static String bringIn(Path assets, Path chosen) throws IOException {
         Files.createDirectories(assets);
+        if (!assets.equals(assetsFolder(assets.getParent()))) {
+            throw new IOException(assets + " is not the Assets folder of " + assets.getParent());
+        }
         Path real = chosen.toRealPath();
         Path folder = assets.toRealPath();
         if (!real.startsWith(folder)) {
@@ -62,10 +67,11 @@ final class AssetLinks {
             String base = dot > 0 ? name.substring(0, dot) : name;
             String extension = dot > 0 ? name.substring(dot) : "";
             Path target = folder.resolve(name);
-            for (int i = 2; Files.exists(target) && !sameContent(target, real); i++) {
+            for (int i = 2; Files.exists(target, LinkOption.NOFOLLOW_LINKS)
+                    && (Files.isSymbolicLink(target) || !sameContent(target, real)); i++) {
                 target = folder.resolve(base + "-" + i + extension);
             }
-            if (!Files.exists(target)) {
+            if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
                 Files.copy(real, target);
             }
             real = target;

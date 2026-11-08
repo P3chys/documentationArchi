@@ -1,12 +1,15 @@
 package io.github.p3chys.documentationarchi.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 import org.eclipse.gef.commands.Command;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -65,6 +68,37 @@ class AssetLinksTest {
         assertThat(AssetLinks.bringIn(assets, other)).isEqualTo("logo-2.png");
         assertThat(assets.resolve("logo.png")).hasContent("old logo");
         assertThat(assets.resolve("logo-2.png")).hasContent("new logo");
+    }
+
+    @Test
+    void assetsFolderLinkingElsewhereIsRefused(@TempDir Path elsewhere) throws Exception {
+        link(dir.resolve("Assets"), elsewhere);
+        Path chosen = Files.writeString(Files.createDirectories(dir.resolve("Downloads")).resolve("a.png"), "picture");
+
+        assertThatThrownBy(() -> AssetLinks.assetsFolder(dir)).isInstanceOf(Assets.LinkedFolderException.class);
+        assertThatThrownBy(() -> AssetLinks.bringIn(dir.resolve("Assets"), chosen)).isInstanceOf(IOException.class);
+        try (var files = Files.list(elsewhere)) {
+            assertThat(files).isEmpty();
+        }
+    }
+
+    @Test
+    void linkInAssetsIsNeverReusedOrWrittenThrough(@TempDir Path elsewhere) throws Exception {
+        Path outside = Files.writeString(elsewhere.resolve("a.png"), "picture");
+        Path assets = Files.createDirectories(dir.resolve("Assets"));
+        link(assets.resolve("a.png"), outside);
+        Path chosen = Files.writeString(Files.createDirectories(dir.resolve("Downloads")).resolve("a.png"), "picture");
+
+        assertThat(AssetLinks.bringIn(assets, chosen)).isEqualTo("a-2.png");
+        assertThat(Files.isSymbolicLink(assets.resolve("a-2.png"))).isFalse();
+    }
+
+    private static void link(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (IOException | UnsupportedOperationException e) {
+            Assumptions.abort("cannot create symbolic links here: " + e);
+        }
     }
 
     @Test

@@ -25,6 +25,7 @@ import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecifica
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationFileAttachment;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -323,6 +324,28 @@ class ExporterTest {
         assertThat(exporter.problems()).singleElement().asString().contains("there is no Assets folder");
         assertThat(Files.readString(folder.resolve("html/index.html"))).contains("[missing asset: flow.png]");
         assertThat(folder.resolve("html/assets")).doesNotExist();
+    }
+
+    @Test
+    void assetLinkingOutsideTheAssetsFolderIsNotExported(@TempDir Path model) throws Exception {
+        Path secret = Files.writeString(model.resolve("secret.txt"), "private key");
+        Path assets = Files.createDirectories(model.resolve("Assets"));
+        try {
+            Files.createSymbolicLink(assets.resolve("logo.png"), secret);
+        } catch (IOException | UnsupportedOperationException e) {
+            Assumptions.abort("cannot create symbolic links here: " + e);
+        }
+        DocPage page = new DocPage("v", "View");
+        page.documentation = "asset:logo.png";
+        doc = new Doc("Model", List.of(page), Assets.in(model));
+
+        Exporter exporter = new Exporter(doc, KeywordRules.defaults());
+        exporter.export(folder, EnumSet.allOf(Format.class));
+
+        assertThat(exporter.problems()).anyMatch(p -> p.contains("links to a file outside"));
+        assertThat(Files.readString(folder.resolve("html/index.html"))).contains("[missing asset: logo.png]");
+        assertThat(folder.resolve("html/assets")).doesNotExist();
+        assertThat(Files.list(folder.resolve("confluence/attachments")).count()).isZero();
     }
 
     private static void deleteTree(Path root) throws IOException {

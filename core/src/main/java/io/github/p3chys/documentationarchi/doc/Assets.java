@@ -103,7 +103,13 @@ public final class Assets {
             return;
         }
         try (Stream<Path> files = Files.walk(folder)) {
+            Path real = folder.toRealPath();
             for (Path f : files.filter(Files::isRegularFile).collect(Collectors.toList())) {
+                // a link to a file elsewhere (a shared model can bring one) would copy that file into the export
+                if (!f.toRealPath().startsWith(real)) {
+                    problems.add("Skipped " + folder.relativize(f) + ": it links to a file outside " + folder);
+                    continue;
+                }
                 String path = folder.relativize(f).toString().replace('\\', '/').toLowerCase(Locale.ROOT);
                 byPath.put(path, f);
                 byName.computeIfAbsent(f.getFileName().toString().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(f);

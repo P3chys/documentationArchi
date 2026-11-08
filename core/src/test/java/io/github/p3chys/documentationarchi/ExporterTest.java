@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.imageio.ImageIO;
@@ -22,6 +23,8 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
+import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationFileAttachment;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -294,19 +297,26 @@ class ExporterTest {
                 .contains("\"attachments\": [\"index.png\", \"flow.png\", \"SLA smlouva.pdf\", \"logo.png\", \"index-2.png\"]");
         assertThat(Files.readAllBytes(out.resolve("confluence/attachments/SLA smlouva.pdf"))).isEqualTo(contract);
 
-        // the originals are gone: the PDF still has the picture and the contract inside
+        // the PDF links to its own copy next to it (what Edge and Chrome open), pictures are drawn
+        assertThat(Files.readAllBytes(out.resolve("assets/SLA smlouva.pdf"))).isEqualTo(contract);
+        assertThat(out.resolve("assets/flow.png")).doesNotExist();
+        // the originals are gone: the PDF still has the picture and, inside itself, the contract
         deleteTree(model);
         try (PDDocument pdf = Loader.loadPDF(out.resolve("model.pdf").toFile())) {
             assertThat(new PDFTextStripper().getText(pdf)).contains("SLA smlouva.pdf").contains("missing asset: nothere.png");
-            List<PDAnnotationFileAttachment> files = new ArrayList<>();
+            List<String> links = new ArrayList<>();
             for (PDPage p : pdf.getPages()) {
-                p.getAnnotations().stream().filter(a -> a instanceof PDAnnotationFileAttachment)
-                        .forEach(a -> files.add((PDAnnotationFileAttachment) a));
+                for (PDAnnotation a : p.getAnnotations()) {
+                    assertThat(a).isNotInstanceOf(PDAnnotationFileAttachment.class);
+                    if (a instanceof PDAnnotationLink && ((PDAnnotationLink) a).getAction() instanceof PDActionURI) {
+                        links.add(((PDActionURI) ((PDAnnotationLink) a).getAction()).getURI());
+                    }
+                }
             }
-            assertThat(files).hasSize(1);
-            PDComplexFileSpecification spec = (PDComplexFileSpecification) files.get(0).getFile();
-            assertThat(spec.getFileUnicode()).isEqualTo("SLA smlouva.pdf");
-            assertThat(spec.getEmbeddedFile().toByteArray()).isEqualTo(contract);
+            assertThat(links).containsExactly("assets/SLA%20smlouva.pdf");
+            Map<String, PDComplexFileSpecification> attached = pdf.getDocumentCatalog().getNames().getEmbeddedFiles().getNames();
+            assertThat(attached).containsOnlyKeys("SLA smlouva.pdf");
+            assertThat(attached.get("SLA smlouva.pdf").getEmbeddedFile().toByteArray()).isEqualTo(contract);
             // the view's picture and flow.png (the other pictures are the same image as the view's)
             assertThat(pdf.getPage(0).getResources().getXObjectNames()).hasSize(2);
         }

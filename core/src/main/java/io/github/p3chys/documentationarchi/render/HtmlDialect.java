@@ -77,23 +77,24 @@ final class HtmlDialect implements Dialect {
     }
 
     /**
-     * HTML pages use the copy in assets/ next to them. The PDF holds everything itself, as data: pictures drawn, other
-     * files (and SVG, which the PDF library can't draw) as attachments of the PDF behind the link.
+     * Pages link to the copy in assets/ next to them; the PDF too, for files (and SVG, which the PDF library can't
+     * draw): a relative link is what every PDF viewer opens, attachments behind a link Edge and Chrome ignore. The
+     * PDF draws pictures from data, and also carries the files as attachments (see {@link Exporter}).
      */
     @Override
     public String asset(Assets.Asset asset, String label) {
-        if (!singleDocument) {
-            String href = "assets/" + encode(asset.name);
-            return asset.image() ? "<img class=\"asset\" src=\"" + href + "\" alt=\"" + label + "\"/>"
-                    : "<a class=\"asset\" href=\"" + href + "\">" + label + "</a>";
+        if (singleDocument && pdfImage(asset)) {
+            return "<img class=\"asset\" src=\"data:" + asset.mimeType() + ";base64," + base64(asset) + "\" alt=\""
+                    + label + "\"/>";
         }
-        String data = "data:" + asset.mimeType() + ";base64," + base64(asset);
-        if (asset.image() && !asset.extension().equals("svg")) {
-            return "<img class=\"asset\" src=\"" + data + "\" alt=\"" + label + "\"/>";
-        }
-        String name = Xml.escape(asset.name);
-        return "<a class=\"asset\" href=\"" + data + "\" download=\"" + name + "\" title=\"" + name
-                + "\" data-content-type=\"" + Xml.escape(asset.mimeType()) + "\">" + label + "</a>";
+        String href = "assets/" + encode(asset.name);
+        return !singleDocument && asset.image() ? "<img class=\"asset\" src=\"" + href + "\" alt=\"" + label + "\"/>"
+                : "<a class=\"asset\" href=\"" + href + "\">" + label + "</a>";
+    }
+
+    /** Drawn in the PDF; any other asset is a file the PDF links to. */
+    static boolean pdfImage(Assets.Asset asset) {
+        return asset.image() && !asset.extension().equals("svg");
     }
 
     private static String base64(Assets.Asset asset) {

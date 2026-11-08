@@ -1,8 +1,9 @@
 package io.github.p3chys.documentationarchi.render;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +16,15 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
+import org.apache.pdfbox.pdmodel.PDDocumentNameDictionary;
+import org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDEmbeddedFile;
 
 import com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle;
 import com.openhtmltopdf.outputdevice.helper.ExternalResourceControlPriority;
@@ -30,11 +40,11 @@ import io.github.p3chys.documentationarchi.text.KeywordRules;
  * Writes a {@link Doc} to a folder:
  * <pre>
  * html/index.html, html/&lt;view&gt;.html, html/images/, html/assets/, html/style.css
- * &lt;title&gt;.pdf
+ * &lt;title&gt;.pdf, assets/ (the files the PDF links to)
  * confluence/pages/&lt;view&gt;.xml, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
  * </pre>
- * Each output carries its own copy of the assets it uses (the PDF inside itself), so it can be moved or sent on its
- * own without losing them.
+ * Each output carries its own copy of the assets it uses, so the export folder can be moved or sent without losing
+ * them; the PDF also holds them inside itself.
  */
 public final class Exporter {
 
@@ -97,32 +107,68 @@ public final class Exporter {
         }
     }
 
+    /**
+     * The PDF, and next to it assets/ with the files it links to. Those files also go inside the PDF as its
+     * attachments, for a PDF sent on its own (viewers with an attachments list show them).
+     */
     private void pdf(Path file) throws IOException {
         XRLog.setLoggingEnabled(false);
-        try (OutputStream out = Files.newOutputStream(file)) {
-            PdfRendererBuilder builder = new PdfRendererBuilder();
-            builder.useFastMode();
-            builder.withHtmlContent(singleDocument(), null);
-            // everything the PDF shows or carries is in the document as data; files to attach are refused otherwise
-            for (ExternalResourceControlPriority priority : ExternalResourceControlPriority.values()) {
-                builder.useExternalResourceAccessControl((uri, type) -> uri.startsWith("data:"), priority);
-            }
-            font(builder, "DejaVuSans.ttf", 400, FontStyle.NORMAL);
-            font(builder, "DejaVuSans-Bold.ttf", 700, FontStyle.NORMAL);
-            font(builder, "DejaVuSans-Oblique.ttf", 400, FontStyle.ITALIC);
-            font(builder, "DejaVuSans-BoldOblique.ttf", 700, FontStyle.ITALIC);
-            builder.useFont(() -> Exporter.class.getResourceAsStream("fonts/DejaVuSansMono.ttf"), "DejaVu Sans Mono",
-                    400, FontStyle.NORMAL, true);
-            builder.toStream(out);
-            builder.run();
+        Set<Assets.Asset> used = new LinkedHashSet<>();
+        String html = singleDocument(used);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PdfRendererBuilder builder = new PdfRendererBuilder();
+        builder.useFastMode();
+        builder.withHtmlContent(html, null);
+        // pictures are in the document as data; nothing else is ever loaded
+        for (ExternalResourceControlPriority priority : ExternalResourceControlPriority.values()) {
+            builder.useExternalResourceAccessControl((uri, type) -> uri.startsWith("data:"), priority);
         }
+        font(builder, "DejaVuSans.ttf", 400, FontStyle.NORMAL);
+        font(builder, "DejaVuSans-Bold.ttf", 700, FontStyle.NORMAL);
+        font(builder, "DejaVuSans-Oblique.ttf", 400, FontStyle.ITALIC);
+        font(builder, "DejaVuSans-BoldOblique.ttf", 700, FontStyle.ITALIC);
+        builder.useFont(() -> Exporter.class.getResourceAsStream("fonts/DejaVuSansMono.ttf"), "DejaVu Sans Mono",
+                400, FontStyle.NORMAL, true);
+        builder.toStream(out);
+        builder.run();
+        used.removeIf(HtmlDialect::pdfImage);
+        copy(used, file.resolveSibling("assets"));
+        try (PDDocument pdf = Loader.loadPDF(out.toByteArray())) {
+            attach(pdf, used);
+            pdf.save(file.toFile());
+        }
+    }
+
+    private static void attach(PDDocument pdf, Set<Assets.Asset> assets) throws IOException {
+        if (assets.isEmpty()) {
+            return;
+        }
+        Map<String, PDComplexFileSpecification> files = new TreeMap<>();
+        for (Assets.Asset asset : assets) {
+            byte[] bytes = asset.bytes();
+            PDEmbeddedFile embedded = new PDEmbeddedFile(pdf, new ByteArrayInputStream(bytes));
+            embedded.setSubtype(asset.mimeType());
+            embedded.setSize(bytes.length);
+            PDComplexFileSpecification spec = new PDComplexFileSpecification();
+            spec.setFile(asset.name);
+            spec.setFileUnicode(asset.name);
+            spec.setEmbeddedFile(embedded);
+            spec.setEmbeddedFileUnicode(embedded);
+            files.put(asset.name, spec);
+        }
+        PDEmbeddedFilesNameTreeNode tree = new PDEmbeddedFilesNameTreeNode();
+        tree.setNames(files);
+        PDDocumentCatalog catalog = pdf.getDocumentCatalog();
+        PDDocumentNameDictionary names = catalog.getNames() != null ? catalog.getNames() : new PDDocumentNameDictionary(catalog);
+        names.setEmbeddedFiles(tree);
+        catalog.setNames(names);
     }
 
     private static void font(PdfRendererBuilder builder, String file, int weight, FontStyle style) {
         builder.useFont(() -> Exporter.class.getResourceAsStream("fonts/" + file), "DejaVu Sans", weight, style, true);
     }
 
-    private String singleDocument() throws IOException {
+    private String singleDocument(Set<Assets.Asset> used) throws IOException {
         HtmlDialect dialect = new HtmlDialect(true);
         StringBuilder bookmarks = new StringBuilder();
         StringBuilder body = new StringBuilder();
@@ -130,7 +176,7 @@ public final class Exporter {
             String id = HtmlDialect.pageId(page);
             bookmarks.append("<bookmark name=\"").append(Xml.escape(page.title)).append("\" href=\"#").append(id).append("\"/>");
             body.append("<h1 id=\"").append(id).append("\">").append(title(page, dialect)).append("</h1>")
-                    .append(PageBody.render(doc, page, dialect, rules, new HashSet<>()));
+                    .append(PageBody.render(doc, page, dialect, rules, used));
         }
         return "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>" + Xml.escape(doc.title)
                 + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css")

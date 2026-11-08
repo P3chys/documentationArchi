@@ -1,5 +1,6 @@
 package io.github.p3chys.documentationarchi.render;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
@@ -52,4 +53,7 @@ interface Dialect {
     }
 
     String image(DocPage page);
+
+    /** A file of the Assets folder: the picture where the output shows it, otherwise a link that opens the file. */
+    String asset(Assets.Asset asset, String escapedLabel);
 }

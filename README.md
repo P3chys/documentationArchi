@@ -13,6 +13,8 @@ Confluence pages, one page per view with its picture and a description of every 
 - **Formatting keywords** in descriptions: `Open question: ...` becomes a warning panel, `#risk` a red label,
   `{variable}`, `[table]` and `'constant'` coloured tokens, SQL blocks highlighted. **Tools > Documentation
   Formatting...** or **Preferences > Documentation Export** to change or add them.
+- **Assets:** pictures and files kept in an `Assets` folder next to the model, put into the documentation from any
+  description, see below.
 - **Confluence:** pages in storage format with their attachments and an `upload_to_confluence.py` script (Python 3.8+,
   no packages) that creates or updates them in a space of Confluence Data Center / Server.
 - **Command line** for CI and scheduled builds, see below.
@@ -33,6 +35,34 @@ Requires Archi 4.9 or later. One plugin file for every Archi version, Windows an
 | 5.0 – 5.3   | 5.1.0, 5.3.0 |
 | 5.4 – 5.9   | 5.4.3, 5.9.0 |
 | 5.10 and up | 5.10.0    |
+
+## Assets
+
+Put pictures and other files in a folder called `Assets` next to the `.archimate` file (subfolders are fine), then
+refer to them in the documentation of the model, a view, an element or a relationship, in a note or a property value:
+
+| Write | Result |
+|-------|--------|
+| `[[asset:procesy/sjednani.png]]` | the picture, shown in the text |
+| `[[asset:procesy/sjednani.png\|Průběh sjednání]]` | the same, with that alternative text |
+| `[[asset:smlouvy/SLA 2026.pdf\|the SLA]]` | a link "the SLA" that opens the file |
+| `asset:sazebnik.csv` | short form, for names without spaces |
+
+Or let the plugin do it: right-click an element, relationship, view, note or the model (in the Models tree or a view)
+and choose **Add Asset...**, then pick one or more files. Files from elsewhere are copied into `Assets` (created when
+missing; a different file with the same name gets `-2`), and a `[[asset:...]]` line per file is added at the end of
+the description. Undo removes the lines; the copies stay. The model has to be saved first.
+
+A file name alone is enough when only one file in `Assets` has it; otherwise give its path inside `Assets`. Case and
+`/` or `\` don't matter. Pictures are PNG, JPEG, GIF, BMP and SVG; anything else is a file to open.
+
+Every export carries its own copy of what it uses, so it can be zipped, mailed or moved without breaking anything:
+the HTML pages get them in `html/assets/`, the PDF holds them inside itself (pictures drawn, other files as PDF
+attachments behind the link; SVG goes in as an attachment too), and Confluence pages get them as page attachments.
+Only files really inside `Assets` are used: a link from there to a file elsewhere, or an `Assets` folder that is
+itself a link, is ignored and reported, so a shared model can't pull other files of your computer into an export.
+A reference that finds no file shows as a red *[missing asset: name]* on its page and is listed when the export
+finishes (on the command line as errors). `sample/` has an example.
 
 ## Command line
 
@@ -58,9 +88,9 @@ bytecode and travels inside the plugin in `lib/`.
 
 | Path | Content |
 |------|---------|
-| `core/` | Pure Java engine, no Eclipse: document model (`doc`), keyword formatting (`text`), HTML / PDF / Confluence rendering (`render`) |
+| `core/` | Pure Java engine, no Eclipse: document model and assets (`doc`), keyword formatting (`text`), HTML / PDF / Confluence rendering (`render`) |
 | `plugin/` | Archi/Eclipse plugin: menus, export dialog, print order, preferences, command line provider |
-| `sample/` | A sample model to try the export on |
+| `sample/` | A sample model to try the export on, with its `Assets` folder |
 
 ```bash
 just test        # core and plugin tests (plugin tests run headless on the Archi model jars)

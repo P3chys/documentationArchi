@@ -6,16 +6,22 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle;
+import com.openhtmltopdf.outputdevice.helper.ExternalResourceControlPriority;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.openhtmltopdf.util.XRLog;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
@@ -23,10 +29,12 @@ import io.github.p3chys.documentationarchi.text.KeywordRules;
 /**
  * Writes a {@link Doc} to a folder:
  * <pre>
- * html/index.html, html/&lt;view&gt;.html, html/images/, html/style.css
+ * html/index.html, html/&lt;view&gt;.html, html/images/, html/assets/, html/style.css
  * &lt;title&gt;.pdf
  * confluence/pages/&lt;view&gt;.xml, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
  * </pre>
+ * Each output carries its own copy of the assets it uses (the PDF inside itself), so it can be moved or sent on its
+ * own without losing them.
  */
 public final class Exporter {
 
@@ -40,6 +48,11 @@ public final class Exporter {
     public Exporter(Doc doc, KeywordRules rules) {
         this.doc = doc;
         this.rules = rules;
+    }
+
+    /** References to assets that found no file, see {@link Assets#problems()}. */
+    public List<String> problems() {
+        return doc.assets.problems();
     }
 
     public void export(Path folder, Set<Format> formats) throws IOException {
@@ -59,17 +72,28 @@ public final class Exporter {
         Files.createDirectories(folder.resolve("images"));
         Files.writeString(folder.resolve("style.css"), resource("style.css"));
         HtmlDialect dialect = new HtmlDialect(false);
+        Set<Assets.Asset> used = new LinkedHashSet<>();
         for (DocPage page : doc.pages) {
             String nav = page == doc.pages.get(0) ? ""
                     : "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
             Files.writeString(folder.resolve(page.slug() + ".html"), "<!DOCTYPE html>\n"
                     + "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>"
                     + Xml.escape(page.title) + "</title><link rel=\"stylesheet\" href=\"style.css\"/></head><body>"
-                    + nav + "<h1>" + title(page, dialect) + "</h1>" + PageBody.render(doc, page, dialect, rules)
+                    + nav + "<h1>" + title(page, dialect) + "</h1>" + PageBody.render(doc, page, dialect, rules, used)
                     + "</body></html>\n");
             if (page.image != null) {
                 Files.write(folder.resolve("images").resolve(page.slug() + ".png"), page.image);
             }
+        }
+        copy(used, folder.resolve("assets"));
+    }
+
+    private static void copy(Set<Assets.Asset> assets, Path folder) throws IOException {
+        if (!assets.isEmpty()) {
+            Files.createDirectories(folder);
+        }
+        for (Assets.Asset asset : assets) {
+            Files.copy(asset.file, folder.resolve(asset.name), StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
@@ -79,6 +103,10 @@ public final class Exporter {
             PdfRendererBuilder builder = new PdfRendererBuilder();
             builder.useFastMode();
             builder.withHtmlContent(singleDocument(), null);
+            // everything the PDF shows or carries is in the document as data; files to attach are refused otherwise
+            for (ExternalResourceControlPriority priority : ExternalResourceControlPriority.values()) {
+                builder.useExternalResourceAccessControl((uri, type) -> uri.startsWith("data:"), priority);
+            }
             font(builder, "DejaVuSans.ttf", 400, FontStyle.NORMAL);
             font(builder, "DejaVuSans-Bold.ttf", 700, FontStyle.NORMAL);
             font(builder, "DejaVuSans-Oblique.ttf", 400, FontStyle.ITALIC);
@@ -102,7 +130,7 @@ public final class Exporter {
             String id = HtmlDialect.pageId(page);
             bookmarks.append("<bookmark name=\"").append(Xml.escape(page.title)).append("\" href=\"#").append(id).append("\"/>");
             body.append("<h1 id=\"").append(id).append("\">").append(title(page, dialect)).append("</h1>")
-                    .append(PageBody.render(doc, page, dialect, rules));
+                    .append(PageBody.render(doc, page, dialect, rules, new HashSet<>()));
         }
         return "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>" + Xml.escape(doc.title)
                 + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css")
@@ -123,17 +151,20 @@ public final class Exporter {
         StringBuilder manifest = new StringBuilder("{\n  \"pages\": [");
         String separator = "\n";
         for (DocPage page : doc.pages) {
-            Files.writeString(pages.resolve(page.slug() + ".xml"), PageBody.render(doc, page, dialect, rules));
-            String attachment = "";
+            Set<Assets.Asset> used = new LinkedHashSet<>();
+            Files.writeString(pages.resolve(page.slug() + ".xml"), PageBody.render(doc, page, dialect, rules, used));
+            List<String> files = new ArrayList<>();
             if (page.image != null) {
-                attachment = json(page.slug() + ".png");
+                files.add(json(page.slug() + ".png"));
                 Files.write(attachments.resolve(page.slug() + ".png"), page.image);
             }
+            copy(used, attachments);
+            used.forEach(a -> files.add(json(a.name)));
             String parent = page == doc.pages.get(0) ? "null" : json(titles.get(doc.pages.get(0)));
             manifest.append(separator).append("    {\"title\": ").append(json(titles.get(page)))
                     .append(", \"parent\": ").append(parent)
                     .append(", \"file\": ").append(json("pages/" + page.slug() + ".xml"))
-                    .append(", \"attachments\": [").append(attachment).append("]}");
+                    .append(", \"attachments\": [").append(String.join(", ", files)).append("]}");
             separator = ",\n";
         }
         Files.writeString(folder.resolve("manifest.json"), manifest.append("\n  ]\n}\n").toString());

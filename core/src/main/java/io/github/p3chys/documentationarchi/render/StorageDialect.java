@@ -3,6 +3,7 @@ package io.github.p3chys.documentationarchi.render;
 import java.util.Locale;
 import java.util.Map;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
@@ -91,6 +92,18 @@ final class StorageDialect implements Dialect {
     public String image(DocPage page) {
         return "<ac:image ac:width=\"" + Math.min(page.imageWidth, MAX_IMAGE_WIDTH) + "\"><ri:attachment ri:filename=\""
                 + Xml.escape(page.slug()) + ".png\"/></ac:image>";
+    }
+
+    /** The asset goes along as an attachment of the page (see the manifest). */
+    @Override
+    public String asset(Assets.Asset asset, String label) {
+        String attachment = "<ri:attachment ri:filename=\"" + Xml.escape(asset.name) + "\"/>";
+        if (asset.image()) {
+            int width = asset.width();
+            return "<ac:image ac:alt=\"" + label + "\"" + (width > MAX_IMAGE_WIDTH ? " ac:width=\"" + MAX_IMAGE_WIDTH + "\"" : "")
+                    + ">" + attachment + "</ac:image>";
+        }
+        return "<ac:link>" + attachment + "<ac:link-body>" + label + "</ac:link-body></ac:link>";
     }
 
     private static String macro(String name, String content) {

@@ -1,8 +1,13 @@
 package io.github.p3chys.documentationarchi.render;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Locale;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
@@ -69,5 +74,38 @@ final class HtmlDialect implements Dialect {
                 : "images/" + page.slug() + ".png";
         return "<img class=\"diagram\" src=\"" + src + "\" style=\"width:" + page.imageWidth + "px\" alt=\""
                 + Xml.escape(page.title) + "\"/>";
+    }
+
+    /**
+     * HTML pages use the copy in assets/ next to them. The PDF holds everything itself, as data: pictures drawn, other
+     * files (and SVG, which the PDF library can't draw) as attachments of the PDF behind the link.
+     */
+    @Override
+    public String asset(Assets.Asset asset, String label) {
+        if (!singleDocument) {
+            String href = "assets/" + encode(asset.name);
+            return asset.image() ? "<img class=\"asset\" src=\"" + href + "\" alt=\"" + label + "\"/>"
+                    : "<a class=\"asset\" href=\"" + href + "\">" + label + "</a>";
+        }
+        String data = "data:" + asset.mimeType() + ";base64," + base64(asset);
+        if (asset.image() && !asset.extension().equals("svg")) {
+            return "<img class=\"asset\" src=\"" + data + "\" alt=\"" + label + "\"/>";
+        }
+        String name = Xml.escape(asset.name);
+        return "<a class=\"asset\" href=\"" + data + "\" download=\"" + name + "\" title=\"" + name
+                + "\" data-content-type=\"" + Xml.escape(asset.mimeType()) + "\">" + label + "</a>";
+    }
+
+    private static String base64(Assets.Asset asset) {
+        try {
+            return Base64.getEncoder().encodeToString(asset.bytes());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** A file name as one part of a relative URL. */
+    private static String encode(String name) {
+        return URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
     }
 }

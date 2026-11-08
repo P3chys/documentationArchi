@@ -5,23 +5,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationFileAttachment;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.xml.sax.InputSource;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
@@ -237,6 +247,130 @@ class ExporterTest {
         assertWellFormed(html.substring(html.indexOf("<html")));
     }
 
+    @Test
+    void assetsAreCopiedIntoEveryOutputSoItNeverPointsBackToTheModelFolder(@TempDir Path model) throws Exception {
+        Path assets = Files.createDirectories(model.resolve("assets")); // found ignoring case
+        Files.write(assets.resolve("flow.png"), png(400, 100));
+        Files.createDirectories(assets.resolve("docs"));
+        byte[] contract = "the contract".getBytes(StandardCharsets.UTF_8);
+        Files.write(assets.resolve("docs/SLA smlouva.pdf"), contract);
+        Files.createDirectories(assets.resolve("a"));
+        Files.createDirectories(assets.resolve("b"));
+        Files.write(assets.resolve("a/logo.png"), png());
+        Files.write(assets.resolve("b/logo.png"), png());
+        Files.write(assets.resolve("index.png"), png()); // the name of the first page's view picture
+        DocPage page = new DocPage("v", "View");
+        page.image = png();
+        page.imageWidth = 300;
+        page.documentation = "Flow: [[asset:FLOW.png|Process flow]]\nContract: [[asset:docs\\SLA smlouva.pdf]]\n"
+                + "Gone: asset:nothere.png\nAmbiguous: asset:logo.png, but asset:b/logo.png\nClash: asset:index.png";
+        doc = new Doc("Model", List.of(page), Assets.in(model));
+        Path out = folder.resolve("out");
+
+        Exporter exporter = new Exporter(doc, KeywordRules.defaults());
+        exporter.export(out, EnumSet.allOf(Format.class));
+
+        assertThat(exporter.problems()).hasSize(2);
+        assertThat(exporter.problems().get(0)).contains("\"nothere.png\"", "\"View\"", "not found");
+        assertThat(exporter.problems().get(1)).contains("\"logo.png\"", "matches 2 files");
+
+        String html = Files.readString(out.resolve("html/index.html"));
+        assertThat(html).contains("<img class=\"asset\" src=\"assets/flow.png\" alt=\"Process flow\"/>")
+                .contains("<a class=\"asset\" href=\"assets/SLA%20smlouva.pdf\">SLA smlouva.pdf</a>")
+                .contains("src=\"assets/logo.png\"").contains("src=\"assets/index-2.png\"")
+                .contains("[missing asset: nothere.png]").contains("[missing asset: logo.png]")
+                .doesNotContain(model.toString()).doesNotContain(model.toUri().toString());
+        assertWellFormed(html.substring(html.indexOf("<html")));
+        assertThat(out.resolve("html/images/index.png")).exists();
+        assertThat(Files.readAllBytes(out.resolve("html/assets/SLA smlouva.pdf"))).isEqualTo(contract);
+        assertThat(out.resolve("html/assets/flow.png")).exists();
+
+        String storage = Files.readString(out.resolve("confluence/pages/index.xml"));
+        assertThat(storage).contains("<ac:image ac:alt=\"Process flow\"><ri:attachment ri:filename=\"flow.png\"/></ac:image>")
+                .contains("<ac:link><ri:attachment ri:filename=\"SLA smlouva.pdf\"/><ac:link-body>SLA smlouva.pdf</ac:link-body></ac:link>")
+                .doesNotContain(model.toString());
+        assertWellFormed("<root xmlns:ac=\"urn:ac\" xmlns:ri=\"urn:ri\">" + storage + "</root>");
+        assertThat(Files.readString(out.resolve("confluence/manifest.json")))
+                .contains("\"attachments\": [\"index.png\", \"flow.png\", \"SLA smlouva.pdf\", \"logo.png\", \"index-2.png\"]");
+        assertThat(Files.readAllBytes(out.resolve("confluence/attachments/SLA smlouva.pdf"))).isEqualTo(contract);
+
+        // the originals are gone: the PDF still has the picture and the contract inside
+        deleteTree(model);
+        try (PDDocument pdf = Loader.loadPDF(out.resolve("model.pdf").toFile())) {
+            assertThat(new PDFTextStripper().getText(pdf)).contains("SLA smlouva.pdf").contains("missing asset: nothere.png");
+            List<PDAnnotationFileAttachment> files = new ArrayList<>();
+            for (PDPage p : pdf.getPages()) {
+                p.getAnnotations().stream().filter(a -> a instanceof PDAnnotationFileAttachment)
+                        .forEach(a -> files.add((PDAnnotationFileAttachment) a));
+            }
+            assertThat(files).hasSize(1);
+            PDComplexFileSpecification spec = (PDComplexFileSpecification) files.get(0).getFile();
+            assertThat(spec.getFileUnicode()).isEqualTo("SLA smlouva.pdf");
+            assertThat(spec.getEmbeddedFile().toByteArray()).isEqualTo(contract);
+            // the view's picture and flow.png (the other pictures are the same image as the view's)
+            assertThat(pdf.getPage(0).getResources().getXObjectNames()).hasSize(2);
+        }
+    }
+
+    @Test
+    void assetsWithoutAnAssetsFolderAreReportedAndShownAsMissing(@TempDir Path model) throws Exception {
+        DocPage page = new DocPage("v", "View");
+        page.documentation = "[[asset:flow.png]]";
+        doc = new Doc("Model", List.of(page), Assets.in(model));
+
+        Exporter exporter = new Exporter(doc, KeywordRules.defaults());
+        exporter.export(folder, EnumSet.of(Format.HTML));
+
+        assertThat(exporter.problems()).singleElement().asString().contains("there is no Assets folder");
+        assertThat(Files.readString(folder.resolve("html/index.html"))).contains("[missing asset: flow.png]");
+        assertThat(folder.resolve("html/assets")).doesNotExist();
+    }
+
+    @Test
+    void assetLinkingOutsideTheAssetsFolderIsNotExported(@TempDir Path model) throws Exception {
+        Path secret = Files.writeString(model.resolve("secret.txt"), "private key");
+        Path assets = Files.createDirectories(model.resolve("Assets"));
+        try {
+            Files.createSymbolicLink(assets.resolve("logo.png"), secret);
+        } catch (IOException | UnsupportedOperationException e) {
+            Assumptions.abort("cannot create symbolic links here: " + e);
+        }
+        DocPage page = new DocPage("v", "View");
+        page.documentation = "asset:logo.png";
+        doc = new Doc("Model", List.of(page), Assets.in(model));
+
+        Exporter exporter = new Exporter(doc, KeywordRules.defaults());
+        exporter.export(folder, EnumSet.allOf(Format.class));
+
+        assertThat(exporter.problems()).anyMatch(p -> p.contains("links to a file outside"));
+        assertThat(Files.readString(folder.resolve("html/index.html"))).contains("[missing asset: logo.png]");
+        assertThat(folder.resolve("html/assets")).doesNotExist();
+        assertThat(Files.list(folder.resolve("confluence/attachments")).count()).isZero();
+    }
+
+    @Test
+    void assetsFolderThatLinksElsewhereIsNotUsed(@TempDir Path model, @TempDir Path elsewhere) throws Exception {
+        Files.writeString(elsewhere.resolve("id_rsa"), "private key");
+        try {
+            Files.createSymbolicLink(model.resolve("Assets"), elsewhere);
+        } catch (IOException | UnsupportedOperationException e) {
+            Assumptions.abort("cannot create symbolic links here: " + e);
+        }
+
+        Assets assets = Assets.in(model);
+
+        assertThat(assets.find("id_rsa", "View")).isNull();
+        assertThat(assets.problems()).anyMatch(p -> p.contains("links to another folder"));
+    }
+
+    private static void deleteTree(Path root) throws IOException {
+        try (var paths = Files.walk(root)) {
+            for (Path p : paths.sorted(Comparator.reverseOrder()).collect(Collectors.toList())) {
+                Files.delete(p);
+            }
+        }
+    }
+
     private static void assertWellFormed(String xml) throws Exception {
         var factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
@@ -244,8 +378,12 @@ class ExporterTest {
     }
 
     private static byte[] png() throws Exception {
+        return png(600, 200);
+    }
+
+    private static byte[] png(int width, int height) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        ImageIO.write(new BufferedImage(600, 200, BufferedImage.TYPE_INT_RGB), "png", out);
+        ImageIO.write(new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB), "png", out);
         return out.toByteArray();
     }
 }

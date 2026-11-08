@@ -44,7 +44,9 @@ Běžný text, don't touch.</documentation>
     <element xsi:type="archimate:ApplicationComponent" name="Portál" id="id-portal">
       <documentation>Webová aplikace pro klienty &lt;&amp;&gt; partnery.
 
-NOTE: Běží v &quot;DMZ&quot;.</documentation>
+NOTE: Běží v &quot;DMZ&quot;.
+
+Kalkulace počítá podle sazebníku asset:sazebnik.csv.</documentation>
     </element>
     <element xsi:type="archimate:ApplicationComponent" name="Jádro pojištění" id="id-core"/>
   </folder>
@@ -67,6 +69,8 @@ NOTE: Běží v &quot;DMZ&quot;.</documentation>
   <folder name="Views" id="id-f-views" type="diagrams">
     <element xsi:type="archimate:ArchimateDiagramModel" name="Přehled prodeje" id="id-v1">
       <documentation>Jak klient sjedná pojistku.
+
+Průběh sjednání: [[asset:procesy/sjednani.png|Průběh sjednání pojistky]]
 
 NOTE: Pohled je aktuální k poslednímu vydání.</documentation>
       <property key="Verze" value="1.2"/>

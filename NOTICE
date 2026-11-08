@@ -1,0 +1,10 @@
+documentationArchi
+Copyright (c) 2026 Adam Pech. Licensed under the MIT License (see LICENSE).
+
+The plugin file carries these libraries unchanged in lib/, each under its own license:
+- openhtmltopdf (https://github.com/openhtmltopdf/openhtmltopdf): LGPL 2.1
+- Apache PDFBox, FontBox, XmpBox, pdfbox-io, pdfbox-graphics2d (https://pdfbox.apache.org): Apache License 2.0
+- Apache Commons Logging (https://commons.apache.org/logging): Apache License 2.0
+
+The DejaVu fonts embedded in exported PDFs (https://dejavu-fonts.github.io) are under the Bitstream Vera / DejaVu
+font license.

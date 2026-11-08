@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archimate:model xmlns:archimate="http://www.archimatetool.com/archimate" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="Pojišťovna – vzorový model" id="id-model" version="5.0.0">
+  <folder name="Strategy" id="id-f-strategy" type="strategy"/>
+  <folder name="Business" id="id-f-business" type="business">
+    <element xsi:type="archimate:BusinessActor" name="Klient" id="id-client">
+      <documentation>Osoba, která si sjednává pojištění.
+
+WARNING: Osobní údaje podléhají GDPR.
+Přístup jen pro oprávněné role.
+
+Stav: #draft, viz https://example.com/gdpr?a=1&amp;b=2.</documentation>
+      <property key="Vlastník" value="Oddělení produktů"/>
+      <property key="Stav" value="#new"/>
+    </element>
+    <element xsi:type="archimate:BusinessProcess" name="Sjednání pojistky" id="id-process">
+      <documentation>Description: Hlavní proces prodeje.
+Technically: Běží jako dávka nad [POJISTKA].
+
+INFO: Hlavní proces prodeje.
+
+Riziko výpadku [[risk]], původní kanál je [[deprecated]].
+
+Čte z tabulky [POJISTKA] stav 'AKTIVNI' pro klienta {klient_id}.
+
+&lt;sql&gt;
+select p.cislo, p.stav
+  from pojistka p
+ where p.stav = 'AKTIVNI'
+   and p.klient_id &lt; :id
+&lt;/sql&gt;
+
+&lt;#&gt;Dotaz projde revizí DBA, viz [POJISTKA].&lt;/#&gt;
+
+&lt;#&gt; Poznámka bez uzavíracího tagu
+na dva řádky.
+
+Běžný text, don't touch.</documentation>
+    </element>
+    <element xsi:type="archimate:BusinessService" name="Bez pohledu" id="id-orphan">
+      <documentation>TIP: Tento prvek není v žádném pohledu.</documentation>
+    </element>
+  </folder>
+  <folder name="Application" id="id-f-app" type="application">
+    <element xsi:type="archimate:ApplicationComponent" name="Portál" id="id-portal">
+      <documentation>Webová aplikace pro klienty &lt;&amp;&gt; partnery.
+
+NOTE: Běží v &quot;DMZ&quot;.</documentation>
+    </element>
+    <element xsi:type="archimate:ApplicationComponent" name="Jádro pojištění" id="id-core"/>
+  </folder>
+  <folder name="Technology &amp; Physical" id="id-f-tech" type="technology"/>
+  <folder name="Motivation" id="id-f-motivation" type="motivation"/>
+  <folder name="Implementation &amp; Migration" id="id-f-impl" type="implementation_migration"/>
+  <folder name="Other" id="id-f-other" type="other">
+    <element xsi:type="archimate:Grouping" name="PrintOrder" id="id-order"/>
+  </folder>
+  <folder name="Relations" id="id-f-rel" type="relations">
+    <element xsi:type="archimate:AssignmentRelationship" id="id-r1" source="id-client" target="id-process"/>
+    <element xsi:type="archimate:ServingRelationship" name="obsluhuje" id="id-r2" source="id-portal" target="id-process">
+      <documentation>WARNING: Jediný kanál mimo pracovní dobu.</documentation>
+    </element>
+    <element xsi:type="archimate:FlowRelationship" name="smlouvy" id="id-r3" source="id-portal" target="id-core"/>
+    <element xsi:type="archimate:AssociationRelationship" name="1" id="id-o1" source="id-process" target="id-order"/>
+    <element xsi:type="archimate:AssociationRelationship" name="2" id="id-o2" source="id-portal" target="id-order"/>
+    <element xsi:type="archimate:AssociationRelationship" name="10" id="id-o3" source="id-client" target="id-order"/>
+  </folder>
+  <folder name="Views" id="id-f-views" type="diagrams">
+    <element xsi:type="archimate:ArchimateDiagramModel" name="Přehled prodeje" id="id-v1">
+      <documentation>Jak klient sjedná pojistku.
+
+NOTE: Pohled je aktuální k poslednímu vydání.</documentation>
+      <property key="Verze" value="1.2"/>
+      <child xsi:type="archimate:DiagramObject" id="id-d1" archimateElement="id-client">
+        <bounds x="40" y="40" width="120" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c1" source="id-d1" target="id-d2" archimateRelationship="id-r1"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d2" targetConnections="id-c1 id-c2" archimateElement="id-process">
+        <bounds x="240" y="40" width="120" height="55"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d3" archimateElement="id-portal">
+        <bounds x="240" y="160" width="120" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c2" source="id-d3" target="id-d2" archimateRelationship="id-r2"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d6" archimateElement="id-order">
+        <bounds x="40" y="160" width="120" height="55"/>
+      </child>
+      <child xsi:type="archimate:Note" id="id-n1">
+        <bounds x="420" y="40" width="185" height="80"/>
+        <content>Poznámka k pohledu: #todo doplnit SLA</content>
+      </child>
+      <child xsi:type="archimate:DiagramModelReference" id="id-ref" model="id-v2">
+        <bounds x="420" y="160" width="185" height="55"/>
+      </child>
+    </element>
+    <element xsi:type="archimate:ArchimateDiagramModel" name="Aplikace" id="id-v2">
+      <child xsi:type="archimate:DiagramObject" id="id-d4" archimateElement="id-portal">
+        <bounds x="40" y="40" width="120" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c3" source="id-d4" target="id-d5" archimateRelationship="id-r3"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d5" targetConnections="id-c3" archimateElement="id-core">
+        <bounds x="240" y="40" width="120" height="55"/>
+      </child>
+    </element>
+  </folder>
+  <purpose>Vzorový model pro export dokumentace.
+
+INFO: Slouží k vyzkoušení formátování podle klíčových slov.</purpose>
+</archimate:model>

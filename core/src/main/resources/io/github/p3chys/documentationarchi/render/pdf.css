@@ -1,0 +1,9 @@
+@page { size: A4; margin: 18mm 15mm; @bottom-center { content: counter(page); font-family: "DejaVu Sans"; font-size: 9px; } }
+body { font-family: "DejaVu Sans"; font-size: 10px; max-width: none; padding: 0; margin: 0; }
+h1 { page-break-before: always; font-size: 18px; }
+h1:first-child { page-break-before: auto; }
+h2 { font-size: 14px; } h3 { font-size: 12px; page-break-after: avoid; }
+tr { page-break-inside: avoid; }
+pre.sql { font-family: "DejaVu Sans Mono"; font-size: 9px; }
+h4 { font-size: 11px; }
+.panel, pre.sql { page-break-inside: avoid; }

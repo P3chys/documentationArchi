@@ -1,0 +1,565 @@
+package io.github.p3chys.documentationarchi.text;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Which keywords in descriptions get special formatting, and how the parts of every page look. Written as text, one
+ * rule per line:
+ * <pre>
+ * panel warning Open question     a line "Open question: ..." becomes a warning panel
+ * tag red risk                    #risk or [[risk]] becomes a red label
+ * bold Description:               this text is always bold
+ * style color=#bf2600 background=#ffebe6 size=120% bold italic Deadline   this text always looks like this
+ * token variable color=#6554c0 italic   how {variable} looks; also table ([table]) and constant ('constant')
+ * heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
+ * sql background=#f4f5f7 theme=midnight linenumbers   how SQL blocks look; theme and line numbers are Confluence's
+ * </pre>
+ * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
+ */
+public final class KeywordRules {
+
+    public enum PanelStyle { INFO, NOTE, TIP, WARNING }
+
+    public enum TagColour { GREY, RED, YELLOW, GREEN, BLUE }
+
+    public enum Kind { PANEL, TAG, STYLE, TOKEN, HEADING, SQL }
+
+    /** Coloured tokens in descriptions, with how they look when no rule says otherwise. */
+    public enum Token {
+        TABLE("#0747a6"), CONSTANT("#006644"), VARIABLE("#6554c0");
+
+        public final TextStyle builtIn;
+
+        Token(String colour) {
+            builtIn = new TextStyle(colour, null, 100, false, false, false, false);
+        }
+    }
+
+    /** The themes of Confluence's code block macro. */
+    public enum CodeTheme {
+        DEFAULT("Default"), CONFLUENCE("Confluence"), DJANGO("DJango"), EMACS("Emacs"), FADETOGREY("FadeToGrey"),
+        MIDNIGHT("Midnight"), RDARK("RDark"), ECLIPSE("Eclipse");
+
+        /** The value of the macro's theme parameter. */
+        public final String confluenceName;
+
+        CodeTheme(String confluenceName) {
+            this.confluenceName = confluenceName;
+        }
+    }
+
+    public static final int HEADING_LEVELS = 4;
+
+    private static final String HELP = String.join("\n",
+            "# panel <info|note|tip|warning> <keyword>   line starting with \"keyword:\"",
+            "# tag <grey|red|yellow|green|blue> <keyword>   #keyword or [[keyword]] in the text",
+            "# bold <text>   this text is always bold",
+            "# style <options> <text>   this text always looks like this; quote the text (\"bold\") if it starts like an option",
+            "# token <table|constant|variable> <options>   how [table], 'constant' and {variable} look",
+            "# heading <1-4> <options>   how headings look (1: page title)",
+            "# sql <options> [theme=<confluence theme>] [linenumbers]   how SQL blocks look",
+            "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
+            "");
+
+    public static final String DEFAULTS = HELP + String.join("\n",
+            "panel info INFO",
+            "panel note NOTE",
+            "panel tip TIP",
+            "panel warning WARNING",
+            "tag red risk",
+            "tag grey deprecated",
+            "tag yellow todo",
+            "tag yellow draft",
+            "tag green new",
+            "bold Description:",
+            "bold Technically:",
+            "");
+
+    /** How a keyword, token, heading or SQL block looks. Colours are {@code #rrggbb}, null for unchanged. */
+    public static final class TextStyle {
+        private static final Pattern HEX = Pattern.compile("#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})");
+
+        public static final int MIN_SIZE = 50;
+        public static final int MAX_SIZE = 300;
+        public static final TextStyle PLAIN = new TextStyle(null, null, 100, false, false, false, false);
+        public static final TextStyle BOLD = new TextStyle(null, null, 100, true, false, false, false);
+
+        public final String colour;
+        public final String background;
+        /** Font size in percent of the usual size. */
+        public final int size;
+        public final boolean bold;
+        public final boolean italic;
+        public final boolean underline;
+        public final boolean strike;
+
+        /** @throws IllegalArgumentException for a colour that is not {@code #rgb} or {@code #rrggbb}, or a size out of range */
+        public TextStyle(String colour, String background, int size, boolean bold, boolean italic, boolean underline,
+                boolean strike) {
+            if (size < MIN_SIZE || size > MAX_SIZE) {
+                throw new IllegalArgumentException("size must be " + MIN_SIZE + "-" + MAX_SIZE + " %: " + size);
+            }
+            this.colour = hex(colour);
+            this.background = hex(background);
+            this.size = size;
+            this.bold = bold;
+            this.italic = italic;
+            this.underline = underline;
+            this.strike = strike;
+        }
+
+        private static String hex(String colour) {
+            if (colour == null) {
+                return null;
+            }
+            if (!HEX.matcher(colour).matches()) {
+                throw new IllegalArgumentException("not a colour like #ff0000: " + colour);
+            }
+            String digits = colour.startsWith("#") ? colour.substring(1) : colour;
+            if (digits.length() == 3) {
+                digits = digits.replaceAll("(.)", "$1$1");
+            }
+            return "#" + digits.toLowerCase(Locale.ROOT);
+        }
+
+        /** A {@code #rrggbb} colour as {@code rgb(r,g,b)}, the form Confluence keeps in storage format. */
+        public static String rgb(String hex) {
+            int value = Integer.parseInt(hex.substring(1), 16);
+            return "rgb(" + (value >> 16) + "," + (value >> 8 & 0xff) + "," + (value & 0xff) + ")";
+        }
+
+        /** The same style without its background, for where the background goes on a whole block. */
+        public TextStyle withoutBackground() {
+            return new TextStyle(colour, null, size, bold, italic, underline, strike);
+        }
+
+        boolean onlyBold() {
+            return equals(BOLD);
+        }
+
+        /** The options as written in a {@code style} rule, e.g. {@code color=#ff0000 size=120% bold}. */
+        public String options() {
+            List<String> options = new ArrayList<>();
+            if (colour != null) {
+                options.add("color=" + colour);
+            }
+            if (background != null) {
+                options.add("background=" + background);
+            }
+            if (size != 100) {
+                options.add("size=" + size + "%");
+            }
+            if (bold) {
+                options.add("bold");
+            }
+            if (italic) {
+                options.add("italic");
+            }
+            if (underline) {
+                options.add("underline");
+            }
+            if (strike) {
+                options.add("strike");
+            }
+            return String.join(" ", options);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof TextStyle)) {
+                return false;
+            }
+            TextStyle s = (TextStyle) o;
+            return Objects.equals(colour, s.colour) && Objects.equals(background, s.background) && size == s.size
+                    && bold == s.bold && italic == s.italic && underline == s.underline && strike == s.strike;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(colour, background, size, bold, italic, underline, strike);
+        }
+
+        @Override
+        public String toString() {
+            return options();
+        }
+    }
+
+    /**
+     * One line of the rules. {@link #panel} is set for a panel, {@link #tag} for a label, {@link #style} for the rest;
+     * {@link #keyword} is the token name, the heading level or {@code sql} for those.
+     */
+    public static final class Rule {
+        public final Kind kind;
+        public final String keyword;
+        public final PanelStyle panel;
+        public final TagColour tag;
+        public final TextStyle style;
+        /** Confluence's theme for an SQL block, null for Confluence's default. */
+        public final CodeTheme theme;
+        public final boolean lineNumbers;
+
+        private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
+                boolean lineNumbers) {
+            if (keyword == null || keyword.isBlank()) {
+                throw new IllegalArgumentException("the keyword is empty");
+            }
+            if (keyword.contains("\n") || keyword.contains("\r")) {
+                throw new IllegalArgumentException("the keyword must be on one line");
+            }
+            this.kind = kind;
+            this.keyword = keyword.strip();
+            this.panel = panel;
+            this.tag = tag;
+            this.style = style;
+            this.theme = theme;
+            this.lineNumbers = lineNumbers;
+        }
+
+        public static Rule panel(String keyword, PanelStyle style) {
+            return new Rule(Kind.PANEL, keyword, Objects.requireNonNull(style), null, null, null, false);
+        }
+
+        public static Rule tag(String keyword, TagColour colour) {
+            return new Rule(Kind.TAG, keyword, null, Objects.requireNonNull(colour), null, null, false);
+        }
+
+        public static Rule style(String keyword, TextStyle style) {
+            return new Rule(Kind.STYLE, keyword, null, null, Objects.requireNonNull(style), null, false);
+        }
+
+        public static Rule token(Token token, TextStyle style) {
+            return new Rule(Kind.TOKEN, lower(token), null, null, Objects.requireNonNull(style), null, false);
+        }
+
+        /** @param level 1 (page title) to {@link #HEADING_LEVELS} */
+        public static Rule heading(int level, TextStyle style) {
+            if (level < 1 || level > HEADING_LEVELS) {
+                throw new IllegalArgumentException("heading level must be 1-" + HEADING_LEVELS + ": " + level);
+            }
+            return new Rule(Kind.HEADING, String.valueOf(level), null, null, Objects.requireNonNull(style), null, false);
+        }
+
+        /** @param theme Confluence's theme, null for its default */
+        public static Rule sql(TextStyle style, CodeTheme theme, boolean lineNumbers) {
+            return new Rule(Kind.SQL, "sql", null, null, Objects.requireNonNull(style), theme, lineNumbers);
+        }
+
+        /** The rule as one line of text, which {@link KeywordRules#parse} reads back. */
+        public String line() {
+            switch (kind) {
+                case PANEL: return "panel " + lower(panel) + " " + keyword;
+                case TAG: return "tag " + lower(tag) + " " + keyword;
+                case TOKEN: return join("token " + keyword, style.options());
+                case HEADING: return join("heading " + keyword, style.options());
+                case SQL:
+                    return join(join("sql", style.options()), join(theme == null ? "" : "theme=" + lower(theme),
+                            lineNumbers ? "linenumbers" : ""));
+                default:
+                    if (style.onlyBold()) {
+                        return "bold " + keyword;
+                    }
+                    return join(join("style", style.options()), needsQuotes(keyword) ? "\"" + keyword + "\"" : keyword);
+            }
+        }
+
+        private static String join(String a, String b) {
+            return a.isEmpty() ? b : b.isEmpty() ? a : a + " " + b;
+        }
+
+        private static boolean needsQuotes(String keyword) {
+            return isOption(keyword.split("\\s+", 2)[0]) || keyword.startsWith("\"") && keyword.endsWith("\"");
+        }
+
+        String key() {
+            return kind + " " + keyword.toLowerCase(Locale.ROOT);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof Rule && line().equals(((Rule) o).line());
+        }
+
+        @Override
+        public int hashCode() {
+            return line().hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return line();
+        }
+    }
+
+    private final List<Rule> rules;
+    private final Map<String, PanelStyle> panels = new LinkedHashMap<>();
+    private final Map<String, TagColour> tags = new LinkedHashMap<>();
+    private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
+    private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
+    private final List<TextStyle> styles = new ArrayList<>();
+    private Rule sql;
+    private Pattern styled;
+
+    private KeywordRules(List<Rule> rules) {
+        this.rules = Collections.unmodifiableList(rules);
+        List<Rule> texts = new ArrayList<>();
+        for (Token token : Token.values()) {
+            tokens.put(token, token.builtIn);
+        }
+        for (Rule rule : rules) {
+            switch (rule.kind) {
+                case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
+                case TAG: tags.put(rule.keyword.toLowerCase(Locale.ROOT), rule.tag); break;
+                case TOKEN: tokens.put(Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT)), rule.style); break;
+                case HEADING: headings[Integer.parseInt(rule.keyword)] = rule.style; break;
+                case SQL: sql = rule; break;
+                default: texts.add(rule);
+            }
+        }
+        // the longest text first, so "Key point" wins over "Key"; one numbered group per text tells which one matched
+        texts.sort(Comparator.comparingInt((Rule r) -> r.keyword.length()).reversed());
+        StringBuilder alternatives = new StringBuilder();
+        for (Rule rule : texts) {
+            alternatives.append(styles.isEmpty() ? "" : "|").append("(?<k").append(styles.size()).append(">")
+                    .append(wholeWords(rule.keyword)).append(")");
+            styles.add(rule.style);
+        }
+        styled = Pattern.compile(texts.isEmpty() ? "(?!)" : "(?iu)(?<![\\p{L}\\p{N}])(?:" + alternatives + ")");
+    }
+
+    public static KeywordRules defaults() {
+        return parse(DEFAULTS);
+    }
+
+    /** Rules in this order; a later rule for the same keyword and kind replaces an earlier one. */
+    public static KeywordRules of(List<Rule> rules) {
+        Map<String, Rule> unique = new LinkedHashMap<>();
+        for (Rule rule : rules) {
+            unique.put(rule.key(), rule);
+        }
+        return new KeywordRules(new ArrayList<>(unique.values()));
+    }
+
+    /** @throws IllegalArgumentException naming the first line that is not a valid rule */
+    public static KeywordRules parse(String text) {
+        List<Rule> rules = new ArrayList<>();
+        int number = 0;
+        for (String line : text.split("\\R")) {
+            number++;
+            String rule = line.strip();
+            if (rule.isEmpty() || rule.startsWith("#")) {
+                continue;
+            }
+            try {
+                rules.add(rule(rule));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Line " + number + ": " + e.getMessage() + ": " + rule, e);
+            }
+        }
+        return of(rules);
+    }
+
+    private static Rule rule(String rule) {
+        String[] start = rule.split("\\s+", 2);
+        String type = start[0].toLowerCase(Locale.ROOT);
+        String rest = start.length == 2 ? start[1] : "";
+        switch (type) {
+            case "bold":
+                if (!rest.isEmpty()) {
+                    return Rule.style(rest, TextStyle.BOLD);
+                }
+                break;
+            case "style": {
+                Options o = Options.read(rest, false);
+                if (o.rest.length() >= 2 && o.rest.startsWith("\"") && o.rest.endsWith("\"")) {
+                    o.rest = o.rest.substring(1, o.rest.length() - 1);
+                }
+                if (o.rest.isBlank()) {
+                    throw new IllegalArgumentException("expected style options and then the text to style");
+                }
+                return Rule.style(o.rest, o.style());
+            }
+            case "token": {
+                String[] name = rest.split("\\s+", 2);
+                Token token;
+                try {
+                    token = Token.valueOf(name[0].toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("token must be table, constant or variable, not \"" + name[0] + "\"");
+                }
+                return Rule.token(token, Options.read(name.length == 2 ? name[1] : "", false).only().style());
+            }
+            case "heading": {
+                String[] level = rest.split("\\s+", 2);
+                if (!level[0].matches("[1-9]")) {
+                    throw new IllegalArgumentException("heading level must be 1-" + HEADING_LEVELS + ", not \"" + level[0] + "\"");
+                }
+                return Rule.heading(Integer.parseInt(level[0]),
+                        Options.read(level.length == 2 ? level[1] : "", false).only().style());
+            }
+            case "sql": {
+                Options o = Options.read(rest, true).only();
+                return Rule.sql(o.style(), o.theme, o.lineNumbers);
+            }
+            default:
+        }
+        String[] parts = rule.split("\\s+", 3);
+        if (parts.length < 3) {
+            throw new IllegalArgumentException("expected panel|tag, a style and a keyword");
+        }
+        String style = parts[1].toUpperCase(Locale.ROOT);
+        try {
+            if (type.equals("panel")) {
+                return Rule.panel(parts[2], PanelStyle.valueOf(style));
+            } else if (type.equals("tag")) {
+                return Rule.tag(parts[2], TagColour.valueOf(style));
+            }
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
+        }
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading or sql");
+    }
+
+    /** The options in front of what a rule is about, and what follows them. */
+    private static final class Options {
+        String colour;
+        String background;
+        int size = 100;
+        boolean bold;
+        boolean italic;
+        boolean underline;
+        boolean strike;
+        CodeTheme theme;
+        boolean lineNumbers;
+        String rest;
+
+        /** @param code whether the SQL block options are allowed too */
+        static Options read(String text, boolean code) {
+            Options o = new Options();
+            String remaining = text.strip();
+            while (!remaining.isEmpty()) {
+                String[] split = remaining.split("\\s+", 2);
+                String option = split[0].toLowerCase(Locale.ROOT);
+                if (!isOption(option) && !(code && option.equals("linenumbers"))) {
+                    break;
+                }
+                String value = option.contains("=") ? option.substring(option.indexOf('=') + 1) : null;
+                if (option.startsWith("color=") || option.startsWith("colour=")) {
+                    o.colour = value;
+                } else if (option.startsWith("background=")) {
+                    o.background = value;
+                } else if (option.startsWith("size=")) {
+                    try {
+                        o.size = Integer.parseInt(value.endsWith("%") ? value.substring(0, value.length() - 1) : value);
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("size is a percentage like 120%, not \"" + value + "\"");
+                    }
+                } else if (option.equals("bold")) {
+                    o.bold = true;
+                } else if (option.equals("italic")) {
+                    o.italic = true;
+                } else if (option.equals("underline")) {
+                    o.underline = true;
+                } else if (option.equals("strike")) {
+                    o.strike = true;
+                } else if (code && option.startsWith("theme=")) {
+                    try {
+                        o.theme = CodeTheme.valueOf(value.toUpperCase(Locale.ROOT));
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException("unknown theme \"" + value + "\"");
+                    }
+                } else if (code && option.equals("linenumbers")) {
+                    o.lineNumbers = true;
+                } else {
+                    throw new IllegalArgumentException("unknown option \"" + split[0] + "\"");
+                }
+                remaining = split.length == 2 ? split[1] : "";
+            }
+            o.rest = remaining;
+            return o;
+        }
+
+        Options only() {
+            if (!rest.isEmpty()) {
+                throw new IllegalArgumentException("unknown option \"" + rest.split("\\s+", 2)[0] + "\"");
+            }
+            return this;
+        }
+
+        TextStyle style() {
+            return new TextStyle(colour, background, size, bold, italic, underline, strike);
+        }
+    }
+
+    private static boolean isOption(String word) {
+        String w = word.toLowerCase(Locale.ROOT);
+        return w.contains("=") || w.equals("bold") || w.equals("italic") || w.equals("underline") || w.equals("strike");
+    }
+
+    private static String wholeWords(String text) {
+        boolean endsInWord = Character.isLetterOrDigit(text.charAt(text.length() - 1));
+        return Pattern.quote(text) + (endsInWord ? "(?![\\p{L}\\p{N}])" : "");
+    }
+
+    /** All rules, in order. */
+    public List<Rule> rules() {
+        return rules;
+    }
+
+    /** The rules as text for {@link #parse}, with a short explanation of the syntax at the top. */
+    public String format() {
+        StringBuilder text = new StringBuilder(HELP);
+        rules.forEach(r -> text.append(r.line()).append("\n"));
+        return text.toString();
+    }
+
+    private static String lower(Enum<?> value) {
+        return value.name().toLowerCase(Locale.ROOT);
+    }
+
+    /** How a token looks: its rule, or its built-in colour. */
+    public TextStyle token(Token token) {
+        return tokens.get(token);
+    }
+
+    /** How headings of a level look, null for unchanged. */
+    public TextStyle heading(int level) {
+        return level >= 1 && level <= HEADING_LEVELS ? headings[level] : null;
+    }
+
+    /** How SQL blocks look, null for unchanged. */
+    public Rule sql() {
+        return sql;
+    }
+
+    PanelStyle panel(String keyword) {
+        return panels.get(keyword.toLowerCase(Locale.ROOT));
+    }
+
+    TagColour tag(String keyword) {
+        return tags.get(keyword.toLowerCase(Locale.ROOT));
+    }
+
+    /** Matches any styled text; {@link #style} tells which one. */
+    Pattern styled() {
+        return styled;
+    }
+
+    TextStyle style(Matcher match) {
+        for (int i = 0; i < styles.size(); i++) {
+            if (match.group("k" + i) != null) {
+                return styles.get(i);
+            }
+        }
+        throw new IllegalStateException("no styled text matched");
+    }
+}

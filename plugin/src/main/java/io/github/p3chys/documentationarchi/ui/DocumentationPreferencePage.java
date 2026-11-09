@@ -1,5 +1,7 @@
 package io.github.p3chys.documentationarchi.ui;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,6 +11,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.layout.GridLayoutFactory;
 import org.eclipse.jface.preference.PreferencePage;
@@ -19,6 +22,7 @@ import org.eclipse.jface.resource.LocalResourceManager;
 import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
+import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
@@ -33,6 +37,10 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
+import org.eclipse.ui.dialogs.ElementListSelectionDialog;
+
+import com.archimatetool.editor.model.IEditorModelManager;
+import com.archimatetool.model.IArchimateModel;
 
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 import io.github.p3chys.documentationarchi.text.KeywordRules.Kind;
@@ -56,6 +64,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     private Button up;
     private Button down;
     private Button marks;
+    private Label projectLine;
     /** False until the list is changed: saved rules that could not be loaded are not overwritten by an empty list. */
     private boolean changed;
 
@@ -93,6 +102,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         up = button(buttons, "Move &Up", () -> move(-1));
         down = button(buttons, "Move &Down", () -> move(1));
         button(buttons, "Edit as &Text...", this::editAsText);
+        button(buttons, "Save as &Project Rules...", this::saveAsProjectRules);
 
         Label hint = new Label(c, SWT.WRAP);
         hint.setText("Default is how the export looks when nothing is changed; Reset brings a page part back to it. "
@@ -100,6 +110,10 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
                 + "for a line starting with \"keyword:\". Keywords ignore case. Files of the Assets folder next to the "
                 + "model go into the export with [[asset:name]] (pictures are shown, other files attached).");
         GridDataFactory.fillDefaults().span(2, 1).hint(620, SWT.DEFAULT).applyTo(hint);
+
+        projectLine = new Label(c, SWT.WRAP);
+        GridDataFactory.fillDefaults().span(2, 1).hint(620, SWT.DEFAULT).applyTo(projectLine);
+        showProjectRules();
 
         marks = new Button(c, SWT.CHECK);
         marks.setText("&Mark in the model tree what no export shows yet (orange: changed since, blue: never exported)");
@@ -332,6 +346,52 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
             load(dialog.rules());
             setErrorMessage(null);
         }
+    }
+
+    /** Writes the rules of the list as documentation.rules next to a chosen open, saved model. */
+    private void saveAsProjectRules() {
+        List<IArchimateModel> saved = IEditorModelManager.INSTANCE.getModels().stream()
+                .filter(m -> m.getFile() != null).collect(Collectors.toList());
+        if (saved.isEmpty()) {
+            MessageDialog.openInformation(getShell(), "Save as Project Rules",
+                    "Open and save a model first: the rules are written next to its file.");
+            return;
+        }
+        ElementListSelectionDialog choose = new ElementListSelectionDialog(getShell(), new LabelProvider() {
+            @Override
+            public String getText(Object model) {
+                return ((IArchimateModel) model).getName() + "  (" + ProjectRules.file((IArchimateModel) model) + ")";
+            }
+        });
+        choose.setTitle("Save as Project Rules");
+        choose.setMessage("Model to save the formatting rules for (" + ProjectRules.NAME + " next to its file):");
+        choose.setElements(saved.toArray());
+        choose.setMultipleSelection(false);
+        if (choose.open() != Window.OK) {
+            return;
+        }
+        IArchimateModel model = (IArchimateModel) choose.getFirstResult();
+        Path file = ProjectRules.file(model);
+        if (ProjectRules.exists(model) && !MessageDialog.openQuestion(getShell(), "Save as Project Rules",
+                file + " already exists. Replace it?")) {
+            return;
+        }
+        try {
+            ProjectRules.save(model, all());
+            showProjectRules();
+        } catch (IOException e) {
+            MessageDialog.openError(getShell(), "Save as Project Rules", "Cannot write " + file + ": " + e.getMessage());
+        }
+    }
+
+    /** Says which open models take their formatting from a project file instead of these settings. */
+    private void showProjectRules() {
+        String using = IEditorModelManager.INSTANCE.getModels().stream().filter(ProjectRules::exists)
+                .map(m -> "\"" + m.getName() + "\" (" + ProjectRules.file(m) + ")").collect(Collectors.joining(", "));
+        projectLine.setText(using.isEmpty() ? "A " + ProjectRules.NAME + " file next to a model's file would be used for "
+                + "that model instead of these settings." : "These models use project rules instead of these settings: "
+                + using);
+        projectLine.getParent().layout();
     }
 
     @Override

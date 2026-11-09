@@ -29,6 +29,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
+import io.github.p3chys.documentationarchi.text.KeywordRules;
 
 /** The right-click "Export Documentation..." of the model tree and the diagram editors. */
 public class ExportHandler extends AbstractHandler {
@@ -51,7 +52,8 @@ public class ExportHandler extends AbstractHandler {
 
     /** Asks where to and in which formats, then exports in the background. */
     static void run(Shell shell, ModelReader.Selection selection) {
-        ExportDialog dialog = new ExportDialog(shell, describe(selection));
+        ExportDialog dialog = new ExportDialog(shell, describe(selection) + (ProjectRules.exists(selection.model)
+                ? "\nFormatting from " + ProjectRules.file(selection.model) + " (project rules)" : ""));
         if (dialog.open() != ExportDialog.OK) {
             return;
         }
@@ -109,6 +111,10 @@ public class ExportHandler extends AbstractHandler {
                     List<String> problems = export(selection, folder, formats);
                     display.asyncExec(() -> finished(display, folder, problems));
                     return Status.OK_STATUS;
+                } catch (IllegalArgumentException e) { // unusable formatting rules: the message says which file and line
+                    display.asyncExec(() -> MessageDialog.openError(display.getActiveShell(), "Export Documentation",
+                            "The export failed. " + e.getMessage()));
+                    return Status.CANCEL_STATUS;
                 } catch (IOException | RuntimeException e) {
                     Activator.log("Export failed", e);
                     display.asyncExec(() -> MessageDialog.openError(display.getActiveShell(), "Export Documentation",
@@ -127,13 +133,20 @@ public class ExportHandler extends AbstractHandler {
      * @return references to assets that found no file
      */
     static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats) throws IOException {
+        return export(selection, folder, formats, null);
+    }
+
+    /** @param rulesFile formatting rules to use instead of the project file and the preferences, or null */
+    static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile)
+            throws IOException {
         // the PDF library uses AWT classes, which must not start a GUI next to SWT (it would hang on macOS)
         System.setProperty("java.awt.headless", "true");
         List<EObject> shown = new ArrayList<>();
+        KeywordRules rules = ProjectRules.resolve(selection.model, rulesFile, Prefs::rules); // fails before any work
         Doc doc = ModelReader.read(selection, ViewImages::render, shown);
         Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile
         long time = System.currentTimeMillis();
-        Exporter exporter = new Exporter(doc, Prefs.rules());
+        Exporter exporter = new Exporter(doc, rules);
         exporter.export(folder, formats);
         try {
             ExportState.get().record(selection.model, fingerprints, time);

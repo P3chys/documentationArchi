@@ -184,6 +184,11 @@ heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
 sql background=#f4f5f7 theme=midnight linenumbers
 ```
 
+**Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
+export of that model uses it instead of the preferences, on every computer and in CI (order: project file, then
+preferences, then the built-in defaults). **Save as Project Rules...** writes the current list there for an open, saved
+model. An invalid file fails the export and names the file and line; it never falls back to other rules.
+
 Confluence keeps text colour, bold, italic, underline, strikethrough and smaller text. It doesn't keep every
 background or larger size in every version, and the style editors say so where it matters.
 

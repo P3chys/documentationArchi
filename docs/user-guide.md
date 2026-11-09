@@ -499,6 +499,18 @@ heading 2 color=#0052cc size=120%      how headings of a level (1-4) look
 sql background=#f4f5f7 theme=midnight linenumbers
 ```
 
+### Project rules
+
+To make everyone (and the CI build) format a model the same way, keep the rules next to the model: a file named
+`documentation.rules` in the folder of the `.archimate` file, in the same text format as **Edit as Text...**. When it
+exists, every export of that model uses it instead of the preferences; without it the preferences apply, and without
+those the built-in defaults.
+
+**Save as Project Rules...** (in the button column) writes the rules of the list to that file for a model you choose
+from the open, saved ones. Below the list, a line names the open models that use project rules, and the export dialog
+says so for the model it exports. If the file has an invalid line, the export stops and tells you the file and the
+line; it does not quietly use other rules.
+
 ---
 
 ## 12. Assets: pictures and files
@@ -590,7 +602,7 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 | `--documentation.folder` | export the whole model's documentation to this folder |
 | `--documentation.formats` | comma separated `html`, `pdf`, `confluence`; default: all three |
 
-The command line exports the whole model and uses the formatting settings of the Archi installation it runs in.
+The command line exports the whole model and uses the project rules file of the model if there is one, else the formatting settings of the Archi installation it runs in.
 Missing assets are logged as errors.
 
 ---
@@ -603,6 +615,7 @@ Missing assets are logged as errors.
 | Work packages and their links | in the model (Work Package elements, associations) | yes, with the model |
 | Asset files | the `Assets` folder next to the model file | yes, if you share the folder |
 | Formatting and keywords | Archi's preferences on your computer | no – use **Edit as Text...** to copy them |
+| Project rules (`documentation.rules`) | next to the model file | yes, if you share the folder |
 | Export folder and formats | Archi's preferences on your computer | no |
 | What each export showed (change marks) | Archi's settings folder, per model, per computer | no – exporting never changes the model |
 

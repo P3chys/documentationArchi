@@ -6,6 +6,9 @@ every element on it, formatted from the descriptions you already write in Archi.
 
 Requires Archi 4.9 or later. One plugin file works with every Archi version, on Windows and macOS.
 
+**New here? Read the [User Guide](docs/user-guide.md)** ([PDF](docs/user-guide.pdf)) – installation and every
+function, with screenshots.
+
 - [Install](#install)
 - [Export documentation](#export-documentation)
 - [What a page contains](#what-a-page-contains)

@@ -18,8 +18,10 @@ import java.util.stream.Collectors;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EStructuralFeature;
 
 import com.archimatetool.model.IArchimateConcept;
+import com.archimatetool.model.IArchimateDiagramModel;
 import com.archimatetool.model.IArchimateElement;
 import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IArchimateModelObject;
@@ -29,11 +31,14 @@ import com.archimatetool.model.IDiagramModelArchimateComponent;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelComponent;
 import com.archimatetool.model.IDiagramModelNote;
+import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IDiagramModelReference;
+import com.archimatetool.model.IDocumentable;
 import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IJunction;
 import com.archimatetool.model.INameable;
 import com.archimatetool.model.IProperty;
+import com.archimatetool.model.ITextContent;
 import com.archimatetool.model.IWorkPackage;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
@@ -41,6 +46,7 @@ import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
+import io.github.p3chys.documentationarchi.doc.ObjectText;
 import io.github.p3chys.documentationarchi.doc.Property;
 import io.github.p3chys.documentationarchi.doc.Relation;
 
@@ -290,6 +296,11 @@ final class ModelReader {
             } else if (o instanceof IDiagramModelArchimateObject
                     && ((IDiagramModelArchimateObject) o).getArchimateElement() instanceof IJunction) {
                 exported.add(((IDiagramModelArchimateObject) o).getArchimateElement()); // shown in the picture
+            } else if (!(view instanceof IArchimateDiagramModel) && o instanceof IDiagramModelObject) {
+                ObjectText text = text((IDiagramModelObject) o);
+                if (!text.name.isBlank() || !text.text.isBlank()) {
+                    page.texts.add(text);
+                }
             }
         }
         List<IArchimateElement> shown = ordered(elementsOn(view), view);
@@ -299,6 +310,26 @@ final class ModelReader {
         listed.forEach(e -> page.contents.add(link(e)));
         describe(fresh, shown, page);
         return page;
+    }
+
+    /**
+     * What an object of a sketch or canvas view says: its name, and its text, description and notes. Read by the
+     * model's features, so canvas views need no part of Archi's canvas plugin.
+     */
+    private static ObjectText text(IDiagramModelObject o) {
+        List<String> parts = new ArrayList<>();
+        if (o instanceof ITextContent) {
+            parts.add(((ITextContent) o).getContent());
+        }
+        if (o instanceof IDocumentable) {
+            parts.add(((IDocumentable) o).getDocumentation());
+        }
+        EStructuralFeature notes = o.eClass().getEStructuralFeature("notes"); // of a canvas sticky
+        if (notes != null && o.eGet(notes) instanceof String) {
+            parts.add((String) o.eGet(notes));
+        }
+        return new ObjectText(o.getName(), parts.stream().filter(p -> p != null && !p.isBlank()).map(String::strip)
+                .collect(Collectors.joining("\n\n")));
     }
 
     /** @param onPage all elements of the page; relationships to any other element are listed apart */

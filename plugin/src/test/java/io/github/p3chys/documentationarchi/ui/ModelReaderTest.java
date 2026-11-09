@@ -13,6 +13,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import com.archimatetool.canvas.model.ICanvasFactory;
+import com.archimatetool.canvas.model.ICanvasModel;
+import com.archimatetool.canvas.model.ICanvasModelBlock;
+import com.archimatetool.canvas.model.ICanvasModelSticky;
 import com.archimatetool.model.FolderType;
 import com.archimatetool.model.IArchimateDiagramModel;
 import com.archimatetool.model.IArchimateElement;
@@ -23,6 +27,9 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IJunction;
+import com.archimatetool.model.ISketchModel;
+import com.archimatetool.model.ISketchModelActor;
+import com.archimatetool.model.ISketchModelSticky;
 import com.archimatetool.model.IProperty;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
@@ -381,5 +388,48 @@ class ModelReaderTest {
 
         assertThat(read(first).pages.get(0).entries.get(0).relations).extracting(r -> r.type)
                 .containsExactly("Serving Relationship");
+    }
+
+    @Test
+    void sketchViewListsTheTextsOfItsStickiesAndActors() {
+        ISketchModel sketch = F.createSketchModel();
+        sketch.setName("Idea");
+        model.getFolder(FolderType.DIAGRAMS).getElements().add(sketch);
+        ISketchModelSticky sticky = F.createSketchModelSticky();
+        sticky.setName("Goal");
+        sticky.setContent("Sell more #todo");
+        sketch.getChildren().add(sticky);
+        ISketchModelActor actor = F.createSketchModelActor();
+        actor.setName("Customer");
+        actor.setDocumentation("Buys online");
+        sketch.getChildren().add(actor);
+        sketch.getChildren().add(F.createSketchModelSticky()); // empty: left out
+
+        DocPage page = read(sketch).pages.get(0);
+
+        assertThat(page.texts).extracting(t -> t.name + ": " + t.text)
+                .containsExactly("Goal: Sell more #todo", "Customer: Buys online");
+    }
+
+    @Test
+    void canvasViewListsTheTextsOfItsBlocksAndStickies() {
+        ICanvasFactory canvas = ICanvasFactory.eINSTANCE;
+        ICanvasModel view = canvas.createCanvasModel();
+        view.setName("Canvas");
+        model.getFolder(FolderType.DIAGRAMS).getElements().add(view);
+        ICanvasModelBlock block = canvas.createCanvasModelBlock();
+        block.setContent("Key partners");
+        view.getChildren().add(block);
+        ICanvasModelSticky sticky = canvas.createCanvasModelSticky();
+        sticky.setName("Bank");
+        sticky.setContent("Pays out");
+        sticky.setNotes("Contract until 2027");
+        block.getChildren().add(sticky);
+
+        DocPage page = read(view).pages.get(0);
+
+        assertThat(page.texts).extracting(t -> t.name + ": " + t.text)
+                .containsExactly(": Key partners", "Bank: Pays out\n\nContract until 2027");
+        assertThat(page.notes).isEmpty();
     }
 }

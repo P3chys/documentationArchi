@@ -17,6 +17,8 @@ public final class DocPage {
     /** Height of the image at {@link #imageWidth}, in CSS pixels; 0 when unknown. */
     public int imageHeight;
     public final List<String> notes = new ArrayList<>();
+    /** On a sketch or canvas view: the texts of its stickies, actors, blocks and groups, listed with the notes. */
+    public final List<ObjectText> texts = new ArrayList<>();
     /** Views this view refers to with a diagram reference. */
     public final List<Link> relatedViews = new ArrayList<>();
     /** The elements described on this page. */

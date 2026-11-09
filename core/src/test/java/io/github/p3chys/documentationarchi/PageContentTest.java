@@ -14,6 +14,7 @@ import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
+import io.github.p3chys.documentationarchi.doc.ObjectText;
 import io.github.p3chys.documentationarchi.doc.Relation;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
@@ -47,5 +48,15 @@ class PageContentTest {
 
         assertThat(html(page)).contains("<td><a href=\"#e-b\">B</a> or <a href=\"#e-c\">C</a></td>")
                 .contains("<li>← X and Y");
+    }
+
+    @Test
+    void textsOfSketchObjectsAreListedWithTheNotes() throws Exception {
+        DocPage page = new DocPage("v", "Sketch");
+        page.texts.add(new ObjectText("Goal", "Sell more #todo"));
+        page.texts.add(new ObjectText("", "No name"));
+
+        assertThat(html(page)).contains("<h2>Notes</h2><p><strong>Goal</strong></p><p>Sell more <span class=\"tag yellow\">"
+                + "TODO</span></p><p>No name</p>");
     }
 }

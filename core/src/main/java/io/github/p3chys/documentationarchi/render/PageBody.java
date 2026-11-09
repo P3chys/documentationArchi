@@ -11,6 +11,7 @@ import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
+import io.github.p3chys.documentationarchi.doc.ObjectText;
 import io.github.p3chys.documentationarchi.doc.Property;
 import io.github.p3chys.documentationarchi.doc.Relation;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
@@ -51,9 +52,15 @@ final class PageBody {
         });
         section(() -> properties(page.properties));
         section(() -> {
-            if (!page.notes.isEmpty()) {
+            if (!page.notes.isEmpty() || !page.texts.isEmpty()) {
                 out.append(heading(2, "Notes"));
                 page.notes.forEach(this::description);
+                for (ObjectText t : page.texts) {
+                    if (!t.name.isBlank()) {
+                        out.append("<p><strong>").append(Xml.escape(t.name)).append("</strong></p>");
+                    }
+                    description(t.text);
+                }
             }
         });
         section(() -> links("Related views", page.relatedViews));

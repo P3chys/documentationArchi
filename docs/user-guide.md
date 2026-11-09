@@ -238,6 +238,10 @@ Each view gets a page with, in this order:
 
 <p align="center"><img src="images/output-html-view.png" width="760" alt="Exported view page: description, contents and picture"></p>
 
+A **sketch or canvas view** has no elements, so its page shows the picture and, under *Notes*, the texts of its
+objects: every sticky, actor, block and group with text, its name in bold above what it says (for a canvas sticky
+also its notes), in the order they are on the view. These texts are formatted like any description.
+
 ### Element descriptions
 
 Each element is described with its description, its properties, a table of its relationships to other elements of

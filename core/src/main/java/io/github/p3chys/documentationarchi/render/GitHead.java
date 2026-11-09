@@ -15,7 +15,9 @@ public final class GitHead {
 
     static final String FOLDER = ".coarchi";
     private static final Pattern HASH = Pattern.compile("[0-9a-f]{40}|[0-9a-f]{64}");
-    private static final String BRANCH = "ref: refs/heads/";
+    /** Segments of letters, digits and a few signs, separated by single slashes: no "..", backslash, colon or leading slash. */
+    private static final Pattern BRANCH_NAME = Pattern.compile("[\\p{L}\\p{N}_+.@-]+(/[\\p{L}\\p{N}_+.@-]+)*");
+    private static final String BRANCH ="ref: refs/heads/";
     private static final int SHORT = 7;
 
     private GitHead() {
@@ -46,6 +48,9 @@ public final class GitHead {
             }
             if (head.startsWith(BRANCH)) {
                 branch = head.substring(BRANCH.length()).strip();
+                if (!BRANCH_NAME.matcher(branch).matches() || branch.contains("..")) {
+                    return ""; // not a branch name git allows; never turn it into a path
+                }
                 commit = ref(git, "refs/heads/" + branch);
             } else {
                 commit = HASH.matcher(head).matches() ? head : null; // detached

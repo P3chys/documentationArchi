@@ -84,4 +84,11 @@ class GitHeadTest {
         write("refs/heads/main", "not a hash");
         assertThat(GitHead.describe(model)).isEqualTo(" \u2013 main");
     }
+
+    @Test
+    void aBranchNameThatIsAPathIsNotFollowed() throws IOException {
+        write("HEAD", "ref: refs/heads/../../secret");
+        write("secret", COMMIT);
+        assertThat(GitHead.describe(model)).isEmpty();
+    }
 }

@@ -3,6 +3,7 @@ package io.github.p3chys.documentationarchi.ui;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -164,7 +165,8 @@ public class ExportHandler extends AbstractHandler {
         }, shown);
         Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile
         long time = System.currentTimeMillis();
-        Exporter exporter = new Exporter(doc, rules);
+        Exporter exporter = new Exporter(doc, rules).version(selection.model.getName(),
+                selection.model.getFile() == null ? null : selection.model.getFile().toPath(), LocalDateTime.now());
         exporter.export(folder, formats, new Exporter.Progress() {
             @Override
             public void step(String task) {

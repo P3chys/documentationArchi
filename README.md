@@ -71,6 +71,11 @@ leaves the previous one as it was, and the model tree marks do not change. Nothi
 
 ## What a page contains
 
+The overview page ends with one line, and the first page of the PDF as well: "Generated 2026-11-10 14:03 from
+&lt;model&gt;". When the model sits in a cooperativeArchi workspace (a `.coarchi` folder next to the model file) it
+continues with " – &lt;branch&gt; ＠ &lt;short commit&gt;", read from that repository's files; the Confluence pages
+don't have the line.
+
 Each view gets a page with, in this order: the view's description, the list of its elements (with their types), its
 picture, its properties, the text of its notes, the views it refers to, and then each element described in full.
 That means its description, its properties, its relationships to other elements of the view (in a table, with each

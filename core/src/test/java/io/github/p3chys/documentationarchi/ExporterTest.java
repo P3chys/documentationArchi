@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -517,6 +518,41 @@ class ExporterTest {
         try (var files = Files.list(folder)) {
             return files.map(p -> p.getFileName().toString()).collect(Collectors.toList());
         }
+    }
+
+    @Test
+    void versionLineIsOnTheHtmlOverviewAndTheFirstPdfPageOnly() throws Exception {
+        Files.createDirectories(folder.resolve(".coarchi/refs/heads"));
+        Files.writeString(folder.resolve(".coarchi/HEAD"), "ref: refs/heads/main\n");
+        Files.writeString(folder.resolve(".coarchi/refs/heads/main"), "0123456789abcdef0123456789abcdef01234567\n");
+        String line = "Generated 2026-11-10 14:03 from Model \"q\" & Co \u2013 main \uFF20 0123456";
+        new Exporter(doc, KeywordRules.defaults())
+                .version("Model \"q\" & Co", folder.resolve("m.archimate"), LocalDateTime.of(2026, 11, 10, 14, 3, 59))
+                .export(folder.resolve("out"), EnumSet.allOf(Format.class));
+
+        assertThat(Files.readString(folder.resolve("out/html/index.html")))
+                .contains("<footer class=\"version\">" + line.replace("&", "&amp;").replace("\"", "&quot;") + "</footer>");
+        assertThat(Files.readString(folder.resolve("out/html/prehled.html"))).doesNotContain("Generated ");
+        assertThat(Files.readString(folder.resolve("out/confluence/pages/index.xml"))).doesNotContain("Generated ");
+        try (PDDocument pdf = Loader.loadPDF(folder.resolve("out/zlutoucky-model.pdf").toFile())) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setStartPage(1);
+            stripper.setEndPage(1);
+            stripper.setSortByPosition(true);
+            String first = stripper.getText(pdf).strip();
+            // DejaVu Sans has no full-width @, so the PDF shows a plain one; the line is the last of the page
+            assertThat(first).contains(line.replace('＠', '@')).startsWith("Žluťoučký model");
+            assertThat(first.lines().reduce((a, b) -> b).orElse("")).contains("Generated 2026-11-10 14:03 from Model");
+            stripper.setStartPage(2);
+            stripper.setEndPage(3);
+            assertThat(stripper.getText(pdf)).doesNotContain("Generated ");
+        }
+    }
+
+    @Test
+    void withoutAVersionNothingIsAdded() throws Exception {
+        export(Format.HTML);
+        assertThat(Files.readString(folder.resolve("html/index.html"))).doesNotContain("Generated ");
     }
 
     private static void assertWellFormed(String xml) throws Exception {

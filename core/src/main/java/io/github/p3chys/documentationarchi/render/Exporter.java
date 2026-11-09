@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.io.UncheckedIOException;
 import java.nio.file.LinkOption;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.concurrent.CancellationException;
@@ -59,10 +61,24 @@ public final class Exporter {
 
     private final Doc doc;
     private final KeywordRules rules;
+    private String version;
 
     public Exporter(Doc doc, KeywordRules rules) {
         this.doc = doc;
         this.rules = rules;
+    }
+
+    /**
+     * Adds "Generated &lt;date and time&gt; from &lt;model&gt;" to the HTML overview page and the first page of the PDF,
+     * and " – &lt;branch&gt; ＠ &lt;commit&gt;" when a {@code .coarchi} folder is next to the model file. Not to the
+     * Confluence pages: they are edited there, and the line would age.
+     *
+     * @param modelFile the .archimate file, null if the model was never saved
+     */
+    public Exporter version(String modelName, Path modelFile, LocalDateTime time) {
+        version = "Generated " + time.truncatedTo(ChronoUnit.MINUTES).toString().replace('T', ' ') + " from "
+                + modelName + GitHead.describe(modelFile);
+        return this;
     }
 
     /** References to assets that found no file, see {@link Assets#problems()}. */
@@ -212,6 +228,8 @@ public final class Exporter {
                     + "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>"
                     + Xml.escape(page.title) + "</title><link rel=\"stylesheet\" href=\"style.css\"/></head><body>"
                     + nav + "<h1>" + title(page, dialect) + "</h1>" + PageBody.render(doc, page, dialect, rules, used)
+                    + (page == doc.pages.get(0) && version != null
+                            ? "<footer class=\"version\">" + Xml.escape(version) + "</footer>" : "")
                     + "</body></html>\n");
             if (page.image != null) {
                 Files.write(folder.resolve("images").resolve(page.slug() + ".png"), page.image);
@@ -301,8 +319,22 @@ public final class Exporter {
                     .append(PageBody.render(doc, page, dialect, rules, used));
         }
         return "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>" + Xml.escape(doc.title)
-                + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css")
+                + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css") + firstPage()
                 + "</style></head><body>" + body + "</body></html>";
+    }
+
+    /** The version line as the last line of the first page: a page margin box, which sits below the content. */
+    private String firstPage() {
+        if (version == null) {
+            return "";
+        }
+        StringBuilder text = new StringBuilder();
+        version.replace('＠', '@') // the PDF font has no full-width @
+                .chars().forEach(c -> text.append(c == '"' || c == '\\' || c == '&' || c == '<' || c < 0x20
+                ? String.format("\\%x ", c)
+                : String.valueOf((char) c)));
+        return "@page :first { @bottom-left { content: \"" + text + "\"; font-family: \"DejaVu Sans\"; font-size: 8px; "
+                + "color: #6b778c; } }";
     }
 
     /** The page title as the h1 of HTML and PDF; in Confluence it is the page's own title, which has no style. */

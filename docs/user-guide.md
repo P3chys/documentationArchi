@@ -233,6 +233,12 @@ and the list of pages.
 
 <p align="center"><img src="images/output-html-overview.png" width="760" alt="Exported overview page"></p>
 
+At the bottom of the overview page (and as the last line of the first page of the PDF) one line says which state of the
+model it shows: *Generated 2026-11-10 14:03 from Online Insurance*. If the model is shared with
+cooperativeArchi (a hidden `.coarchi` folder next to the model file), the line ends with the branch and the short
+commit, *– main ＠ 0123456*. If the branch or commit cannot be read, that part is left out. The Confluence pages do not
+have this line. (The PDF shows a plain @, its font has no full-width one.)
+
 ### View pages
 
 Each view gets a page with, in this order:

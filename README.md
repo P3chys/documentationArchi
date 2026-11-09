@@ -63,7 +63,11 @@ the model (or the work package), and you're asked before files in it are replace
   confluence/pages/, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
 ```
 
-The export runs in the background, so you can keep working.
+The export runs in the background, so you can keep working; the Progress view shows the view being drawn and the
+format being written, and **Cancel** there stops it. A re-export replaces the folders it owns (`html/`, `assets/`,
+`confluence/` and the PDF, each only if that format is exported now), so files of renamed or deleted views do not
+stay behind. The new files are written next to the old ones and swapped in at the end: a cancelled or failed export
+leaves the previous one as it was, and the model tree marks do not change. Nothing else in the folder is touched.
 
 ## What a page contains
 

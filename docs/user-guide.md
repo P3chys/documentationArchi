@@ -189,6 +189,10 @@ finishes, a message says *Exported to &lt;folder&gt;* and offers **Open Folder**
 refers to an asset that doesn't exist, the message lists those references (up to 15) and the pages show them in red
 – see [Assets](#12-assets-pictures-and-files).
 
+The Progress view shows which view's picture is being drawn and which format is being written. **Cancel** there stops
+the export; the previous export in the folder is then exactly as it was, and the change marks in the Models tree
+stay as they were. The same holds if an export fails.
+
 ### The export folder
 
 ```
@@ -212,6 +216,11 @@ online-insurance/
 
 Every export carries its own copies of pictures and files, so you can zip it, mail it or move it without breaking
 links.
+
+An export replaces what it owns: `html/`, `confluence/`, the PDF and `assets/` (the PDF's), each only when that format
+is exported now. Pages of views you renamed or deleted do not stay behind. Files you put elsewhere in the folder are
+never touched, and files you put inside `html/`, `confluence/` or `assets/` are removed, so keep your own files out of
+those folders.
 
 ---
 

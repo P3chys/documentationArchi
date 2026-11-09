@@ -264,7 +264,18 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
   --loadModel model.archimate --documentation.folder out [--documentation.formats html,pdf,confluence]
 ```
 
-This exports the whole model; formats default to all three. Missing assets are logged as errors.
+This exports the whole model; formats default to all three. Missing assets are logged as errors. More options:
+
+| `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
+| `--documentation.views a,b` | only these views: names or ids |
+| `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.strict` | missing assets also fail the run (unknown names always do) |
+
+Views and folders can be combined; work packages are a run of their own. A name that matches nothing (or a view name
+that matches several) is an error that lists what was not found. A run fails the way Archi's command line providers
+fail: it throws, and with Archi's own `--abortOnException` the process exits with a non-zero code. Add that option to
+CI runs. The model's `documentation.rules` file is used automatically; an invalid one fails the run.
 
 ## For developers
 

@@ -610,9 +610,30 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 |--------|---------|
 | `--documentation.folder` | export the whole model's documentation to this folder |
 | `--documentation.formats` | comma separated `html`, `pdf`, `confluence`; default: all three |
+| `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
+| `--documentation.views a,b` | only these views: names or ids |
+| `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 
-The command line exports the whole model and uses the project rules file of the model if there is one, else the formatting settings of the Archi installation it runs in.
-Missing assets are logged as errors.
+Without `--documentation.workPackages`, `--documentation.views` and `--documentation.folders` the command line exports
+the whole model. Views and folders can be combined (`--documentation.views Overview --documentation.folders Views/Sales`);
+work packages cannot be mixed with them, run the export twice instead. Names are matched exactly; a work package by its
+name or by the ticket key its name starts with, a folder by its path from the top folder (the folder names Archi shows,
+`Views` for example). A name that matches nothing, or a view name shared by several views, stops the run with an error
+that lists every name not found.
+
+**Failing a build.** Archi's command line providers signal failure by throwing an error, and Archi ends with a
+non-zero exit code only when you also pass its own `--abortOnException`. For CI use both:
+
+```bash
+Archi -application com.archimatetool.commandline.app -consoleLog -nosplash --abortOnException \
+  --loadModel model.archimate --documentation.folder out --documentation.strict
+```
+
+An invalid rules file (the project file or the one given with `--documentation.rules`) always fails the run and names
+the file and line. The command line exports the whole model by default and uses the project rules file of the model if there is one, else the formatting settings of the Archi installation it runs in.
+Missing assets are logged as errors, and with `--documentation.strict` they fail the run.
 
 ---
 

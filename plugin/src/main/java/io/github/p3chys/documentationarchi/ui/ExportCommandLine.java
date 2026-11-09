@@ -9,6 +9,7 @@ import java.util.Set;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.eclipse.core.runtime.NullProgressMonitor;
 
 import com.archimatetool.commandline.AbstractCommandLineProvider;
 import com.archimatetool.commandline.CommandLineState;
@@ -16,11 +17,19 @@ import com.archimatetool.model.IArchimateModel;
 
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
 
-/** Exports from Archi's command line, for CI and scheduled documentation builds. */
+/**
+ * Exports from Archi's command line, for CI and scheduled documentation builds. Archi's providers signal failure by
+ * throwing from {@link #run}; with Archi's {@code --abortOnException} that ends the run with a non-zero exit.
+ */
 public class ExportCommandLine extends AbstractCommandLineProvider {
 
     private static final String FOLDER = "documentation.folder";
     private static final String FORMATS = "documentation.formats";
+    private static final String WORK_PACKAGES = "documentation.workPackages";
+    private static final String VIEWS = "documentation.views";
+    private static final String FOLDERS = "documentation.folders";
+    private static final String RULES = "documentation.rules";
+    private static final String STRICT = "documentation.strict";
 
     @Override
     public void run(CommandLine line) throws Exception {
@@ -29,15 +38,31 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
         }
         IArchimateModel model = CommandLineState.getModel();
         if (model == null) {
-            logError("No model loaded. Use --loadModel first.");
-            return;
+            throw failure("No model loaded. Use --loadModel first.");
         }
         Path folder = Path.of(line.getOptionValue(FOLDER));
-        for (String problem : ExportHandler.export(ModelReader.Selection.of(List.of(model)), folder,
-                formats(line.getOptionValue(FORMATS)))) {
-            logError(problem);
+        Path rules = line.hasOption(RULES) ? Path.of(line.getOptionValue(RULES)) : null;
+        List<String> problems;
+        try {
+            ModelReader.Selection selection = CommandLineSelection.select(model,
+                    CommandLineSelection.names(line.getOptionValue(WORK_PACKAGES)),
+                    CommandLineSelection.names(line.getOptionValue(VIEWS)),
+                    CommandLineSelection.names(line.getOptionValue(FOLDERS)));
+            problems = ExportHandler.export(selection, folder, formats(line.getOptionValue(FORMATS)), rules,
+                    new NullProgressMonitor());
+        } catch (IllegalArgumentException e) { // unknown names, unusable rules, nothing to export
+            throw failure(e.getMessage());
         }
+        problems.forEach(this::logError);
         logMessage("Exported documentation to " + folder);
+        if (line.hasOption(STRICT) && !problems.isEmpty()) {
+            throw new IllegalStateException(problems.size() + " asset reference(s) have no file, see the errors above");
+        }
+    }
+
+    private IllegalArgumentException failure(String message) {
+        logError(message);
+        return new IllegalArgumentException(message);
     }
 
     private static Set<Format> formats(String list) {
@@ -58,6 +83,17 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                 .desc("Export the model's documentation to this folder").build());
         options.addOption(Option.builder().longOpt(FORMATS).hasArg().argName("list")
                 .desc("Comma separated: html, pdf, confluence (default: all)").build());
+        options.addOption(Option.builder().longOpt(WORK_PACKAGES).hasArg().argName("list")
+                .desc("Export only these work packages: names or ticket keys, comma separated").build());
+        options.addOption(Option.builder().longOpt(VIEWS).hasArg().argName("list")
+                .desc("Export only these views: names or ids, comma separated").build());
+        options.addOption(Option.builder().longOpt(FOLDERS).hasArg().argName("list")
+                .desc("Export only these folders: paths like Views/Sales, comma separated").build());
+        options.addOption(Option.builder().longOpt(RULES).hasArg().argName("file")
+                .desc("Formatting rules to use instead of documentation.rules next to the model").build());
+        options.addOption(Option.builder().longOpt(STRICT)
+                .desc("Fail on missing assets too (unknown names always fail); with --abortOnException: non-zero exit")
+                .build());
         return options;
     }
 

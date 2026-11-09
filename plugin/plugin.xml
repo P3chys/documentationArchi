@@ -14,6 +14,8 @@
             description="The work packages (Jira tickets) of the model, the elements they change, and their export"/>
       <command id="io.github.p3chys.documentationarchi.keywordStyles" name="Documentation Formatting..."
             description="How the documentation export formats headings, tokens, SQL and keywords"/>
+      <command id="io.github.p3chys.documentationarchi.describeHere" name="Describe Here"
+            description="Describe the selected elements on this view's page of the documentation export"/>
    </extension>
 
    <extension point="org.eclipse.ui.handlers">
@@ -23,6 +25,7 @@
       <handler commandId="io.github.p3chys.documentationarchi.linkWorkPackage" class="io.github.p3chys.documentationarchi.ui.WorkPackageHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.workPackages" class="io.github.p3chys.documentationarchi.ui.WorkPackagesHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.keywordStyles" class="io.github.p3chys.documentationarchi.ui.KeywordStylesHandler"/>
+      <handler commandId="io.github.p3chys.documentationarchi.describeHere" class="io.github.p3chys.documentationarchi.ui.DescribeHereHandler"/>
    </extension>
 
    <extension point="org.eclipse.core.expressions.definitions">
@@ -113,6 +116,11 @@
          </command>
          <command commandId="io.github.p3chys.documentationarchi.workPackages">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.describeHere">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.elements"/></visibleWhen>
          </command>
       </menuContribution>
       <menuContribution locationURI="popup:SketchEditorContextMenuProvider?after=group_export">

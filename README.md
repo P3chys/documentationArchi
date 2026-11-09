@@ -75,6 +75,10 @@ grouped by type.
 
 - An element is described once, on the first page that shows it. Later pages link to that description, and links
   work in all three formats.
+- To choose the page yourself, select the elements in a view, right-click and choose **Describe Here**: the export
+  then describes them on that view's page whenever the view is part of the export (otherwise on the first page, as
+  usual). **Describe Here** on elements already described there takes it back, and **Undo** does too. It is kept in
+  the model as a `doc:home` property of the element (the view's id), which the export never shows.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
 - The PDF has bookmarks for every page.

@@ -40,6 +40,7 @@ This guide explains every function of the plugin: where to find it, what it need
 | [Print Order...](#7-print-order) | Right-click a view (tree or view editor) | A view | The order in which the export describes the view's elements, saved in the model |
 | [Link to Work Package...](#8-work-packages-jira-tickets) | Right-click elements | One or more elements | Links between the elements and Jira-ticket work packages |
 | [Work Packages...](#8-work-packages-jira-tickets) | Right-click anything in a model | A model | An overview of all work packages, what they change and what isn't exported yet |
+| [Describe Here](#element-descriptions) | Right-click elements in an ArchiMate view | Elements of the view | The export describes them on this view's page instead of the first that shows them |
 | [Add Asset...](#12-assets-pictures-and-files) | Right-click one object | One element, relationship, view, note or the model; files from disk | The files copied into `Assets`, and a link to them in the description |
 | [Change marks](#9-change-marks-in-the-models-tree) | Models tree (automatic) | Nothing – it watches the model | Dots showing what no export reflects yet |
 | [Documentation Formatting...](#11-documentation-formatting-changing-the-look) | **Tools** menu, **Preferences > Documentation Export** | Your choice of colours, sizes and keywords | How headings, tokens, SQL, labels and panels look in every export |
@@ -136,6 +137,7 @@ selection fits.
 | Print Order... | ✓ | ✓ | – | one view (tree), or objects of the view (editor) |
 | Link to Work Package... | ✓ | ✓ | – | the selection holds elements |
 | Work Packages... | ✓ | ✓ | – | anything in a model is selected |
+| Describe Here | – | ✓ | – | the selection holds elements |
 | Documentation Formatting... | **Tools** menu | | | always |
 
 ---
@@ -252,6 +254,11 @@ relationships to elements outside the view, grouped by type.
 
 - An element is described **once**, on the first page that shows it. Later pages link to that description. Links
   work in all three formats.
+- **Describe Here** chooses that page yourself: select elements in a view, right-click, **Describe Here**. Whenever
+  that view is part of an export, the elements are described on its page; when it isn't, the first page that shows
+  them describes them as usual. **Describe Here** again on elements already described there takes it back;
+  **Edit > Undo** works too. It is kept in the model as a `doc:home` property of the element holding the view's id,
+  which never appears among the element's properties in the export.
 - Elements are described in alphabetical order unless the view has a [print order](#7-print-order).
 - **Groups:** elements that sit in a visual group of the view (Archi's *Group*, not the ArchiMate Grouping) are listed
   under the group's name, in *Contents* and among the descriptions. The groups follow their order on the view, the
@@ -617,6 +624,7 @@ Missing assets are logged as errors.
 |------|-------|---------------------|
 | Print orders | in the model (PrintOrder grouping and links) | yes, with the model |
 | Work packages and their links | in the model (Work Package elements, associations) | yes, with the model |
+| Describe Here | in the model (the element's `doc:home` property) | yes, with the model |
 | Asset files | the `Assets` folder next to the model file | yes, if you share the folder |
 | Formatting and keywords | Archi's preferences on your computer | no – use **Edit as Text...** to copy them |
 | Export folder and formats | Archi's preferences on your computer | no |

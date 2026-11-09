@@ -67,10 +67,15 @@ import io.github.p3chys.documentationarchi.doc.Relation;
  * <p>
  * Junctions are never described or listed: a relationship to one is followed through it, and through junctions
  * after it, to the elements on the other side, and shown as one relationship to all of them, with "and" or "or".
+ * <p>
+ * An element whose {@value #HOME} property names a view of the export that shows it is described on that view's
+ * page instead of the first ("Describe Here", {@link HomeView}). The property itself is never shown.
  */
 final class ModelReader {
 
     static final String PRINT_ORDER = "PrintOrder";
+    /** The property holding the id of the view an element is described on. */
+    static final String HOME = "doc:home";
     private static final Pattern CHUNK = Pattern.compile("\\d+|\\D+");
 
     /** What to export: the model, or some views and elements of it. */
@@ -169,6 +174,8 @@ final class ModelReader {
     private final BiConsumer<IDiagramModel, DocPage> images;
     private final Map<String, List<IDiagramModel>> viewsOf = new HashMap<>();
     private final Set<String> described = new HashSet<>();
+    /** The views that get a page, with the elements they show. */
+    private final Map<String, Set<IArchimateElement>> viewPages = new HashMap<>();
     private final Collection<EObject> exported;
 
     private ModelReader(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported) {
@@ -199,6 +206,7 @@ final class ModelReader {
         }
 
         List<DocPage> pages = new ArrayList<>();
+        selection.views.forEach(view -> viewPages.put(view.getId(), elementsOn(view)));
         selection.views.forEach(view -> pages.add(viewPage(view, null)));
 
         List<IArchimateElement> rest = ordered(selection.elements, null).stream()
@@ -236,11 +244,15 @@ final class ModelReader {
         IArchimateModel model = selection.model;
         Set<IArchimateElement> changed = selection.elements;
         List<DocPage> pages = new ArrayList<>();
+        List<IDiagramModel> showing = new ArrayList<>();
         for (IDiagramModel view : model.getDiagramModels()) {
-            if (elementsOn(view).stream().anyMatch(changed::contains)) {
-                pages.add(viewPage(view, changed));
+            Set<IArchimateElement> on = elementsOn(view);
+            if (on.stream().anyMatch(changed::contains)) {
+                showing.add(view);
+                viewPages.put(view.getId(), on);
             }
         }
+        showing.forEach(view -> pages.add(viewPage(view, changed)));
         List<DocPage> views = new ArrayList<>(pages);
         elementsPage(ordered(changed, null).stream().filter(e -> !described.contains(e.getId()))
                 .collect(Collectors.toList()), "Elements not in any view", pages);
@@ -308,7 +320,8 @@ final class ModelReader {
         List<IArchimateElement> shown = grouped(ordered(elementsOn(view), view), view, page);
         List<IArchimateElement> listed = only == null ? shown
                 : shown.stream().filter(only::contains).collect(Collectors.toList());
-        List<IArchimateElement> fresh = listed.stream().filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
+        List<IArchimateElement> fresh = listed.stream().filter(e -> !described.contains(e.getId()) && describedOn(e, view))
+                .collect(Collectors.toList());
         listed.forEach(e -> page.contents.add(link(e)));
         describe(fresh, shown, page);
         return page;
@@ -332,6 +345,23 @@ final class ModelReader {
         }
         return new ObjectText(o.getName(), parts.stream().filter(p -> p != null && !p.isBlank()).map(String::strip)
                 .collect(Collectors.joining("\n\n")));
+    }
+
+    /** Whether this view's page describes the element: unless its home is another view of the export that shows it. */
+    private boolean describedOn(IArchimateElement element, IDiagramModel view) {
+        String home = home(element);
+        return home == null || home.equals(view.getId())
+                || !viewPages.getOrDefault(home, Set.of()).contains(element);
+    }
+
+    /** The id of the view the element is to be described on, null for the first that shows it. */
+    static String home(IArchimateElement element) {
+        for (IProperty p : element.getProperties()) {
+            if (HOME.equals(p.getKey()) && p.getValue() != null && !p.getValue().isBlank()) {
+                return p.getValue().strip();
+            }
+        }
+        return null;
     }
 
     /** @param onPage all elements of the page; relationships to any other element are listed apart */
@@ -568,7 +598,8 @@ final class ModelReader {
     }
 
     private static List<Property> properties(EList<IProperty> properties) {
-        return properties.stream().map(p -> new Property(p.getKey(), p.getValue())).collect(Collectors.toList());
+        return properties.stream().filter(p -> !HOME.equals(p.getKey()))
+                .map(p -> new Property(p.getKey(), p.getValue())).collect(Collectors.toList());
     }
 
     static String label(INameable object) {

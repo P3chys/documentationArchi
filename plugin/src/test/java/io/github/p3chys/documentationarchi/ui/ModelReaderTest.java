@@ -22,11 +22,13 @@ import com.archimatetool.model.IArchimateRelationship;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelReference;
+import com.archimatetool.model.IJunction;
 import com.archimatetool.model.IProperty;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
+import io.github.p3chys.documentationarchi.doc.Relation;
 
 class ModelReaderTest {
 
@@ -311,5 +313,73 @@ class ModelReaderTest {
     void emptyFolderIsRefused() {
         assertThatThrownBy(() -> read(model.getFolder(FolderType.STRATEGY))).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no views or elements");
+    }
+
+    private IArchimateRelationship connect(IArchimateRelationship r, IArchimateElement source, IArchimateElement target) {
+        r.connect(source, target);
+        model.getFolder(FolderType.RELATIONS).getElements().add(r);
+        return r;
+    }
+
+    private IJunction junction(String type) {
+        IJunction junction = F.createJunction();
+        junction.setType(type);
+        model.getFolder(FolderType.OTHER).getElements().add(junction);
+        return junction;
+    }
+
+    @Test
+    void junctionIsNeverDescribedOrListed() {
+        IJunction junction = junction(IJunction.AND_JUNCTION_TYPE);
+        add(first, junction);
+        connect(F.createTriggeringRelationship(), actor, junction);
+
+        Doc doc = read(model);
+
+        assertThat(doc.pages).flatExtracting(p -> p.entries).extracting(e -> e.type).doesNotContain("Junction");
+        assertThat(doc.pages).flatExtracting(p -> p.contents).extracting(l -> l.label).doesNotContain("Junction");
+        assertThatThrownBy(() -> read(junction)).hasMessageContaining("no views or elements");
+    }
+
+    @Test
+    void relationshipIsFollowedThroughChainedJunctionsWithoutLooping() {
+        IJunction or = junction(IJunction.OR_JUNCTION_TYPE);
+        IJunction and = junction(IJunction.AND_JUNCTION_TYPE);
+        IArchimateElement a = element(F.createBusinessProcess(), "A", FolderType.BUSINESS);
+        IArchimateElement b = element(F.createBusinessProcess(), "B", FolderType.BUSINESS);
+        IArchimateElement c = element(F.createBusinessProcess(), "C", FolderType.BUSINESS);
+        IArchimateRelationship start = connect(F.createTriggeringRelationship(), a, or);
+        start.setName("then");
+        connect(F.createTriggeringRelationship(), or, b);
+        connect(F.createTriggeringRelationship(), or, and);
+        connect(F.createTriggeringRelationship(), and, c);
+        connect(F.createTriggeringRelationship(), and, or); // a loop back
+        IArchimateDiagramModel view = view("Flow");
+        for (IArchimateElement e : List.of(a, b, c, or, and)) {
+            add(view, e);
+        }
+
+        DocPage page = read(view).pages.get(0);
+
+        assertThat(page.contents).extracting(l -> l.label).containsExactly("A", "B", "C");
+        Relation fromA = page.entries.get(0).relations.get(0);
+        assertThat(fromA.outgoing).isTrue();
+        assertThat(fromA.name).isEqualTo("then");
+        assertThat(fromA.junction).isEqualTo("or");
+        assertThat(fromA.others).extracting(l -> l.label).containsExactly("B", "C");
+        assertThat(fromA.outside).isFalse();
+        Relation intoC = page.entries.get(2).relations.get(0);
+        assertThat(intoC.outgoing).isFalse();
+        assertThat(intoC.junction).isEqualTo("and");
+        assertThat(intoC.others).extracting(l -> l.label).containsExactly("A");
+    }
+
+    @Test
+    void junctionLeadingNowhereLeavesTheRelationshipOut() {
+        IJunction junction = junction(IJunction.AND_JUNCTION_TYPE);
+        connect(F.createTriggeringRelationship(), actor, junction);
+
+        assertThat(read(first).pages.get(0).entries.get(0).relations).extracting(r -> r.type)
+                .containsExactly("Serving Relationship");
     }
 }

@@ -78,6 +78,9 @@ grouped by type.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
 - The PDF has bookmarks for every page.
+- Junctions are never described or listed. A relationship to a junction is followed through it (and through
+  junctions after it) to the elements on the other side, and shown as one relationship to all of them: *→ Triggering:
+  Check claim or Reject claim* for an Or junction, *and* for an And junction.
 
 ## Print order
 

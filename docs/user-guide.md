@@ -249,6 +249,9 @@ relationships to elements outside the view, grouped by type.
 - An element is described **once**, on the first page that shows it. Later pages link to that description. Links
   work in all three formats.
 - Elements are described in alphabetical order unless the view has a [print order](#7-print-order).
+- **Junctions** are never described or listed. A relationship that ends in a junction is followed through it – and
+  through further junctions after it – to the elements on the other side, and shown as one relationship to all of
+  them, joined by *and* (And junction) or *or* (Or junction): for example *→ Check claim or Reject claim*.
 
 ### The PDF
 

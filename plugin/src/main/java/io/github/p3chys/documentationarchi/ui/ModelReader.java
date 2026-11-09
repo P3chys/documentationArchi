@@ -31,6 +31,7 @@ import com.archimatetool.model.IDiagramModelComponent;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IFolder;
+import com.archimatetool.model.IJunction;
 import com.archimatetool.model.INameable;
 import com.archimatetool.model.IProperty;
 import com.archimatetool.model.IWorkPackage;
@@ -55,6 +56,9 @@ import io.github.p3chys.documentationarchi.doc.Relation;
  * Work packages ({@link WorkPackages}) are listed with the elements they change, and each element with its work
  * packages, instead of their links among the relationships. Exporting work packages exports only the elements they
  * change: a page for the work package, the views that show those elements, and the elements on no view.
+ * <p>
+ * Junctions are never described or listed: a relationship to one is followed through it, and through junctions
+ * after it, to the elements on the other side, and shown as one relationship to all of them, with "and" or "or".
  */
 final class ModelReader {
 
@@ -138,6 +142,8 @@ final class ModelReader {
                 ((IFolder) o).getFolders().forEach(this::add);
             } else if (o instanceof IDiagramModel) {
                 views.add((IDiagramModel) o);
+            } else if (o instanceof IJunction) {
+                return; // never described on its own
             } else if (o instanceof IArchimateElement) {
                 elements.add((IArchimateElement) o);
             } else if (o instanceof IArchimateRelationship) {
@@ -281,6 +287,9 @@ final class ModelReader {
             } else if (o instanceof IDiagramModelReference) {
                 IDiagramModel target = ((IDiagramModelReference) o).getReferencedModel();
                 page.relatedViews.add(new Link(target.getId(), label(target)));
+            } else if (o instanceof IDiagramModelArchimateObject
+                    && ((IDiagramModelArchimateObject) o).getArchimateElement() instanceof IJunction) {
+                exported.add(((IDiagramModelArchimateObject) o).getArchimateElement()); // shown in the picture
             }
         }
         List<IArchimateElement> shown = ordered(elementsOn(view), view);
@@ -307,12 +316,12 @@ final class ModelReader {
         // links to PrintOrder are left out, those of work packages are listed apart
         for (IArchimateRelationship r : element.getSourceRelationships()) {
             if (!isPrintOrder(r.getTarget()) && WorkPackages.changed(r) == null) {
-                relations.add(relation(r, true, inside));
+                relation(r, true, inside, relations);
             }
         }
         for (IArchimateRelationship r : element.getTargetRelationships()) {
             if (!isPrintOrder(r.getSource()) && WorkPackages.changed(r) == null) {
-                relations.add(relation(r, false, inside));
+                relation(r, false, inside, relations);
             }
         }
         List<Link> views = viewsOf.getOrDefault(element.getId(), List.of()).stream().distinct()
@@ -333,10 +342,44 @@ final class ModelReader {
                 properties(element.getProperties()), relations, views, workPackages, changes);
     }
 
-    private Relation relation(IArchimateRelationship r, boolean outgoing, Set<IArchimateConcept> inside) {
+    /** Adds the relationship as seen from one end; one through a junction that leads to no element is left out. */
+    private void relation(IArchimateRelationship r, boolean outgoing, Set<IArchimateConcept> inside, List<Relation> to) {
+        IArchimateConcept end = outgoing ? r.getTarget() : r.getSource();
+        List<IArchimateConcept> others = new ArrayList<>();
+        String junction = null;
+        if (end instanceof IJunction) {
+            junction = IJunction.OR_JUNCTION_TYPE.equals(((IJunction) end).getType()) ? "or" : "and";
+            beyond((IJunction) end, outgoing, others, new HashSet<>());
+        } else {
+            others.add(end);
+        }
+        if (others.isEmpty()) {
+            return;
+        }
         exported.add(r);
-        IArchimateConcept other = outgoing ? r.getTarget() : r.getSource();
-        return new Relation(outgoing, typeName(r), r.getName(), r.getDocumentation(), link(other), !inside.contains(other));
+        to.add(new Relation(outgoing, typeName(r), r.getName(), r.getDocumentation(),
+                others.stream().map(ModelReader::link).collect(Collectors.toList()), junction,
+                others.stream().noneMatch(inside::contains)));
+    }
+
+    /** The elements a junction leads to, going on in the same direction, through further junctions once each. */
+    private void beyond(IJunction junction, boolean outgoing, List<IArchimateConcept> ends, Set<IJunction> seen) {
+        if (!seen.add(junction)) {
+            return;
+        }
+        exported.add(junction);
+        for (IArchimateRelationship r : outgoing ? junction.getSourceRelationships() : junction.getTargetRelationships()) {
+            IArchimateConcept next = outgoing ? r.getTarget() : r.getSource();
+            if (next instanceof IJunction) {
+                exported.add(r);
+                beyond((IJunction) next, outgoing, ends, seen);
+            } else if (!isPrintOrder(next) && WorkPackages.changed(r) == null) {
+                exported.add(r);
+                if (!ends.contains(next)) {
+                    ends.add(next);
+                }
+            }
+        }
     }
 
     private static Link link(IArchimateConcept concept) {
@@ -364,7 +407,7 @@ final class ModelReader {
         Map<IArchimateElement, String> positions = new HashMap<>();
         List<IArchimateElement> list = new ArrayList<>();
         for (IArchimateElement element : elements) {
-            if (!isPrintOrder(element)) {
+            if (!isPrintOrder(element) && !(element instanceof IJunction)) {
                 list.add(element);
                 positions.put(element, position(element, onView));
             }

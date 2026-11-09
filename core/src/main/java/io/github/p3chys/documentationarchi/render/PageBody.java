@@ -137,7 +137,7 @@ final class PageBody {
             if (!r.name.isEmpty()) {
                 out.append("<br/>").append(Xml.escape(r.name));
             }
-            out.append("</td><td>").append(link(r.other)).append("</td><td>");
+            out.append("</td><td>").append(others(r)).append("</td><td>");
             description(r.documentation);
             out.append("</td></tr>");
         }
@@ -147,7 +147,7 @@ final class PageBody {
     private void relationGroup(String type, List<Relation> relations) {
         out.append("<p><strong>").append(Xml.escape(type)).append("</strong></p><ul>");
         for (Relation r : relations) {
-            out.append("<li>").append(arrow(r)).append(link(r.other));
+            out.append("<li>").append(arrow(r)).append(others(r));
             if (!r.name.isEmpty()) {
                 out.append(" (").append(Xml.escape(r.name)).append(")");
             }
@@ -155,6 +155,15 @@ final class PageBody {
             out.append("</li>");
         }
         out.append("</ul>");
+    }
+
+    /** The element at the other end; through a junction, all of them, joined by its "and" or "or". */
+    private String others(Relation r) {
+        StringBuilder s = new StringBuilder();
+        for (Link l : r.others) {
+            s.append(s.length() == 0 ? "" : " " + Xml.escape(r.junction) + " ").append(link(l));
+        }
+        return s.toString();
     }
 
     private static String arrow(Relation r) {

@@ -100,20 +100,31 @@ final class PageBody {
                 inside.add(r);
             }
         }
-        relationTable(inside);
-        if (!entry.views.isEmpty()) {
-            out.append("<p>Views: ");
-            String separator = "";
-            for (Link view : entry.views) {
-                out.append(separator).append(link(view));
-                separator = ", ";
-            }
-            out.append("</p>");
+        if (!entry.changes.isEmpty()) {
+            out.append(heading(4, "Changed elements")).append("<ul>");
+            entry.changes.forEach(l -> out.append("<li>").append(link(l)).append("</li>"));
+            out.append("</ul>");
         }
+        relationTable(inside);
+        linkLine("Views", entry.views);
+        linkLine("Work packages", entry.workPackages);
         if (!outside.isEmpty()) {
             out.append(heading(4, "Other related elements"));
             outside.forEach(this::relationGroup);
         }
+    }
+
+    private void linkLine(String label, List<Link> links) {
+        if (links.isEmpty()) {
+            return;
+        }
+        out.append("<p>").append(label).append(": ");
+        String separator = "";
+        for (Link l : links) {
+            out.append(separator).append(link(l));
+            separator = ", ";
+        }
+        out.append("</p>");
     }
 
     private void relationTable(List<Relation> relations) {

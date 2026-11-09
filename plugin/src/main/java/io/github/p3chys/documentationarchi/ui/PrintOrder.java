@@ -219,7 +219,7 @@ final class PrintOrder {
     }
 
     /** Deletes the relationship and its connections on views, except those of objects deleted anyway. */
-    private static void delete(CompoundCommand command, IArchimateRelationship r, Set<IDiagramModelObject> goingAway) {
+    static void delete(CompoundCommand command, IArchimateRelationship r, Set<IDiagramModelObject> goingAway) {
         for (IDiagramModelArchimateComponent c : r.getReferencingDiagramComponents()) {
             if (c instanceof IDiagramModelArchimateConnection) {
                 IDiagramModelArchimateConnection connection = (IDiagramModelArchimateConnection) c;
@@ -248,15 +248,19 @@ final class PrintOrder {
         return object;
     }
 
-    /** Adds the relationship from the element to the PrintOrder to the model. */
-    private static final class CreateLink extends Command {
+    /** Adds the relationship from the element to the PrintOrder (or a work package) to the model. */
+    static final class CreateLink extends Command {
         private final IArchimateRelationship relationship;
         private final IArchimateElement element;
         private final IArchimateElement printOrder;
         private IFolder folder;
 
         CreateLink(IArchimateRelationship relationship, IArchimateElement element, IArchimateElement printOrder) {
-            super("Create Print Order Link");
+            this("Create Print Order Link", relationship, element, printOrder);
+        }
+
+        CreateLink(String label, IArchimateRelationship relationship, IArchimateElement element, IArchimateElement printOrder) {
+            super(label);
             this.relationship = relationship;
             this.element = element;
             this.printOrder = printOrder;

@@ -8,6 +8,10 @@
             description="Set the order in which the documentation export describes the elements of the view"/>
       <command id="io.github.p3chys.documentationarchi.addAsset" name="Add Asset..."
             description="Copy files into the model's Assets folder and refer to them in the description"/>
+      <command id="io.github.p3chys.documentationarchi.linkWorkPackage" name="Link to Work Package..."
+            description="Link the selected elements to the work packages (Jira tickets) that change them"/>
+      <command id="io.github.p3chys.documentationarchi.workPackages" name="Work Packages..."
+            description="The work packages (Jira tickets) of the model, the elements they change, and their export"/>
       <command id="io.github.p3chys.documentationarchi.keywordStyles" name="Documentation Formatting..."
             description="How the documentation export formats headings, tokens, SQL and keywords"/>
    </extension>
@@ -16,6 +20,8 @@
       <handler commandId="io.github.p3chys.documentationarchi.export" class="io.github.p3chys.documentationarchi.ui.ExportHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.printOrder" class="io.github.p3chys.documentationarchi.ui.PrintOrderHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.addAsset" class="io.github.p3chys.documentationarchi.ui.AddAssetHandler"/>
+      <handler commandId="io.github.p3chys.documentationarchi.linkWorkPackage" class="io.github.p3chys.documentationarchi.ui.WorkPackageHandler"/>
+      <handler commandId="io.github.p3chys.documentationarchi.workPackages" class="io.github.p3chys.documentationarchi.ui.WorkPackagesHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.keywordStyles" class="io.github.p3chys.documentationarchi.ui.KeywordStylesHandler"/>
    </extension>
 
@@ -43,6 +49,16 @@
                   </or>
                </iterate>
             </and>
+         </with>
+      </definition>
+      <definition id="io.github.p3chys.documentationarchi.elements">
+         <with variable="activeMenuSelection">
+            <iterate ifEmpty="false" operator="or">
+               <or>
+                  <instanceof value="com.archimatetool.model.IArchimateElement"/>
+                  <instanceof value="org.eclipse.gef.EditPart"/>
+               </or>
+            </iterate>
          </with>
       </definition>
       <definition id="io.github.p3chys.documentationarchi.archimateView">
@@ -74,6 +90,14 @@
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.archimateView"/></visibleWhen>
          </command>
       </menuContribution>
+      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
+         <command commandId="io.github.p3chys.documentationarchi.linkWorkPackage">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.elements"/></visibleWhen>
+         </command>
+         <command commandId="io.github.p3chys.documentationarchi.workPackages">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+      </menuContribution>
       <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
          <command commandId="io.github.p3chys.documentationarchi.addAsset">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
@@ -82,6 +106,12 @@
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
          </command>
          <command commandId="io.github.p3chys.documentationarchi.printOrder">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+         <command commandId="io.github.p3chys.documentationarchi.linkWorkPackage">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+         <command commandId="io.github.p3chys.documentationarchi.workPackages">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
          </command>
       </menuContribution>
@@ -101,6 +131,10 @@
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
          </command>
       </menuContribution>
+   </extension>
+
+   <extension point="org.eclipse.ui.startup">
+      <startup class="io.github.p3chys.documentationarchi.ui.ExportMarks"/>
    </extension>
 
    <extension point="org.eclipse.ui.preferencePages">

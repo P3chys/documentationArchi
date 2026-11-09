@@ -52,7 +52,13 @@ Kalkulace počítá podle sazebníku asset:sazebnik.csv.</documentation>
   </folder>
   <folder name="Technology &amp; Physical" id="id-f-tech" type="technology"/>
   <folder name="Motivation" id="id-f-motivation" type="motivation"/>
-  <folder name="Implementation &amp; Migration" id="id-f-impl" type="implementation_migration"/>
+  <folder name="Implementation &amp; Migration" id="id-f-impl" type="implementation_migration">
+    <element xsi:type="archimate:WorkPackage" name="RBWDP-20025" id="id-wp">
+      <documentation>Portál nově posílá smlouvy do jádra hned po sjednání.
+
+TODO: dohodnout formát s týmem jádra.</documentation>
+    </element>
+  </folder>
   <folder name="Other" id="id-f-other" type="other">
     <element xsi:type="archimate:Grouping" name="PrintOrder" id="id-order"/>
   </folder>
@@ -62,6 +68,8 @@ Kalkulace počítá podle sazebníku asset:sazebnik.csv.</documentation>
       <documentation>WARNING: Jediný kanál mimo pracovní dobu.</documentation>
     </element>
     <element xsi:type="archimate:FlowRelationship" name="smlouvy" id="id-r3" source="id-portal" target="id-core"/>
+    <element xsi:type="archimate:AssociationRelationship" id="id-wp1" source="id-portal" target="id-wp"/>
+    <element xsi:type="archimate:AssociationRelationship" id="id-wp2" source="id-core" target="id-wp"/>
     <element xsi:type="archimate:AssociationRelationship" name="1" id="id-o1" source="id-process" target="id-order"/>
     <element xsi:type="archimate:AssociationRelationship" name="2" id="id-o2" source="id-portal" target="id-order"/>
     <element xsi:type="archimate:AssociationRelationship" name="10" id="id-o3" source="id-client" target="id-order"/>

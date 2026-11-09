@@ -14,6 +14,8 @@ public final class DocPage {
     public byte[] image;
     /** Width to show the image at, in CSS pixels. */
     public int imageWidth;
+    /** Height of the image at {@link #imageWidth}, in CSS pixels; 0 when unknown. */
+    public int imageHeight;
     public final List<String> notes = new ArrayList<>();
     /** Views this view refers to with a diagram reference. */
     public final List<Link> relatedViews = new ArrayList<>();

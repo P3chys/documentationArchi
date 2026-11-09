@@ -72,8 +72,10 @@ final class HtmlDialect implements Dialect {
     public String image(DocPage page) {
         String src = singleDocument ? "data:image/png;base64," + Base64.getEncoder().encodeToString(page.image)
                 : "images/" + page.slug() + ".png";
-        return "<img class=\"diagram\" src=\"" + src + "\" style=\"width:" + page.imageWidth + "px\" alt=\""
-                + Xml.escape(page.title) + "\"/>";
+        // the PDF fits it on one page; a web page shows it at its size, readers zoom and scroll
+        int fitted = singleDocument ? Pictures.fit(page.imageWidth, page.imageHeight, Pictures.PDF_WIDTH) : 0;
+        return "<img class=\"diagram\" src=\"" + src + "\" style=\"width:" + (fitted > 0 ? fitted : page.imageWidth)
+                + "px\" alt=\"" + Xml.escape(page.title) + "\"/>";
     }
 
     /**
@@ -84,12 +86,22 @@ final class HtmlDialect implements Dialect {
     @Override
     public String asset(Assets.Asset asset, String label) {
         if (singleDocument && pdfImage(asset)) {
-            return "<img class=\"asset\" src=\"data:" + asset.mimeType() + ";base64," + base64(asset) + "\" alt=\""
-                    + label + "\"/>";
+            int fitted = Pictures.fit(asset.width(), asset.height(), Pictures.PDF_WIDTH);
+            return "<img class=\"asset\" src=\"data:" + asset.mimeType() + ";base64," + base64(asset) + "\"" + width(fitted)
+                    + " alt=\"" + label + "\"/>";
         }
         String href = "assets/" + encode(asset.name);
-        return !singleDocument && asset.image() ? "<img class=\"asset\" src=\"" + href + "\" alt=\"" + label + "\"/>"
-                : "<a class=\"asset\" href=\"" + href + "\">" + label + "</a>";
+        if (singleDocument || !asset.image()) {
+            return "<a class=\"asset\" href=\"" + href + "\">" + label + "</a>";
+        }
+        int fitted = Pictures.fit(asset.width(), asset.height(), Integer.MAX_VALUE);
+        String image = "<img class=\"asset\" src=\"" + href + "\"" + width(fitted) + " alt=\"" + label + "\"/>";
+        // a picture shown smaller opens at its full size
+        return fitted > 0 ? "<a href=\"" + href + "\">" + image + "</a>" : image;
+    }
+
+    private static String width(int fitted) {
+        return fitted > 0 ? " style=\"width:" + fitted + "px\"" : "";
     }
 
     /** Drawn in the PDF; any other asset is a file the PDF links to. */

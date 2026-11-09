@@ -55,6 +55,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     private Button remove;
     private Button up;
     private Button down;
+    private Button marks;
     /** False until the list is changed: saved rules that could not be loaded are not overwritten by an empty list. */
     private boolean changed;
 
@@ -99,6 +100,11 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
                 + "for a line starting with \"keyword:\". Keywords ignore case. Files of the Assets folder next to the "
                 + "model go into the export with [[asset:name]] (pictures are shown, other files attached).");
         GridDataFactory.fillDefaults().span(2, 1).hint(620, SWT.DEFAULT).applyTo(hint);
+
+        marks = new Button(c, SWT.CHECK);
+        marks.setText("&Mark in the model tree what no export shows yet (orange: changed since, blue: never exported)");
+        marks.setSelection(Prefs.marks());
+        GridDataFactory.fillDefaults().span(2, 1).indent(0, 8).applyTo(marks);
 
         try {
             load(KeywordRules.parse(Prefs.keywords()));
@@ -331,6 +337,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     @Override
     protected void performDefaults() {
         load(KeywordRules.parse(Prefs.defaultKeywords()));
+        marks.setSelection(true);
         setErrorMessage(null);
         super.performDefaults();
     }
@@ -339,6 +346,10 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     public boolean performOk() {
         if (changed) {
             Prefs.keywords(all().format());
+        }
+        if (marks.getSelection() != Prefs.marks()) {
+            Prefs.marks(marks.getSelection());
+            ExportMarks.refresh();
         }
         return true;
     }

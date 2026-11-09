@@ -2,6 +2,7 @@ package io.github.p3chys.documentationarchi.ui;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IFolder;
 import com.archimatetool.model.INameable;
 import com.archimatetool.model.IProperty;
+import com.archimatetool.model.IWorkPackage;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
@@ -49,6 +51,10 @@ import io.github.p3chys.documentationarchi.doc.Relation;
  * which follow by name; a PrintOrder shown on the view wins over others. The "Print Order..." menu
  * ({@link PrintOrder}) keeps these elements and relationships for the user. PrintOrder is a modelling aid, so it and
  * its relationships are never part of the export ({@link ViewImages} takes it out of the pictures too).
+ * <p>
+ * Work packages ({@link WorkPackages}) are listed with the elements they change, and each element with its work
+ * packages, instead of their links among the relationships. Exporting work packages exports only the elements they
+ * change: a page for the work package, the views that show those elements, and the elements on no view.
  */
 final class ModelReader {
 
@@ -61,10 +67,35 @@ final class ModelReader {
         final boolean wholeModel;
         final Set<IDiagramModel> views = new LinkedHashSet<>();
         final Set<IArchimateElement> elements = new LinkedHashSet<>();
+        /** Work packages to export; then {@link #elements} are the elements they change, and views are not set. */
+        final Set<IWorkPackage> workPackages = new LinkedHashSet<>();
 
         private Selection(IArchimateModel model, boolean wholeModel) {
             this.model = model;
             this.wholeModel = wholeModel;
+        }
+
+        /** Work packages: their names; anything else: the model's. Names the export folder and the document. */
+        String title() {
+            if (workPackages.isEmpty()) {
+                return label(model);
+            }
+            List<String> names = workPackages.stream().map(ModelReader::label).collect(Collectors.toList());
+            return names.size() <= 3 ? String.join(", ", names)
+                    : String.join(", ", names.subList(0, 3)) + " and " + (names.size() - 3) + " more";
+        }
+
+        /** A selection of work packages only: they are exported with the elements they change. */
+        static Selection ofWorkPackages(IArchimateModel model, Collection<IWorkPackage> workPackages) {
+            Selection selection = new Selection(model, false);
+            selection.workPackages.addAll(workPackages);
+            workPackages.forEach(wp -> selection.elements.addAll(WorkPackages.elements(wp)));
+            if (selection.elements.isEmpty()) {
+                throw new IllegalArgumentException((workPackages.size() == 1 ? "The work package " + selection.title()
+                        + " changes" : "The work packages change") + " no elements yet. Link elements to it with "
+                        + "\"Link to Work Package...\".");
+            }
+            return selection;
         }
 
         /** @throws IllegalArgumentException if nothing can be exported, or the objects are from several models */
@@ -78,6 +109,12 @@ final class ModelReader {
                 throw new IllegalArgumentException("Select a model, views or elements to export.");
             }
             IArchimateModel model = models.iterator().next();
+            List<Object> concepts = objects.stream().map(o -> o instanceof IDiagramModelArchimateComponent
+                    ? ((IDiagramModelArchimateComponent) o).getArchimateConcept() : o).collect(Collectors.toList());
+            if (concepts.stream().allMatch(IWorkPackage.class::isInstance)) {
+                return ofWorkPackages(model, concepts.stream().map(IWorkPackage.class::cast)
+                        .collect(Collectors.toCollection(LinkedHashSet::new)));
+            }
             Selection selection = new Selection(model, objects.contains(model));
             if (selection.wholeModel) {
                 selection.views.addAll(model.getDiagramModels());
@@ -118,15 +155,25 @@ final class ModelReader {
     private final BiConsumer<IDiagramModel, DocPage> images;
     private final Map<String, List<IDiagramModel>> viewsOf = new HashMap<>();
     private final Set<String> described = new HashSet<>();
+    private final Collection<EObject> exported;
 
-    private ModelReader(Selection selection, BiConsumer<IDiagramModel, DocPage> images) {
+    private ModelReader(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported) {
         this.selection = selection;
         this.images = images;
+        this.exported = exported;
     }
 
     /** @param images fills in the picture of a view's page */
     static Doc read(Selection selection, BiConsumer<IDiagramModel, DocPage> images) {
-        return new ModelReader(selection, images).read();
+        return read(selection, images, new ArrayList<>());
+    }
+
+    /**
+     * @param exported gets the model, views, elements and relationships the document shows, for {@link ExportState}
+     */
+    static Doc read(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported) {
+        ModelReader reader = new ModelReader(selection, images, exported);
+        return selection.workPackages.isEmpty() ? reader.read() : reader.readWorkPackages();
     }
 
     private Doc read() {
@@ -138,14 +185,20 @@ final class ModelReader {
         }
 
         List<DocPage> pages = new ArrayList<>();
-        selection.views.forEach(view -> pages.add(viewPage(view)));
+        selection.views.forEach(view -> pages.add(viewPage(view, null)));
 
         List<IArchimateElement> rest = ordered(selection.elements, null).stream()
                 .filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
-        if (!rest.isEmpty()) {
-            DocPage page = new DocPage("elements", selection.wholeModel ? "Elements not in any view" : "Selected elements");
-            rest.forEach(e -> page.contents.add(link(e)));
-            describe(rest, rest, page);
+        // of the whole model, the work packages get a page of their own: the overview of the Jira tickets
+        List<IArchimateElement> workPackages = selection.wholeModel
+                ? rest.stream().filter(IWorkPackage.class::isInstance).collect(Collectors.toList()) : List.of();
+        rest.removeAll(workPackages);
+        elementsPage(rest, selection.wholeModel ? "Elements not in any view" : "Selected elements", pages);
+        if (!workPackages.isEmpty()) {
+            workPackages.sort(Comparator.comparing(ModelReader::label, ModelReader::compareNatural));
+            DocPage page = new DocPage("work-packages", "Work packages");
+            workPackages.forEach(e -> page.contents.add(link(e)));
+            describe(workPackages, workPackages, page);
             pages.add(page);
         }
 
@@ -155,13 +208,68 @@ final class ModelReader {
             overview.properties = properties(model.getProperties());
             pages.forEach(p -> overview.contents.add(new Link(p.id, p.title)));
             pages.add(0, overview);
+            exported.add(model);
         }
-        // the Assets folder next to the model file; a model never saved has none
-        return new Doc(label(model), pages,
+        return doc(label(model), pages);
+    }
+
+    /**
+     * Only the elements the work packages change, on the first page that shows them. The work package's page comes
+     * first, with its description (the specification) and the elements it changes; of several work packages, each
+     * is described there.
+     */
+    private Doc readWorkPackages() {
+        IArchimateModel model = selection.model;
+        Set<IArchimateElement> changed = selection.elements;
+        List<DocPage> pages = new ArrayList<>();
+        for (IDiagramModel view : model.getDiagramModels()) {
+            if (elementsOn(view).stream().anyMatch(changed::contains)) {
+                pages.add(viewPage(view, changed));
+            }
+        }
+        List<DocPage> views = new ArrayList<>(pages);
+        elementsPage(ordered(changed, null).stream().filter(e -> !described.contains(e.getId()))
+                .collect(Collectors.toList()), "Elements not in any view", pages);
+
+        List<IWorkPackage> workPackages = new ArrayList<>(selection.workPackages);
+        DocPage first;
+        if (workPackages.size() == 1) {
+            IWorkPackage wp = workPackages.get(0);
+            first = new DocPage(wp.getId(), label(wp));
+            first.documentation = wp.getDocumentation();
+            first.properties = properties(wp.getProperties());
+            ordered(changed, null).forEach(e -> first.contents.add(link(e)));
+            WorkPackages.links(wp).values().forEach(exported::addAll);
+            exported.add(wp);
+        } else {
+            first = new DocPage("work-packages", selection.title());
+            workPackages.forEach(wp -> first.contents.add(link(wp)));
+            describe(new ArrayList<>(workPackages), List.of(), first);
+        }
+        views.forEach(p -> first.relatedViews.add(new Link(p.id, p.title)));
+        pages.add(0, first);
+        return doc(selection.title(), pages);
+    }
+
+    /** The Assets folder next to the model file; a model never saved has none. */
+    private Doc doc(String title, List<DocPage> pages) {
+        IArchimateModel model = selection.model;
+        return new Doc(title, pages,
                 Assets.in(model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().getParent()));
     }
 
-    private DocPage viewPage(IDiagramModel view) {
+    private void elementsPage(List<IArchimateElement> elements, String title, List<DocPage> pages) {
+        if (!elements.isEmpty()) {
+            DocPage page = new DocPage("elements", title);
+            elements.forEach(e -> page.contents.add(link(e)));
+            describe(elements, elements, page);
+            pages.add(page);
+        }
+    }
+
+    /** @param only the elements to list and describe, null for all of the view */
+    private DocPage viewPage(IDiagramModel view, Set<IArchimateElement> only) {
+        exported.add(view);
         DocPage page = new DocPage(view.getId(), label(view));
         page.documentation = view.getDocumentation();
         page.properties = properties(view.getProperties());
@@ -176,8 +284,10 @@ final class ModelReader {
             }
         }
         List<IArchimateElement> shown = ordered(elementsOn(view), view);
-        List<IArchimateElement> fresh = shown.stream().filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
-        shown.forEach(e -> page.contents.add(link(e)));
+        List<IArchimateElement> listed = only == null ? shown
+                : shown.stream().filter(only::contains).collect(Collectors.toList());
+        List<IArchimateElement> fresh = listed.stream().filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
+        listed.forEach(e -> page.contents.add(link(e)));
         describe(fresh, shown, page);
         return page;
     }
@@ -192,18 +302,39 @@ final class ModelReader {
     }
 
     private Entry entry(IArchimateElement element, Set<IArchimateConcept> inside) {
+        exported.add(element);
         List<Relation> relations = new ArrayList<>();
-        element.getSourceRelationships().stream().filter(r -> !isPrintOrder(r.getTarget()))
-                .forEach(r -> relations.add(relation(r, true, inside)));
-        element.getTargetRelationships().stream().filter(r -> !isPrintOrder(r.getSource()))
-                .forEach(r -> relations.add(relation(r, false, inside)));
+        // links to PrintOrder are left out, those of work packages are listed apart
+        for (IArchimateRelationship r : element.getSourceRelationships()) {
+            if (!isPrintOrder(r.getTarget()) && WorkPackages.changed(r) == null) {
+                relations.add(relation(r, true, inside));
+            }
+        }
+        for (IArchimateRelationship r : element.getTargetRelationships()) {
+            if (!isPrintOrder(r.getSource()) && WorkPackages.changed(r) == null) {
+                relations.add(relation(r, false, inside));
+            }
+        }
         List<Link> views = viewsOf.getOrDefault(element.getId(), List.of()).stream().distinct()
                 .map(v -> new Link(v.getId(), label(v))).collect(Collectors.toList());
+        List<Link> workPackages = new ArrayList<>();
+        List<Link> changes = new ArrayList<>();
+        if (element instanceof IWorkPackage) {
+            Map<IArchimateElement, List<IArchimateRelationship>> links = WorkPackages.links((IWorkPackage) element);
+            links.values().forEach(exported::addAll);
+            ordered(links.keySet(), null).forEach(e -> changes.add(link(e)));
+        } else {
+            for (IWorkPackage wp : WorkPackages.of(element)) {
+                workPackages.add(new Link(wp.getId(), label(wp)));
+                exported.addAll(WorkPackages.links(wp).getOrDefault(element, List.of()));
+            }
+        }
         return new Entry(element.getId(), label(element), typeName(element), element.getDocumentation(),
-                properties(element.getProperties()), relations, views);
+                properties(element.getProperties()), relations, views, workPackages, changes);
     }
 
-    private static Relation relation(IArchimateRelationship r, boolean outgoing, Set<IArchimateConcept> inside) {
+    private Relation relation(IArchimateRelationship r, boolean outgoing, Set<IArchimateConcept> inside) {
+        exported.add(r);
         IArchimateConcept other = outgoing ? r.getTarget() : r.getSource();
         return new Relation(outgoing, typeName(r), r.getName(), r.getDocumentation(), link(other), !inside.contains(other));
     }
@@ -285,7 +416,7 @@ final class ModelReader {
         return properties.stream().map(p -> new Property(p.getKey(), p.getValue())).collect(Collectors.toList());
     }
 
-    private static String label(INameable object) {
+    static String label(INameable object) {
         String name = object.getName();
         return name == null || name.isBlank() ? typeName(object) : name;
     }

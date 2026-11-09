@@ -323,6 +323,53 @@ class ExporterTest {
     }
 
     @Test
+    void workPackagesListTheirElementsAndElementsTheirWorkPackages() throws Exception {
+        DocPage page = new DocPage("v", "View");
+        page.entries.add(new Entry("wp", "RBWDP-20025", "Work Package", "", List.of(), List.of(), List.of(),
+                List.of(), List.of(new Link("e", "Portal", "Application Component"))));
+        page.entries.add(new Entry("e", "Portal", "Application Component", "", List.of(), List.of(),
+                List.of(new Link("v", "View")), List.of(new Link("wp", "RBWDP-20025")), List.of()));
+        doc = new Doc("Model", List.of(page));
+
+        export(Format.HTML);
+
+        assertThat(Files.readString(folder.resolve("html/index.html")))
+                .contains("<h4>Changed elements</h4><ul><li>" + TYPE_ACTOR.replace("Business Actor", "Application Component")
+                        + "<a href=\"#e-e\">Portal</a></li></ul>")
+                .contains("<p>Views: <a href=\"#\">View</a></p><p>Work packages: <a href=\"#e-wp\">RBWDP-20025</a></p>");
+    }
+
+    @Test
+    void tallPicturesAreShownSmallerSoTheyFitOnePdfPage(@TempDir Path model) throws Exception {
+        Path assets = Files.createDirectories(model.resolve("Assets"));
+        Files.write(assets.resolve("tall.png"), png(300, 3000));
+        Files.write(assets.resolve("wide.png"), png(2000, 500));
+        Files.write(assets.resolve("small.png"), png(400, 100));
+        DocPage page = new DocPage("v", "View");
+        page.image = png(600, 6000);
+        page.imageWidth = 300;
+        page.imageHeight = 3000;
+        page.documentation = "asset:tall.png\n\nasset:wide.png\n\nasset:small.png";
+        doc = new Doc("Model", List.of(page), Assets.in(model));
+
+        new Exporter(doc, KeywordRules.defaults()).export(folder, EnumSet.allOf(Format.class));
+
+        // as high as the page allows, keeping the proportions; a picture that fits stays as it is
+        String html = Files.readString(folder.resolve("html/index.html"));
+        assertThat(html).contains("<a href=\"assets/tall.png\"><img class=\"asset\" src=\"assets/tall.png\" style=\"width:86px\"")
+                .contains("<img class=\"asset\" src=\"assets/wide.png\" alt=\"wide.png\"/>")
+                .contains("<img class=\"asset\" src=\"assets/small.png\" alt=\"small.png\"/>")
+                .contains("style=\"width:300px\""); // the view's picture: a web page shows it at its size
+        String storage = Files.readString(folder.resolve("confluence/pages/index.xml"));
+        assertThat(storage).contains("<ac:image ac:alt=\"tall.png\" ac:width=\"86\">")
+                .contains("<ac:image ac:alt=\"wide.png\" ac:width=\"1200\">")
+                .contains("<ac:image ac:alt=\"small.png\"><ri:attachment");
+        try (PDDocument pdf = Loader.loadPDF(folder.resolve("model.pdf").toFile())) {
+            assertThat(pdf.getNumberOfPages()).isEqualTo(3); // the view's picture, then the three assets
+        }
+    }
+
+    @Test
     void assetsWithoutAnAssetsFolderAreReportedAndShownAsMissing(@TempDir Path model) throws Exception {
         DocPage page = new DocPage("v", "View");
         page.documentation = "[[asset:flow.png]]";

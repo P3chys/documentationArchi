@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -15,6 +16,7 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.gef.EditPart;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.ISelection;
@@ -43,20 +45,26 @@ public class ExportHandler extends AbstractHandler {
             MessageDialog.openInformation(shell, "Export Documentation", e.getMessage());
             return null;
         }
-        ExportDialog dialog = new ExportDialog(shell, describe(selection));
-        if (dialog.open() != ExportDialog.OK) {
-            return null;
-        }
-        Path folder = Path.of(dialog.folder()).resolve(Doc.slug(selection.model.getName()));
-        if (notEmpty(folder) && !MessageDialog.openQuestion(shell, "Export Documentation",
-                folder + " already exists. Replace the files in it?")) {
-            return null;
-        }
-        start(Display.getCurrent(), selection, folder, dialog.formats());
+        run(shell, selection);
         return null;
     }
 
-    private static List<Object> selected(ExecutionEvent event) {
+    /** Asks where to and in which formats, then exports in the background. */
+    static void run(Shell shell, ModelReader.Selection selection) {
+        ExportDialog dialog = new ExportDialog(shell, describe(selection));
+        if (dialog.open() != ExportDialog.OK) {
+            return;
+        }
+        Path folder = Path.of(dialog.folder()).resolve(Doc.slug(selection.title()));
+        if (notEmpty(folder) && !MessageDialog.openQuestion(shell, "Export Documentation",
+                folder + " already exists. Replace the files in it?")) {
+            return;
+        }
+        start(Display.getCurrent(), selection, folder, dialog.formats());
+    }
+
+    /** The selected objects of the model tree or a view (the model objects of what a view shows). */
+    static List<Object> selected(ExecutionEvent event) {
         ISelection selection = HandlerUtil.getActiveMenuSelection(event);
         if (selection == null) {
             selection = HandlerUtil.getCurrentSelection(event);
@@ -71,6 +79,10 @@ public class ExportHandler extends AbstractHandler {
     }
 
     private static String describe(ModelReader.Selection selection) {
+        if (!selection.workPackages.isEmpty()) {
+            return (selection.workPackages.size() == 1 ? "Work package " : "Work packages ") + selection.title() + ": "
+                    + selection.elements.size() + " element(s) of \"" + selection.model.getName() + "\"";
+        }
         if (selection.wholeModel) {
             return "Whole model \"" + selection.model.getName() + "\"";
         }
@@ -109,13 +121,26 @@ public class ExportHandler extends AbstractHandler {
         job.schedule();
     }
 
-    /** @return references to assets that found no file */
+    /**
+     * Exports, and notes what the export showed, so the model tree marks what changes after it.
+     *
+     * @return references to assets that found no file
+     */
     static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats) throws IOException {
         // the PDF library uses AWT classes, which must not start a GUI next to SWT (it would hang on macOS)
         System.setProperty("java.awt.headless", "true");
-        Doc doc = ModelReader.read(selection, ViewImages::render);
+        List<EObject> shown = new ArrayList<>();
+        Doc doc = ModelReader.read(selection, ViewImages::render, shown);
+        Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile
+        long time = System.currentTimeMillis();
         Exporter exporter = new Exporter(doc, Prefs.rules());
         exporter.export(folder, formats);
+        try {
+            ExportState.get().record(selection.model, fingerprints, time);
+            ExportMarks.refresh();
+        } catch (IOException | RuntimeException e) {
+            Activator.log("The export worked, but what it showed could not be noted for the model tree marks", e);
+        }
         return exporter.problems();
     }
 

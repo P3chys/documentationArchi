@@ -7,3 +7,4 @@ tr { page-break-inside: avoid; }
 pre.sql { font-family: "DejaVu Sans Mono"; font-size: 9px; }
 h4 { font-size: 11px; }
 .panel, pre.sql { page-break-inside: avoid; }
+pre.code { font-family: "DejaVu Sans Mono"; font-size: 9px; }

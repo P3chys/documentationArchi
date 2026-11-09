@@ -343,11 +343,20 @@ final class ModelReader {
         labels.forEach(l -> found.computeIfAbsent(l, k -> new ArrayList<>()).add(link));
     }
 
-    /** The Assets folder next to the model file; a model never saved has none. */
+    /**
+     * The Assets folder next to the model file; a model never saved has none. References ([[ref:id]]) to elements
+     * and views of the model the export leaves out show their names.
+     */
     private Doc doc(String title, List<DocPage> pages) {
         IArchimateModel model = selection.model;
-        return new Doc(title, pages,
+        Doc doc = new Doc(title, pages,
                 Assets.in(model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().getParent()));
+        model.eAllContents().forEachRemaining(o -> {
+            if (o instanceof IDiagramModel || o instanceof IArchimateElement && !(o instanceof IJunction)) {
+                doc.names.putIfAbsent(((IArchimateModelObject) o).getId(), label((INameable) o));
+            }
+        });
+        return doc;
     }
 
     private void elementsPage(List<IArchimateElement> elements, String title, List<DocPage> pages) {

@@ -26,6 +26,11 @@ public final class Doc {
     public final List<DocPage> pages;
     /** Files that descriptions refer to with [[asset:name]]. */
     public final Assets assets;
+    /**
+     * The current names of views and elements by id, for references to them ([[ref:id]]): those of the export, and
+     * whatever else the reader adds, so a reference to something not exported still shows its name.
+     */
+    public final Map<String, String> names = new HashMap<>();
     private final Map<String, Location> locations = new HashMap<>();
 
     public Doc(String title, List<DocPage> pages) {
@@ -45,8 +50,10 @@ public final class Doc {
             slugs.add(page.slug);
             assets.reserve(page.slug + ".png"); // the picture of the view, next to the assets in the export
             locations.put(page.id, new Location(page, null));
+            names.put(page.id, page.title);
             for (Entry entry : page.entries) {
                 locations.put(entry.id, new Location(page, entry.anchor()));
+                names.put(entry.id, entry.name);
             }
         }
     }

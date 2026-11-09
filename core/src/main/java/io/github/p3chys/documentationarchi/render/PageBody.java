@@ -243,11 +243,43 @@ final class PageBody {
     }
 
     private void description(String text) {
-        for (RichText.Block block : RichText.parse(text, rules)) {
-            String body = "<p>" + inlines(block.inlines) + "</p>";
-            out.append(block.sql != null ? dialect.sql(block.sql, rules.sql())
-                    : block.style == null ? body : dialect.panel(block.style, block.title, body));
+        RichText.parse(text, rules).forEach(block -> out.append(block(block)));
+    }
+
+    private String block(RichText.Block block) {
+        if (block.sql != null) {
+            return dialect.sql(block.sql, rules.sql());
         }
+        if (block.code != null) {
+            return dialect.code(block.code, block.language);
+        }
+        StringBuilder s = new StringBuilder();
+        if (block.items != null) {
+            String list = block.numbered ? "ol" : "ul";
+            s.append("<").append(list).append(">");
+            block.items.forEach(item -> s.append("<li>").append(inlines(item)).append("</li>"));
+            return s.append("</").append(list).append(">").toString();
+        }
+        if (block.rows != null) {
+            int columns = block.rows.get(0).size();
+            s.append("<table><tbody>");
+            for (List<List<RichText.Inline>> row : block.rows) {
+                String cell = row == block.rows.get(0) ? "th" : "td";
+                s.append("<tr>");
+                for (int i = 0; i < Math.max(columns, row.size()); i++) {
+                    s.append("<").append(cell).append(">").append(i < row.size() ? inlines(row.get(i)) : "")
+                            .append("</").append(cell).append(">");
+                }
+                s.append("</tr>");
+            }
+            return s.append("</tbody></table>").toString();
+        }
+        if (block.children.isEmpty()) {
+            s.append("<p>").append(inlines(block.inlines)).append("</p>");
+        } else {
+            block.children.forEach(b -> s.append(block(b)));
+        }
+        return block.style == null ? s.toString() : dialect.panel(block.style, block.title, s.toString());
     }
 
     private String inlines(List<RichText.Inline> inlines) {
@@ -261,6 +293,12 @@ final class PageBody {
                     s.append("<a href=\"").append(url).append("\">").append(url).append("</a>");
                     break;
                 case ASSET: s.append(asset(i)); break;
+                case BOLD: s.append("<strong>").append(inlines(i.children)).append("</strong>"); break;
+                case ITALIC: s.append("<em>").append(inlines(i.children)).append("</em>"); break;
+                case LINK:
+                    s.append("<a href=\"").append(Xml.escape(i.text)).append("\">").append(Xml.escape(i.label)).append("</a>");
+                    break;
+                case REF: s.append(reference(i)); break;
                 case STYLED:
                 case TABLE:
                 case CONSTANT:
@@ -272,6 +310,19 @@ final class PageBody {
             }
         }
         return s.toString();
+    }
+
+    /**
+     * A link to an element or view, by its current name; its plain name when the export doesn't describe it. One the
+     * model doesn't have stays visible in red, like a missing asset.
+     */
+    private String reference(RichText.Inline reference) {
+        String name = reference.label != null ? reference.label : doc.names.get(reference.text);
+        if (name == null) {
+            return "<span style=\"color: rgb(191,38,0);\">[missing reference: " + Xml.escape(reference.text) + "]</span>";
+        }
+        Doc.Location to = doc.locate(reference.text);
+        return to == null ? Xml.escape(name) : dialect.link(to, page, Xml.escape(name));
     }
 
     /** A reference to a file that isn't there stays visible in red, so whoever reads the page notices. */

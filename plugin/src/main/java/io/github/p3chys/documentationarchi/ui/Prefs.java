@@ -15,6 +15,7 @@ final class Prefs {
     private static final String KEYWORDS = "keywords";
     private static final String FOLDER = "folder";
     private static final String FORMAT = "format.";
+    private static final String MARKS = "marks";
 
     private Prefs() {
     }
@@ -23,6 +24,7 @@ final class Prefs {
         IPreferenceStore store = Activator.get().getPreferenceStore();
         store.setDefault(KEYWORDS, KeywordRules.DEFAULTS);
         store.setDefault(FOLDER, System.getProperty("user.home"));
+        store.setDefault(MARKS, true);
         for (Format format : Format.values()) {
             store.setDefault(FORMAT + format.name().toLowerCase(Locale.ROOT), true);
         }
@@ -51,6 +53,15 @@ final class Prefs {
 
     static void folder(String folder) {
         store().setValue(FOLDER, folder);
+    }
+
+    /** Whether the model tree marks what no export shows yet ({@link ExportMarks}). */
+    static boolean marks() {
+        return store().getBoolean(MARKS);
+    }
+
+    static void marks(boolean show) {
+        store().setValue(MARKS, show);
     }
 
     static Set<Format> formats() {

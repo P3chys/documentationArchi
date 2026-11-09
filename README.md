@@ -10,6 +10,8 @@ Requires Archi 4.9 or later. One plugin file works with every Archi version, on 
 - [Export documentation](#export-documentation)
 - [What a page contains](#what-a-page-contains)
 - [Print order](#print-order)
+- [Work packages (Jira tickets)](#work-packages-jira-tickets)
+- [What changed since the last export](#what-changed-since-the-last-export)
 - [Formatting descriptions](#formatting-descriptions)
 - [Changing how things look](#changing-how-things-look)
 - [Assets: pictures and files](#assets-pictures-and-files)
@@ -40,7 +42,8 @@ What you right-clicked decides what is exported:
 
 | Selected | Exported |
 |----------|----------|
-| the model | every view, plus an overview page and a page for elements that are in no view |
+| the model | every view, plus an overview page, a page for elements that are in no view and one for the work packages |
+| work packages | only the elements they change, see [Work packages](#work-packages-jira-tickets) |
 | a folder | everything in it |
 | views | those views |
 | elements | their own page ("Selected elements") |
@@ -48,7 +51,7 @@ What you right-clicked decides what is exported:
 | objects in a view | their elements; a note or group means its view |
 
 The dialog asks for a folder and the formats (HTML, PDF, Confluence). The export goes into a subfolder named after
-the model, and you're asked before files in it are replaced. When it finishes, **Open Folder** shows the result:
+the model (or the work package), and you're asked before files in it are replaced. When it finishes, **Open Folder** shows the result:
 
 ```
 <model>/
@@ -83,6 +86,53 @@ The order is kept in the model, the way modellers often do it by hand: a Groupin
 with associations named `001`, `002`, `003`... from each element to it. You can also draw these yourself. Elements
 linked to a PrintOrder come first, by the number in the relationship's name, and the others follow alphabetically.
 The PrintOrder element and its links never appear in the export or its pictures. **Undo** takes a change back.
+
+## Work packages (Jira tickets)
+
+A work package is an ArchiMate **Work Package** element named after its Jira ticket, such as `RBWDP-20025`. Linking
+an element to it says that the element changes within that ticket, and exporting the work package gives the
+developers a specification of just those elements.
+
+**Link elements:** select one or more elements (in the Models tree or in a view), right-click, **Link to Work
+Package...**. Tick the work packages that change them, untick to take them off, or type a new ticket key under
+**New work package** (it is created in *Implementation & Migration*). A grey tick means only some of the selected
+elements are linked; it stays as it is unless you click it. **Undo** takes the change back.
+
+The links are plain associations between the element and the work package, either way round, so you can also draw
+them yourself. An element can be in several work packages, and the model can have as many as you need.
+
+**Export a work package:** right-click it and choose **Export Documentation...** (several selected work packages go
+into one export). The export holds:
+- a first page named after the ticket, with the work package's description and properties (the specification) and
+  the list of the elements it changes,
+- the views that show any of these elements, each with its full picture but describing only those elements,
+- the elements that are on no view.
+
+**Overview:** right-click anything in a model and choose **Work Packages...**. It lists every work package with the
+number of elements it changes and how many of them no export shows as they are now (see below). Select one or more
+to see their elements, then **Export...** them or **Show in Model Tree**.
+
+In every export, an element's description ends with the work packages that change it (*Work packages: RBWDP-20025*)
+instead of listing the links among its relationships. A whole-model export has a *Work packages* page describing each
+ticket with the elements it changes.
+
+## What changed since the last export
+
+The Models tree shows what no documentation export reflects yet, with a small mark after the name:
+
+| Mark | Means |
+|------|-------|
+| orange dot | the element, relationship or view changed since the last export that showed it |
+| blue dot | no export showed it yet (a new element, or one never exported) |
+| orange / blue ring | a folder (or the model) holding such objects, so you find them with the tree collapsed |
+
+Hover over a mark to see what it means and when the object was last exported. Any export counts: export a work
+package and its elements are up to date again. A view counts as changed when anything on it moves or changes, or an
+element on it is renamed, since its picture changes. PrintOrder and its links never get a mark.
+
+The plugin remembers what each export showed in Archi's own settings folder (per model, per computer), not in the
+model, so exporting doesn't change the model. To hide the marks, untick **Mark in the model tree what no export shows
+yet** in **Preferences > Documentation Export**.
 
 ## Formatting descriptions
 
@@ -156,6 +206,10 @@ choose **Add Asset...**, and pick one or more files.
 | `[[asset:smlouvy/SLA 2026.pdf\|the SLA]]` | a link "the SLA" that opens the file |
 | `asset:sazebnik.csv` | short form, for names without spaces |
 
+Large pictures are shown smaller, keeping their proportions: in the PDF a picture is never wider or taller than a
+page (the pictures of views too), and on HTML and Confluence pages a very tall picture is shown at most about 860
+pixels high; click it to see it at full size.
+
 A file name alone is enough when only one file in `Assets` has it; otherwise use its path inside `Assets`. Case and
 `/` or `\` don't matter. PNG, JPEG, GIF, BMP and SVG are pictures; anything else is a file to open.
 
@@ -212,8 +266,8 @@ bytecode and travels inside the plugin in `lib/`.
 | Path | Content |
 |------|---------|
 | `core/` | Pure Java engine, no Eclipse: document model and assets (`doc`), keyword formatting (`text`), HTML / PDF / Confluence rendering (`render`) |
-| `plugin/` | Archi/Eclipse plugin: menus, export dialog, print order, add asset, preferences, command line provider |
-| `sample/` | A sample model to try the export on, with its `Assets` folder |
+| `plugin/` | Archi/Eclipse plugin: menus, export dialog, print order, work packages, model tree marks, add asset, preferences, command line provider |
+| `sample/` | A sample model to try the export on, with its `Assets` folder and a work package |
 
 ```bash
 just test        # core and plugin tests (plugin tests run headless on the Archi model jars)

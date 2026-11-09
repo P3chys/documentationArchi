@@ -53,6 +53,7 @@ final class ViewImages {
                 loader.save(png, SWT.IMAGE_PNG);
                 page.image = png.toByteArray();
                 page.imageWidth = data.width / SCALE;
+                page.imageHeight = data.height / SCALE;
             } finally {
                 image.dispose();
             }

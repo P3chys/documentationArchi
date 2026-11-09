@@ -99,8 +99,9 @@ final class StorageDialect implements Dialect {
     public String asset(Assets.Asset asset, String label) {
         String attachment = "<ri:attachment ri:filename=\"" + Xml.escape(asset.name) + "\"/>";
         if (asset.image()) {
-            int width = asset.width();
-            return "<ac:image ac:alt=\"" + label + "\"" + (width > MAX_IMAGE_WIDTH ? " ac:width=\"" + MAX_IMAGE_WIDTH + "\"" : "")
+            // smaller than the page and not too tall; clicking it in Confluence shows it at full size
+            int width = Pictures.fit(asset.width(), asset.height(), MAX_IMAGE_WIDTH);
+            return "<ac:image ac:alt=\"" + label + "\"" + (width > 0 ? " ac:width=\"" + width + "\"" : "")
                     + ">" + attachment + "</ac:image>";
         }
         return "<ac:link>" + attachment + "<ac:link-body>" + label + "</ac:link-body></ac:link>";

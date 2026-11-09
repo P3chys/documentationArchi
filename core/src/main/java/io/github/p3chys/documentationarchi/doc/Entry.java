@@ -12,9 +12,18 @@ public final class Entry {
     public final List<Property> properties;
     public final List<Relation> relations;
     public final List<Link> views;
+    /** The work packages (Jira tickets) that change this element. */
+    public final List<Link> workPackages;
+    /** For a work package: the elements it changes. */
+    public final List<Link> changes;
 
     public Entry(String id, String name, String type, String documentation, List<Property> properties,
             List<Relation> relations, List<Link> views) {
+        this(id, name, type, documentation, properties, relations, views, List.of(), List.of());
+    }
+
+    public Entry(String id, String name, String type, String documentation, List<Property> properties,
+            List<Relation> relations, List<Link> views, List<Link> workPackages, List<Link> changes) {
         this.id = id;
         this.name = name;
         this.type = type;
@@ -22,6 +31,8 @@ public final class Entry {
         this.properties = properties;
         this.relations = relations;
         this.views = views;
+        this.workPackages = workPackages;
+        this.changes = changes;
     }
 
     public String anchor() {

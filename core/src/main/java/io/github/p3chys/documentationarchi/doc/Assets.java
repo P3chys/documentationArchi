@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +17,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 /**
  * The files of the Assets folder next to the model, which descriptions refer to with {@code [[asset:name]]}. The
@@ -37,6 +41,7 @@ public final class Assets {
         /** File name in the export: the file's own, made unique among the export's files ignoring case. */
         public final String name;
         private int width = -1;
+        private int height;
 
         Asset(Path file, String name) {
             this.file = file;
@@ -71,16 +76,40 @@ public final class Assets {
         }
 
         /** Width of a picture in pixels, 0 when it can't be read (SVG, damaged files). */
-        public synchronized int width() {
-            if (width < 0) {
-                try {
-                    var picture = ImageIO.read(file.toFile());
-                    width = picture == null ? 0 : picture.getWidth();
-                } catch (IOException e) {
-                    width = 0;
-                }
-            }
+        public int width() {
+            readSize();
             return width;
+        }
+
+        /** Height of a picture in pixels, 0 when it can't be read. */
+        public int height() {
+            readSize();
+            return height;
+        }
+
+        /** Only the header: a large picture is not decoded just to know its size. */
+        private synchronized void readSize() {
+            if (width >= 0) {
+                return;
+            }
+            width = 0;
+            height = 0;
+            try (ImageInputStream in = ImageIO.createImageInputStream(file.toFile())) {
+                Iterator<ImageReader> readers = in == null ? Collections.emptyIterator() : ImageIO.getImageReaders(in);
+                if (readers.hasNext()) {
+                    ImageReader reader = readers.next();
+                    try {
+                        reader.setInput(in);
+                        width = reader.getWidth(0);
+                        height = reader.getHeight(0);
+                    } finally {
+                        reader.dispose();
+                    }
+                }
+            } catch (IOException | RuntimeException e) {
+                width = 0;
+                height = 0;
+            }
         }
 
         public byte[] bytes() throws IOException {

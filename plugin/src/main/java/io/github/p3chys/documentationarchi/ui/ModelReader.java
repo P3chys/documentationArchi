@@ -19,6 +19,7 @@ import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
+import org.osgi.framework.FrameworkUtil;
 
 import com.archimatetool.model.IArchimateConcept;
 import com.archimatetool.model.IArchimateDiagramModel;
@@ -51,6 +52,8 @@ import io.github.p3chys.documentationarchi.doc.Link;
 import io.github.p3chys.documentationarchi.doc.ObjectText;
 import io.github.p3chys.documentationarchi.doc.Property;
 import io.github.p3chys.documentationarchi.doc.Relation;
+import io.github.p3chys.documentationarchi.text.KeywordRules;
+import io.github.p3chys.documentationarchi.text.RichText;
 
 /**
  * Turns what the user selected into a {@link Doc}: one page per view, plus an overview page when there is more than
@@ -177,11 +180,19 @@ final class ModelReader {
     /** The views that get a page, with the elements they show. */
     private final Map<String, Set<IArchimateElement>> viewPages = new HashMap<>();
     private final Collection<EObject> exported;
+    /** For the Labels page: which labels there are. */
+    private final KeywordRules rules;
 
     private ModelReader(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported) {
         this.selection = selection;
         this.images = images;
         this.exported = exported;
+        this.rules = rules();
+    }
+
+    /** The formatting the export uses; outside Archi (in tests, where there is no plugin) the built-in one. */
+    private static KeywordRules rules() {
+        return FrameworkUtil.getBundle(ModelReader.class) == null ? KeywordRules.defaults() : Prefs.rules();
     }
 
     /** @param images fills in the picture of a view's page */
@@ -222,6 +233,9 @@ final class ModelReader {
             workPackages.forEach(e -> page.contents.add(link(e)));
             describe(workPackages, workPackages, page);
             pages.add(page);
+        }
+        if (selection.wholeModel) {
+            labelsPage(pages);
         }
 
         if (selection.wholeModel || pages.size() > 1) {
@@ -275,6 +289,58 @@ final class ModelReader {
         views.forEach(p -> first.relatedViews.add(new Link(p.id, p.title)));
         pages.add(0, first);
         return doc(selection.title(), pages);
+    }
+
+    /**
+     * The page of the labels (#risk, #todo...): per configured label that occurs, the views, elements and
+     * relationships whose description, notes or property values carry it, each linking to where it is described.
+     */
+    private void labelsPage(List<DocPage> pages) {
+        Map<String, List<Link>> found = new HashMap<>();
+        for (DocPage page : pages) {
+            List<String> texts = new ArrayList<>(page.notes);
+            texts.add(page.documentation);
+            page.texts.forEach(t -> texts.add(t.text));
+            page.properties.forEach(p -> texts.add(p.value));
+            if (viewPages.containsKey(page.id)) {
+                labelled(texts, new Link(page.id, page.title), found);
+            }
+            for (Entry entry : page.entries) {
+                List<String> own = new ArrayList<>(List.of(entry.documentation));
+                entry.properties.forEach(p -> own.add(p.value));
+                labelled(own, new Link(entry.id, entry.name, entry.type), found);
+            }
+        }
+        for (TreeIterator<EObject> i = selection.model.eAllContents(); i.hasNext();) {
+            EObject o = i.next();
+            if (o instanceof IArchimateRelationship) {
+                IArchimateRelationship r = (IArchimateRelationship) o;
+                if (isPrintOrder(r.getSource()) || isPrintOrder(r.getTarget())) {
+                    continue;
+                }
+                List<String> texts = new ArrayList<>(List.of(r.getDocumentation()));
+                r.getProperties().forEach(p -> texts.add(p.getValue()));
+                // described with the element at one end
+                IArchimateConcept at = described.contains(r.getSource().getId()) ? r.getSource() : r.getTarget();
+                String ends = label(r.getSource()) + " → " + label(r.getTarget());
+                labelled(texts, new Link(at.getId(), ends, typeName(r)), found);
+            }
+        }
+        DocPage page = new DocPage("labels", "Labels");
+        for (String label : rules.labels()) {
+            if (found.containsKey(label)) {
+                page.labels.put(label, found.get(label));
+            }
+        }
+        if (!page.labels.isEmpty()) {
+            pages.add(page);
+        }
+    }
+
+    private void labelled(List<String> texts, Link link, Map<String, List<Link>> found) {
+        Set<String> labels = new LinkedHashSet<>();
+        texts.forEach(t -> labels.addAll(RichText.labels(t, rules)));
+        labels.forEach(l -> found.computeIfAbsent(l, k -> new ArrayList<>()).add(link));
     }
 
     /** The Assets folder next to the model file; a model never saved has none. */

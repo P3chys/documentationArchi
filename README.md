@@ -45,7 +45,7 @@ What you right-clicked decides what is exported:
 
 | Selected | Exported |
 |----------|----------|
-| the model | every view, plus an overview page, a page for elements that are in no view and one for the work packages |
+| the model | every view, plus an overview page, a page for elements that are in no view, one for the work packages and one for the labels |
 | work packages | only the elements they change, see [Work packages](#work-packages-jira-tickets) |
 | a folder | everything in it |
 | views | those views |
@@ -174,6 +174,10 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 
 Keywords ignore case. Labels and panels only work for configured keywords (see below), so other `#words` stay as
 they are.
+
+A whole-model export has a **Labels** page: for each configured label in use (`#risk`, `#todo`...), the views,
+elements and relationships whose description, notes or property values carry it, each linking to where it is
+described (a relationship, to the element it is described with).
 
 ## Changing how things look
 

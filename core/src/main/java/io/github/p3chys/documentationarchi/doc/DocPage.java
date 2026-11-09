@@ -2,6 +2,7 @@ package io.github.p3chys.documentationarchi.doc;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,6 +33,8 @@ public final class DocPage {
      * entries list the elements of a group together, and the page puts the group's name above them.
      */
     public final Map<String, String> groups = new HashMap<>();
+    /** On the Labels page: per label, the views, elements and relationships that carry it. */
+    public final Map<String, List<Link>> labels = new LinkedHashMap<>();
 
     /** File name without extension, unique in the export. Set by {@link Doc}. */
     String slug;

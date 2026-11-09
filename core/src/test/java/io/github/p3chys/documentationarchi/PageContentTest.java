@@ -19,6 +19,7 @@ import io.github.p3chys.documentationarchi.doc.Relation;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
+import io.github.p3chys.documentationarchi.text.RichText;
 
 /** What the pages say about junctions, sketches, specializations, groups, nesting and labels. */
 class PageContentTest {
@@ -58,6 +59,32 @@ class PageContentTest {
 
         assertThat(html(page)).contains("<h2>Notes</h2><p><strong>Goal</strong></p><p>Sell more <span class=\"tag yellow\">"
                 + "TODO</span></p><p>No name</p>");
+    }
+
+    @Test
+    void labelsAreFoundAsConfiguredWhateverTheirSpelling() {
+        assertThat(RichText.labels("#RISK, [[ Todo ]], #unknown, #risk again\n\nWARNING: #new", KeywordRules.defaults()))
+                .containsExactly("risk", "todo", "new");
+        assertThat(RichText.labels("issue#risk <sql>select '#risk'</sql>", KeywordRules.defaults())).isEmpty();
+    }
+
+    @Test
+    void labelsPageListsWhatCarriesEachLabelUnderTheLabel() throws Exception {
+        DocPage view = new DocPage("v", "View");
+        view.entries.add(new Entry("a", "A", "Node", "#risk", List.of(), List.of(), List.of()));
+        DocPage labels = new DocPage("labels", "Labels");
+        labels.labels.put("risk", List.of(new Link("v", "View"), new Link("a", "A", "Node")));
+        labels.labels.put("gone", List.of(new Link("x", "X")));
+
+        html(view, labels);
+        String page = Files.readString(folder.resolve("html/labels.html"));
+
+        assertThat(page).contains("<h2><span class=\"tag red\">RISK</span></h2><ul><li><a href=\"index.html\">View</a></li>"
+                + "<li><small><span style=\"color: rgb(107,119,140);\">&lt;&lt;Node&gt;&gt;</span></small> "
+                + "<a href=\"index.html#e-a\">A</a></li></ul>").contains("<h2>gone</h2><ul><li>X</li></ul>");
+        storage(view, labels);
+        assertThat(Files.readString(folder.resolve("confluence/pages/labels.xml")))
+                .contains("<h2><ac:structured-macro ac:name=\"status\"><ac:parameter ac:name=\"colour\">Red</ac:parameter>");
     }
 
     @Test

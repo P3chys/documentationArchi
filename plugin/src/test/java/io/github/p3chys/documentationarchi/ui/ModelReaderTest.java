@@ -526,4 +526,34 @@ class ModelReaderTest {
         assertThat(moduleEntry.partOf).extracting(l -> l.label).containsExactly("System");
         assertThat(clientEntry.partOf).isEmpty(); // the composition says it already
     }
+
+    @Test
+    void wholeModelHasLabelsPageListingWhatCarriesEachLabel() {
+        actor.setDocumentation("Who buys #todo");
+        IProperty state = F.createProperty();
+        state.setKey("state");
+        state.setValue("[[Risk]] and #draft");
+        portal.getProperties().add(state);
+        first.setDocumentation("Overview #risk");
+        ((IDiagramModelNote) first.getChildren().get(2)).setContent("Check #todo and #unknown");
+        actor.getTargetRelationships().get(0).setDocumentation("Slow #risk");
+
+        Doc doc = read(model);
+
+        DocPage labels = doc.pages.get(doc.pages.size() - 1);
+        assertThat(labels.title).isEqualTo("Labels");
+        assertThat(doc.pages.get(0).contents).extracting(l -> l.label).endsWith("Labels");
+        assertThat(labels.labels.keySet()).containsExactly("risk", "todo", "draft");
+        assertThat(labels.labels.get("risk")).extracting(l -> l.label + "@" + l.id)
+                .containsExactly("First@" + first.getId(), "Portal@" + portal.getId(),
+                        "Portal → Client@" + portal.getId());
+        assertThat(labels.labels.get("risk").get(2).type).isEqualTo("Serving Relationship");
+        assertThat(labels.labels.get("todo")).extracting(l -> l.label).containsExactly("First", "Client");
+        assertThat(read(first).pages).extracting(p -> p.title).containsExactly("First");
+    }
+
+    @Test
+    void noLabelsNoLabelsPage() {
+        assertThat(read(model).pages).extracting(p -> p.title).doesNotContain("Labels");
+    }
 }

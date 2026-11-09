@@ -65,6 +65,12 @@ final class PageBody {
             }
         });
         section(() -> links("Related views", page.relatedViews));
+        page.labels.forEach((label, links) -> section(() -> {
+            KeywordRules.TagColour colour = rules.tag(label);
+            out.append("<h2>").append(colour == null ? Xml.escape(label) : dialect.tag(label, colour)).append("</h2><ul>");
+            links.forEach(l -> out.append("<li>").append(link(l)).append("</li>"));
+            out.append("</ul>");
+        }));
         for (Entry entry : page.entries) {
             section(() -> {
                 int i = page.entries.indexOf(entry);

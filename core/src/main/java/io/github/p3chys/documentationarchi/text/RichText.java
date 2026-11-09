@@ -1,7 +1,9 @@
 package io.github.p3chys.documentationarchi.text;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -130,6 +132,19 @@ public final class RichText {
         if (style != null || text.length() > 0) {
             blocks.add(new Block(style, title, inlines(text.toString(), rules), null));
         }
+    }
+
+    /** The configured labels the text carries, as they are configured: #RISK and [[ risk ]] are both "risk". */
+    public static Set<String> labels(String text, KeywordRules rules) {
+        Set<String> found = new LinkedHashSet<>();
+        for (Block block : parse(text, rules)) {
+            for (Inline i : block.inlines) {
+                if (i.kind == InlineKind.TAG) {
+                    rules.labels().stream().filter(i.text::equalsIgnoreCase).findFirst().ifPresent(found::add);
+                }
+            }
+        }
+        return found;
     }
 
     /** Tags, links and coloured tokens in one piece of text. Words that are not configured keywords stay as they are. */

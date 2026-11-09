@@ -162,7 +162,7 @@ What you right-click decides the content:
 
 | You select | The export contains |
 |------------|---------------------|
-| the model | every view, an overview page, a page for elements that are in no view, and a *Work packages* page |
+| the model | every view, an overview page, a page for elements that are in no view, a *Work packages* page and a *Labels* page |
 | work packages | only the elements they change ([details](#export-a-work-package)) |
 | a folder | everything in it |
 | views | those views |
@@ -200,6 +200,7 @@ online-insurance/
 │   ├── sales-overview.html       one page per view
 │   ├── elements-not-in-any-view.html
 │   ├── work-packages.html
+│   ├── labels.html
 │   ├── images/                   view pictures
 │   ├── assets/                   copies of the assets the pages use
 │   └── style.css
@@ -421,6 +422,11 @@ status labels and code blocks).
 
 Keywords ignore case. Labels and panels only work for configured keywords, so other `#words` stay as they are. You
 can add your own keywords – see the next section.
+
+**The Labels page.** A whole-model export ends with a *Labels* page that collects them: for each configured label
+that occurs (`#risk`, `#todo`, your own...), the views, elements and relationships whose description, notes or
+property values carry it, each a link to where it is described. A relationship links to the element it is described
+with. Labels nobody uses are left out, and without any label there is no such page.
 
 **Example.** This description of *Buy Policy*:
 

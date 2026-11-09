@@ -545,8 +545,20 @@ public final class KeywordRules {
         return panels.get(keyword.toLowerCase(Locale.ROOT));
     }
 
-    TagColour tag(String keyword) {
+    /** The colour of a label, null when the keyword is no label. */
+    public TagColour tag(String keyword) {
         return tags.get(keyword.toLowerCase(Locale.ROOT));
+    }
+
+    /** The configured labels, in the order of the rules. */
+    public List<String> labels() {
+        List<String> labels = new ArrayList<>();
+        for (Rule rule : rules) {
+            if (rule.kind == Kind.TAG && labels.stream().noneMatch(rule.keyword::equalsIgnoreCase)) {
+                labels.add(rule.keyword);
+            }
+        }
+        return labels;
     }
 
     /** Matches any styled text; {@link #style} tells which one. */

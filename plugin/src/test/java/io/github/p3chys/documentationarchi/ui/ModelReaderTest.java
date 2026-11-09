@@ -27,6 +27,7 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IJunction;
+import com.archimatetool.model.IProfile;
 import com.archimatetool.model.ISketchModel;
 import com.archimatetool.model.ISketchModelActor;
 import com.archimatetool.model.ISketchModelSticky;
@@ -431,5 +432,27 @@ class ModelReaderTest {
         assertThat(page.texts).extracting(t -> t.name + ": " + t.text)
                 .containsExactly(": Key partners", "Bank: Pays out\n\nContract until 2027");
         assertThat(page.notes).isEmpty();
+    }
+
+    @Test
+    void specializationIsShownWithTheType() {
+        IProfile broker = F.createProfile();
+        broker.setName("Broker");
+        broker.setConceptType(actor.eClass().getName());
+        model.getProfiles().add(broker);
+        actor.getProfiles().add(broker);
+        IProfile api = F.createProfile();
+        api.setName("API call");
+        api.setConceptType("ServingRelationship");
+        model.getProfiles().add(api);
+        actor.getTargetRelationships().get(0).getProfiles().add(api);
+
+        DocPage page = read(first).pages.get(0);
+
+        assertThat(page.contents).extracting(l -> l.type).containsExactly("Business Actor: Broker", "Application Component");
+        Entry client = page.entries.get(0);
+        assertThat(client.type).isEqualTo("Business Actor: Broker");
+        assertThat(client.relations.get(0).type).isEqualTo("Serving Relationship: API call");
+        assertThat(page.entries.get(1).relations.get(0).other.type).isEqualTo("Business Actor: Broker");
     }
 }

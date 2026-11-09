@@ -37,6 +37,7 @@ import com.archimatetool.model.IDocumentable;
 import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IJunction;
 import com.archimatetool.model.INameable;
+import com.archimatetool.model.IProfile;
 import com.archimatetool.model.IProperty;
 import com.archimatetool.model.ITextContent;
 import com.archimatetool.model.IWorkPackage;
@@ -492,7 +493,7 @@ final class ModelReader {
 
     static String label(INameable object) {
         String name = object.getName();
-        return name == null || name.isBlank() ? typeName(object) : name;
+        return name == null || name.isBlank() ? typeName((EObject) object) : name;
     }
 
     /** "BusinessActor" to "Business Actor". */
@@ -500,7 +501,14 @@ final class ModelReader {
         return object.eClass().getName().replaceAll("(?<=[a-z])(?=[A-Z])", " ");
     }
 
+    /**
+     * The type shown for an element or relationship: with its specialization (an Archi profile, since Archi 4.9),
+     * "Business Actor: Broker".
+     */
     private static String typeName(INameable object) {
-        return typeName((EObject) object);
+        IProfile profile = object instanceof IArchimateConcept ? ((IArchimateConcept) object).getPrimaryProfile() : null;
+        String type = typeName((EObject) object);
+        return profile == null || profile.getName() == null || profile.getName().isBlank() ? type
+                : type + ": " + profile.getName().strip();
     }
 }

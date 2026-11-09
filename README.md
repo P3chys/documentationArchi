@@ -78,6 +78,8 @@ grouped by type.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
 - The PDF has bookmarks for every page.
+- An element or relationship with a specialization (Archi's **Specializations Manager**) shows it with its type:
+  *<<Business Actor: Broker>>*.
 - A sketch or canvas view has its picture and, under *Notes*, the texts of its objects: each sticky, actor, block
   and group with its name in bold and its text (a canvas sticky's notes too), formatted like any description.
 - Junctions are never described or listed. A relationship to a junction is followed through it (and through

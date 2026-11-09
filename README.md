@@ -78,6 +78,11 @@ grouped by type.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
 - The PDF has bookmarks for every page.
+- Elements that sit in a group of the view (Archi's visual *Group*) come under the group's name, in the list of
+  elements and among the descriptions, group after group as they are on the view; the print order applies inside
+  each group. Elements in no group come first.
+- An element drawn inside another one, with no relationship between the two, says so in its description:
+  *Part of: Core System*, and the other one *Contains: Billing Module*.
 - An element or relationship with a specialization (Archi's **Specializations Manager**) shows it with its type:
   *<<Business Actor: Broker>>*.
 - A sketch or canvas view has its picture and, under *Notes*, the texts of its objects: each sticky, actor, block

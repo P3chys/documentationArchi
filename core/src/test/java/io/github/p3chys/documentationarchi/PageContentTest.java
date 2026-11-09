@@ -59,4 +59,25 @@ class PageContentTest {
         assertThat(html(page)).contains("<h2>Notes</h2><p><strong>Goal</strong></p><p>Sell more <span class=\"tag yellow\">"
                 + "TODO</span></p><p>No name</p>");
     }
+
+    @Test
+    void groupsOfTheViewHeadTheirElementsInContentsAndElements() throws Exception {
+        DocPage page = new DocPage("v", "View");
+        for (String name : List.of("A", "B", "C")) {
+            page.contents.add(new Link(name, name));
+            page.entries.add(new Entry(name, name, "Node", "", List.of(), List.of(), List.of()));
+        }
+        page.groups.put("B", "Zone");
+        page.groups.put("C", "Zone");
+        page.entries.get(0).partOf.add(new Link("B", "B"));
+        page.entries.get(1).contains.add(new Link("A", "A"));
+
+        String html = html(page);
+
+        assertThat(html).contains("<h2>Contents</h2><ul><li><a href=\"#e-A\">A</a></li></ul><h3>Zone</h3><ul>"
+                + "<li><a href=\"#e-B\">B</a></li><li><a href=\"#e-C\">C</a></li></ul>")
+                .contains("<p>Part of: <a href=\"#e-B\">B</a></p>").contains("<p>Contains: <a href=\"#e-A\">A</a></p>");
+        assertThat(html.split("<h3>Zone</h3>", -1)).hasSize(3); // once in the contents, once above B's entry
+        assertThat(html).containsSubsequence("<h3>Zone</h3>", "<h3>Zone</h3><h3 id=\"e-B\">", "<h3 id=\"e-C\">");
+    }
 }

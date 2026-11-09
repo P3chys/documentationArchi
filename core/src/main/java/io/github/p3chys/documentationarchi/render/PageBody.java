@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
@@ -44,7 +45,7 @@ final class PageBody {
 
     private void page() {
         section(() -> description(page.documentation));
-        section(() -> links("Contents", page.contents));
+        section(() -> contents());
         section(() -> {
             if (page.image != null) {
                 out.append("<p>").append(dialect.image(page)).append("</p>");
@@ -66,12 +67,36 @@ final class PageBody {
         section(() -> links("Related views", page.relatedViews));
         for (Entry entry : page.entries) {
             section(() -> {
-                if (entry == page.entries.get(0)) {
+                int i = page.entries.indexOf(entry);
+                if (i == 0) {
                     out.append(heading(2, "Elements"));
+                }
+                String group = page.groups.get(entry.id);
+                if (group != null && (i == 0 || !group.equals(page.groups.get(page.entries.get(i - 1).id)))) {
+                    out.append(heading(3, group));
                 }
                 entry(entry);
             });
         }
+    }
+
+    /** The elements of the page; those in a group of the view under its name. */
+    private void contents() {
+        if (page.contents.isEmpty()) {
+            return;
+        }
+        out.append(heading(2, "Contents"));
+        String group = null;
+        for (int i = 0; i < page.contents.size(); i++) {
+            Link l = page.contents.get(i);
+            String in = page.groups.get(l.id);
+            if (i == 0 || !Objects.equals(in, group)) {
+                out.append(i == 0 ? "" : "</ul>").append(in != null ? heading(3, in) : "").append("<ul>");
+            }
+            group = in;
+            out.append("<li>").append(link(l)).append("</li>");
+        }
+        out.append("</ul>");
     }
 
     /** A part of the page, with a line between it and what comes before. Writes nothing if the part is empty. */
@@ -98,6 +123,8 @@ final class PageBody {
         out.append(dialect.entryHeading(entry, styled(rules.heading(3), type(entry.type) + Xml.escape(entry.name))));
         description(entry.documentation);
         properties(entry.properties);
+        linkLine("Part of", entry.partOf);
+        linkLine("Contains", entry.contains);
         List<Relation> inside = new ArrayList<>();
         Map<String, List<Relation>> outside = new LinkedHashMap<>();
         for (Relation r : entry.relations) {

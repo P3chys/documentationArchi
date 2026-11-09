@@ -30,6 +30,7 @@ import com.archimatetool.model.IDiagramModel;
 import com.archimatetool.model.IDiagramModelArchimateComponent;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelComponent;
+import com.archimatetool.model.IDiagramModelGroup;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IDiagramModelReference;
@@ -304,7 +305,7 @@ final class ModelReader {
                 }
             }
         }
-        List<IArchimateElement> shown = ordered(elementsOn(view), view);
+        List<IArchimateElement> shown = grouped(ordered(elementsOn(view), view), view, page);
         List<IArchimateElement> listed = only == null ? shown
                 : shown.stream().filter(only::contains).collect(Collectors.toList());
         List<IArchimateElement> fresh = listed.stream().filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
@@ -370,8 +371,87 @@ final class ModelReader {
                 exported.addAll(WorkPackages.links(wp).getOrDefault(element, List.of()));
             }
         }
-        return new Entry(element.getId(), label(element), typeName(element), element.getDocumentation(),
+        Entry entry = new Entry(element.getId(), label(element), typeName(element), element.getDocumentation(),
                 properties(element.getProperties()), relations, views, workPackages, changes);
+        nesting(element, entry);
+        return entry;
+    }
+
+    /**
+     * The elements in the view's groups after the others, a group's together, the groups in their order on the
+     * view; print order stays inside each. An element shown more than once counts where it is shown first.
+     */
+    private static List<IArchimateElement> grouped(List<IArchimateElement> elements, IDiagramModel view, DocPage page) {
+        Map<IArchimateElement, IDiagramModelGroup> groupOf = new HashMap<>();
+        List<IDiagramModelGroup> groups = new ArrayList<>();
+        for (TreeIterator<EObject> i = view.eAllContents(); i.hasNext();) {
+            EObject o = i.next();
+            if (o instanceof IDiagramModelGroup) {
+                groups.add((IDiagramModelGroup) o);
+            } else if (o instanceof IDiagramModelArchimateObject) {
+                IArchimateElement element = ((IDiagramModelArchimateObject) o).getArchimateElement();
+                if (!groupOf.containsKey(element)) {
+                    groupOf.put(element, enclosing(o, IDiagramModelGroup.class));
+                }
+            }
+        }
+        List<IArchimateElement> list = new ArrayList<>(elements);
+        list.sort(Comparator.comparingInt(e -> groups.indexOf(groupOf.get(e))));
+        for (IArchimateElement e : list) {
+            IDiagramModelGroup group = groupOf.get(e);
+            if (group != null) {
+                page.groups.put(e.getId(), group.getName() == null || group.getName().isBlank() ? "Group"
+                        : group.getName().strip());
+            }
+        }
+        return list;
+    }
+
+    /** The nearest object of the type that the diagram object is drawn inside, null if none. */
+    private static <T> T enclosing(EObject o, Class<T> type) {
+        for (EObject p = o.eContainer(); p != null && !(p instanceof IDiagramModel); p = p.eContainer()) {
+            if (type.isInstance(p)) {
+                return type.cast(p);
+            }
+        }
+        return null;
+    }
+
+    /** Elements drawn inside one another on any view, where no relationship says how they belong together. */
+    private static void nesting(IArchimateElement element, Entry entry) {
+        for (IDiagramModelArchimateComponent c : element.getReferencingDiagramComponents()) {
+            if (!(c instanceof IDiagramModelArchimateObject)) {
+                continue;
+            }
+            IDiagramModelArchimateObject parent = enclosing(c, IDiagramModelArchimateObject.class);
+            if (parent != null) {
+                nested(element, parent.getArchimateElement(), entry.partOf);
+            }
+            for (TreeIterator<EObject> i = c.eAllContents(); i.hasNext();) {
+                EObject o = i.next();
+                if (o instanceof IDiagramModelArchimateObject && enclosing(o, IDiagramModelArchimateObject.class) == c) {
+                    nested(element, ((IDiagramModelArchimateObject) o).getArchimateElement(), entry.contains);
+                }
+            }
+        }
+    }
+
+    private static void nested(IArchimateElement element, IArchimateElement other, List<Link> to) {
+        if (other == element || other instanceof IJunction || isPrintOrder(other)
+                || to.stream().anyMatch(l -> l.id.equals(other.getId()))) {
+            return;
+        }
+        for (IArchimateRelationship r : element.getSourceRelationships()) {
+            if (r.getTarget() == other) {
+                return;
+            }
+        }
+        for (IArchimateRelationship r : element.getTargetRelationships()) {
+            if (r.getSource() == other) {
+                return;
+            }
+        }
+        to.add(link(other));
     }
 
     /** Adds the relationship as seen from one end; one through a junction that leads to no element is left out. */

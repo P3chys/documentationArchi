@@ -253,6 +253,12 @@ relationships to elements outside the view, grouped by type.
 - An element is described **once**, on the first page that shows it. Later pages link to that description. Links
   work in all three formats.
 - Elements are described in alphabetical order unless the view has a [print order](#7-print-order).
+- **Groups:** elements that sit in a visual group of the view (Archi's *Group*, not the ArchiMate Grouping) are listed
+  under the group's name, in *Contents* and among the descriptions. The groups follow their order on the view, the
+  print order applies inside each, and elements in no group come first.
+- **Nesting:** an element drawn inside another element on a view, with no relationship between the two, gets
+  *Part of: ...* in its description, and the outer one *Contains: ...*. When a relationship connects them, the
+  relationship already says how they belong together, so nothing is added.
 - The type in front of a name is the ArchiMate type, with the **specialization** after it when the element or
   relationship has one (set in Archi's *Specializations Manager*): *<<Business Actor: Broker>>*,
   *<<Serving Relationship: API call>>*.

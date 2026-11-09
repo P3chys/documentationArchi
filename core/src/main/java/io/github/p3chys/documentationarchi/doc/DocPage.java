@@ -1,7 +1,9 @@
 package io.github.p3chys.documentationarchi.doc;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** One page of the export: the model overview, a view, or a list of elements without a view. */
 public final class DocPage {
@@ -25,6 +27,11 @@ public final class DocPage {
     public final List<Entry> entries = new ArrayList<>();
     /** What the page holds: the pages of the export on the overview, every element of the view on a view's page. */
     public final List<Link> contents = new ArrayList<>();
+    /**
+     * On a view's page: the name of the visual group an element sits in, by the element's id. The contents and the
+     * entries list the elements of a group together, and the page puts the group's name above them.
+     */
+    public final Map<String, String> groups = new HashMap<>();
 
     /** File name without extension, unique in the export. Set by {@link Doc}. */
     String slug;

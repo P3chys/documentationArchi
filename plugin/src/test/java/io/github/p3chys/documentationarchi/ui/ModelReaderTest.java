@@ -24,6 +24,7 @@ import com.archimatetool.model.IArchimateFactory;
 import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IArchimateRelationship;
 import com.archimatetool.model.IDiagramModelArchimateObject;
+import com.archimatetool.model.IDiagramModelGroup;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IJunction;
@@ -454,5 +455,75 @@ class ModelReaderTest {
         assertThat(client.type).isEqualTo("Business Actor: Broker");
         assertThat(client.relations.get(0).type).isEqualTo("Serving Relationship: API call");
         assertThat(page.entries.get(1).relations.get(0).other.type).isEqualTo("Business Actor: Broker");
+    }
+
+    private static IDiagramModelArchimateObject object(IArchimateElement element) {
+        IDiagramModelArchimateObject object = F.createDiagramModelArchimateObject();
+        object.setArchimateElement(element);
+        return object;
+    }
+
+    private static IDiagramModelGroup group(String name) {
+        IDiagramModelGroup group = F.createDiagramModelGroup();
+        group.setName(name);
+        return group;
+    }
+
+    @Test
+    void elementsInGroupsComeUnderTheGroupInItsOrderOnTheView() {
+        IArchimateDiagramModel view = view("Grouped");
+        IArchimateElement a = element(F.createNode(), "A", FolderType.TECHNOLOGY);
+        IArchimateElement b = element(F.createNode(), "B", FolderType.TECHNOLOGY);
+        IArchimateElement c = element(F.createNode(), "C", FolderType.TECHNOLOGY);
+        IArchimateElement d = element(F.createNode(), "D", FolderType.TECHNOLOGY);
+        IDiagramModelGroup zone = group("Zone 2");
+        IDiagramModelGroup inner = group("");
+        zone.getChildren().add(object(d));
+        zone.getChildren().add(object(b));
+        zone.getChildren().add(inner);
+        inner.getChildren().add(object(c));
+        IDiagramModelGroup zone1 = group("Zone 1");
+        zone1.getChildren().add(object(a));
+        view.getChildren().add(zone);
+        view.getChildren().add(zone1);
+        add(view, actor);
+        IArchimateElement order = printOrder();
+        position(d, order, "1");
+        position(b, order, "2");
+
+        DocPage page = read(view).pages.get(0);
+
+        assertThat(page.contents).extracting(l -> l.label).containsExactly("Client", "D", "B", "C", "A");
+        assertThat(page.entries).extracting(e -> e.name).containsExactly("Client", "D", "B", "C", "A");
+        assertThat(page.groups).doesNotContainKey(actor.getId()).containsEntry(d.getId(), "Zone 2")
+                .containsEntry(b.getId(), "Zone 2").containsEntry(c.getId(), "Group").containsEntry(a.getId(), "Zone 1");
+    }
+
+    @Test
+    void elementDrawnInsideAnotherWithoutRelationshipIsPartOfIt() {
+        IArchimateDiagramModel view = view("Nested");
+        IArchimateElement system = element(F.createApplicationComponent(), "System", FolderType.APPLICATION);
+        IArchimateElement module = element(F.createApplicationComponent(), "Module", FolderType.APPLICATION);
+        IDiagramModelArchimateObject outer = object(system);
+        IDiagramModelGroup group = group("Inside");
+        group.getChildren().add(object(module));
+        outer.getChildren().add(group);
+        outer.getChildren().add(object(portal)); // related: Portal serves Client, not System, so nested
+        IDiagramModelArchimateObject client = object(actor);
+        outer.getChildren().add(client);
+        view.getChildren().add(outer);
+        IArchimateRelationship composed = F.createCompositionRelationship();
+        composed.connect(system, actor);
+        model.getFolder(FolderType.RELATIONS).getElements().add(composed);
+
+        Doc doc = read(view);
+
+        Entry systemEntry = doc.pages.get(0).entries.stream().filter(e -> e.name.equals("System")).findFirst().get();
+        Entry moduleEntry = doc.pages.get(0).entries.stream().filter(e -> e.name.equals("Module")).findFirst().get();
+        Entry clientEntry = doc.pages.get(0).entries.stream().filter(e -> e.name.equals("Client")).findFirst().get();
+        assertThat(systemEntry.contains).extracting(l -> l.label).containsExactly("Module", "Portal");
+        assertThat(systemEntry.partOf).isEmpty();
+        assertThat(moduleEntry.partOf).extracting(l -> l.label).containsExactly("System");
+        assertThat(clientEntry.partOf).isEmpty(); // the composition says it already
     }
 }

@@ -34,10 +34,13 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
 
+import com.archimatetool.model.IArchimateModel;
+
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.Published;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
+import io.github.p3chys.documentationarchi.text.ExportProfile;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 
 /** The right-click "Export Documentation..." of the model tree and the diagram editors. */
@@ -63,16 +66,44 @@ public class ExportHandler extends AbstractHandler {
     static void run(Shell shell, ModelReader.Selection selection) {
         ExportDialog dialog = new ExportDialog(shell, describe(selection) + (ProjectRules.exists(selection.model)
                 ? "\nFormatting from " + ProjectRules.file(selection.model) + " (project rules)" : ""),
-                selection.model.getFile() != null);
+                selection.model.getFile() != null, selection.model, Profiles.of(selection.model));
         if (dialog.open() != ExportDialog.OK) {
             return;
         }
-        Path folder = Path.of(dialog.folder()).resolve(Doc.slug(selection.title()));
+        ExportProfile profile = dialog.profile();
+        ModelReader.Selection chosen = selection;
+        if (profile != null && profile.hasScope()) { // the profile says what to export, not the menu
+            try {
+                chosen = Profiles.selection(selection.model, null, profile);
+            } catch (IllegalArgumentException e) {
+                MessageDialog.openError(shell, "Export Documentation", e.getMessage());
+                return;
+            }
+        }
+        // a profile's output is the export folder itself, as on the command line
+        Path folder = profile != null && profile.output != null ? Path.of(dialog.folder())
+                : Path.of(dialog.folder()).resolve(Doc.slug(chosen.title()));
         if (notEmpty(folder) && !MessageDialog.openQuestion(shell, "Export Documentation",
                 folder + " already exists. Replace the files in it?")) {
             return;
         }
-        start(Display.getCurrent(), selection, folder, dialog.formats(), dialog.publish());
+        start(Display.getCurrent(), chosen, folder, dialog.formats(), dialog.publish(), profile);
+    }
+
+    /** Runs a profile of the model's rules without asking; what it does not set comes from the preferences. */
+    static void run(Shell shell, IArchimateModel model, ExportProfile profile) {
+        ModelReader.Selection selection;
+        Path folder;
+        try {
+            selection = Profiles.selection(model, null, profile);
+            Path output = Profiles.output(model, null, profile);
+            folder = output != null ? output : Path.of(Prefs.folder()).resolve(Doc.slug(selection.title()));
+        } catch (IllegalArgumentException e) {
+            MessageDialog.openError(shell, "Export Documentation", e.getMessage());
+            return;
+        }
+        start(Display.getCurrent(), selection, folder, Profiles.formats(profile, Prefs.formats()), profile.publish,
+                profile);
     }
 
     /** The selected objects of the model tree or a view (the model objects of what a view shows). */
@@ -81,6 +112,10 @@ public class ExportHandler extends AbstractHandler {
         if (selection == null) {
             selection = HandlerUtil.getCurrentSelection(event);
         }
+        return selected(selection);
+    }
+
+    static List<Object> selected(ISelection selection) {
         List<Object> objects = new ArrayList<>();
         if (selection instanceof IStructuredSelection) {
             for (Object o : ((IStructuredSelection) selection).toList()) {
@@ -114,12 +149,12 @@ public class ExportHandler extends AbstractHandler {
     }
 
     private static void start(Display display, ModelReader.Selection selection, Path folder, Set<Format> formats,
-            boolean publish) {
+            boolean publish, ExportProfile profile) {
         Job job = new Job("Exporting documentation") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    Result result = exportAll(selection, folder, formats, null, monitor, publish);
+                    Result result = exportAll(selection, folder, formats, null, monitor, publish, profile);
                     display.asyncExec(() -> finished(display, folder, result, publish));
                     return Status.OK_STATUS;
                 } catch (CancellationException | OperationCanceledException e) { // the previous export is as it was
@@ -180,6 +215,12 @@ public class ExportHandler extends AbstractHandler {
      */
     static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
             IProgressMonitor monitor, boolean publish) throws IOException {
+        return exportAll(selection, folder, formats, rulesFile, monitor, publish, null);
+    }
+
+    /** @param profile adds its labels to leave out, properties to hide and language to the rules; null for none */
+    static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
+            IProgressMonitor monitor, boolean publish, ExportProfile profile) throws IOException {
         if (publish && selection.model.getFile() == null) {
             throw new IllegalArgumentException("Save the model first: what is published is noted in the file "
                     + Published.FILE + " next to the model file.");
@@ -190,6 +231,9 @@ public class ExportHandler extends AbstractHandler {
         System.setProperty("java.awt.headless", "true");
         List<EObject> shown = new ArrayList<>();
         KeywordRules rules = ProjectRules.resolve(selection.model, rulesFile, Prefs::rules); // fails before any work
+        if (profile != null) {
+            rules = rules.with(profile);
+        }
         Exclusion exclusion = selection.exclusion(rules);
         Doc doc = ModelReader.read(selection, (view, page) -> {
             check(progress);

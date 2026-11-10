@@ -684,6 +684,35 @@ are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, 
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 
+### Export profiles
+
+An export is set up by hand: what to select, which formats, which folder. A **profile** is a named set-up kept with
+the model, so everyone and the command line export the same. It is a rule line in `documentation.rules`:
+
+```text
+profile developers folders=Views/Sales,Views/Claims formats=html,pdf exclude=#internal hide=cost* language=en output=docs/dev publish
+profile "Sales team" views="Order flow",Overview output=docs/sales
+```
+
+| Setting | Meaning |
+|---------|---------|
+| `folders=` `views=` `workpackages=` | what to export, comma separated, as on the command line; none: the whole model. Work packages cannot be combined with folders or views |
+| `formats=` | `html`, `pdf`, `confluence` |
+| `exclude=` | more labels to leave out, on top of the `exclude label` lines |
+| `hide=` | more property keys never to print (`*` at the end matches any ending) |
+| `language=` | `en` or `cs` |
+| `output=` | the export folder; relative to the folder of the model file unless absolute. The export goes straight into it, without a subfolder |
+| `publish` | the export is published, see [Publishing](#publishing-what-the-readers-have) |
+
+Names and values with spaces are quoted. A mistake is reported with the file and line, like the other rule lines, and so
+is a folder or view that does not exist, when the export runs.
+
+In Archi, the export dialog has a **Profile** list ("(none)" first). Choosing one fills in and locks what the profile
+sets. The context menu of the model has **Export Profile**, with one entry per profile; it runs the profile without
+the dialog (what the profile does not set comes from the last export dialog), and replaces the files in the folder.
+On the command line: `--documentation.profile <name>`; `--documentation.folder` is then optional when the profile has
+`output=`, and any option given explicitly overrides the profile's setting.
+
 ### Page template
 
 The order of the parts of a page is fixed, unless you say otherwise with two rule lines:
@@ -798,6 +827,7 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.profile name` | export as this profile of the rules says (see Export profiles); `--documentation.folder` is then optional, and options given here override the profile |
 | `--documentation.check` | list what is missing or wrong in the documentation (see Check Documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |

@@ -16,6 +16,7 @@ import com.archimatetool.commandline.CommandLineState;
 import com.archimatetool.model.IArchimateModel;
 
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
+import io.github.p3chys.documentationarchi.text.ExportProfile;
 
 /**
  * Exports from Archi's command line, for CI and scheduled documentation builds. Archi's providers signal failure by
@@ -32,29 +33,44 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
     private static final String RULES = "documentation.rules";
     private static final String STRICT = "documentation.strict";
     private static final String PUBLISH = "documentation.publish";
+    private static final String PROFILE = "documentation.profile";
 
     @Override
     public void run(CommandLine line) throws Exception {
         if (line.hasOption(CHECK)) {
             check(line);
         }
-        if (!line.hasOption(FOLDER)) {
+        if (!line.hasOption(FOLDER) && !line.hasOption(PROFILE)) {
             return;
         }
         IArchimateModel model = CommandLineState.getModel();
         if (model == null) {
             throw failure("No model loaded. Use --loadModel first.");
         }
-        Path folder = Path.of(line.getOptionValue(FOLDER));
         Path rules = line.hasOption(RULES) ? Path.of(line.getOptionValue(RULES)) : null;
         ExportHandler.Result result;
+        Path folder;
         try {
-            ModelReader.Selection selection = CommandLineSelection.select(model,
-                    CommandLineSelection.names(line.getOptionValue(WORK_PACKAGES)),
-                    CommandLineSelection.names(line.getOptionValue(VIEWS)),
-                    CommandLineSelection.names(line.getOptionValue(FOLDERS)));
-            result = ExportHandler.exportAll(selection, folder, formats(line.getOptionValue(FORMATS)), rules,
-                    new NullProgressMonitor(), line.hasOption(PUBLISH));
+            ExportProfile profile = line.hasOption(PROFILE) ? Profiles.find(model, rules, line.getOptionValue(PROFILE))
+                    : null;
+            folder = line.hasOption(FOLDER) ? Path.of(line.getOptionValue(FOLDER))
+                    : Profiles.output(model, rules, profile);
+            if (folder == null) {
+                throw new IllegalArgumentException(Profiles.where(model, rules, profile) + " has no output=<folder>. "
+                        + "Add it, or give --" + FOLDER + ".");
+            }
+            // what is given on the command line overrides the profile
+            ModelReader.Selection selection = line.hasOption(WORK_PACKAGES) || line.hasOption(VIEWS)
+                    || line.hasOption(FOLDERS) || profile == null
+                            ? CommandLineSelection.select(model, CommandLineSelection.names(line.getOptionValue(WORK_PACKAGES)),
+                                    CommandLineSelection.names(line.getOptionValue(VIEWS)),
+                                    CommandLineSelection.names(line.getOptionValue(FOLDERS)))
+                            : Profiles.selection(model, rules, profile);
+            Set<Format> formats = line.hasOption(FORMATS) ? formats(line.getOptionValue(FORMATS))
+                    : profile != null ? Profiles.formats(profile, EnumSet.allOf(Format.class))
+                            : EnumSet.allOf(Format.class);
+            result = ExportHandler.exportAll(selection, folder, formats, rules, new NullProgressMonitor(),
+                    line.hasOption(PUBLISH) || profile != null && profile.publish, profile);
         } catch (IllegalArgumentException e) { // unknown names, unusable rules, nothing to export
             throw failure(e.getMessage());
         }
@@ -108,6 +124,10 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
         Options options = new Options();
         options.addOption(Option.builder().longOpt(FOLDER).hasArg().argName("path")
                 .desc("Export the model's documentation to this folder").build());
+        options.addOption(Option.builder().longOpt(PROFILE).hasArg().argName("name")
+                .desc("Export as this profile of the model's rules says (profile lines); " + "--" + FOLDER
+                        + " is then optional, and the options given here override the profile")
+                .build());
         options.addOption(Option.builder().longOpt(FORMATS).hasArg().argName("list")
                 .desc("Comma separated: html, pdf, confluence (default: all)").build());
         options.addOption(Option.builder().longOpt(WORK_PACKAGES).hasArg().argName("list")

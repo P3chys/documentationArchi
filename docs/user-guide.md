@@ -680,7 +680,7 @@ export finishes, its message says how many objects the rules left out. The rule 
 The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
 `language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
 `text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
-are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 
@@ -731,6 +731,23 @@ catalog "Applications" type=Application Component|Application Service folder=App
 There is one row per described element, sorted by name. The page is listed on the overview page. A catalog without
 any row is left out, and the message at the end of the export says so. Catalogs are not part of exports of selected
 views, folders or work packages.
+
+### Data usage index
+
+Descriptions mark database tables as `[ORDERS]`, variables as `{client_id}` and constants as `'ACTIVE'` (see section 10). A rule line adds a page to exports of the whole model that lists
+every one of them:
+
+```text
+index tables
+index variables
+index constants
+```
+
+The page lists each token once, sorted by name, with links to where it is used: the descriptions, notes and property
+values of the views, elements and relationships. Upper and lower case count as the same token. The tokens are found
+the way the text is coloured, so the index never disagrees with the pages. In an SQL block only a table written as
+`[ORDERS]` counts. An index that finds nothing is left out, and the message at the end of the export says so. Without
+the lines nothing changes.
 
 ### Page template
 

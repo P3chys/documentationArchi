@@ -32,6 +32,11 @@ public final class Texts {
         add("element", "Element", "Prvek");
         add("description", "Description", "Popis");
         add("name", "Name", "Název");
+        add("token", "Token", "Výraz");
+        add("used-in", "Used in", "Použito v");
+        add("tables-index", "Database tables", "Databázové tabulky");
+        add("variables-index", "Variables", "Proměnné");
+        add("constants-index", "Constants", "Konstanty");
         add("views", "Views", "Pohledy");
         add("part-of", "Part of", "Součást");
         add("contains", "Contains", "Obsahuje");

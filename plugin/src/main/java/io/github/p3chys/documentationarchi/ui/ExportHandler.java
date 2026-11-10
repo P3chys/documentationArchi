@@ -37,6 +37,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import com.archimatetool.model.IArchimateModel;
 
 import io.github.p3chys.documentationarchi.doc.Catalogs;
+import io.github.p3chys.documentationarchi.doc.DataIndex;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Generated;
@@ -264,6 +265,9 @@ public class ExportHandler extends AbstractHandler {
                     path -> Profiles.folderElementIds(selection.model, path));
             generated.addAll(catalogs.pages);
             notes.addAll(catalogs.notes);
+            Catalogs.Result indexes = DataIndex.build(doc, rules.indexes(), rules);
+            generated.addAll(indexes.pages);
+            notes.addAll(indexes.notes);
             generatedDoc = Generated.with(shownDoc, generated);
         }
         Exporter exporter = new Exporter(generatedDoc, rules).version(selection.model.getName(),

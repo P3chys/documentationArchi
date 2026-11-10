@@ -45,7 +45,7 @@ What you right-clicked decides what is exported:
 
 | Selected | Exported |
 |----------|----------|
-| the model | every view, plus an overview page, a page for elements that are in no view and one for the work packages |
+| the model | every view, plus an overview page, a page for elements that are in no view, one for the work packages and one for the labels |
 | work packages | only the elements they change, see [Work packages](#work-packages-jira-tickets) |
 | a folder | everything in it |
 | views | those views |
@@ -84,9 +84,25 @@ grouped by type.
 
 - An element is described once, on the first page that shows it. Later pages link to that description, and links
   work in all three formats.
+- To choose the page yourself, select the elements in a view, right-click and choose **Describe Here**: the export
+  then describes them on that view's page whenever the view is part of the export (otherwise on the first page, as
+  usual). **Describe Here** on elements already described there takes it back, and **Undo** does too. It is kept in
+  the model as a `doc:home` property of the element (the view's id), which the export never shows.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
 - The PDF has bookmarks for every page.
+- Elements that sit in a group of the view (Archi's visual *Group*) come under the group's name, in the list of
+  elements and among the descriptions, group after group as they are on the view; the print order applies inside
+  each group. Elements in no group come first.
+- An element drawn inside another one, with no relationship between the two, says so in its description:
+  *Part of: Core System*, and the other one *Contains: Billing Module*.
+- An element or relationship with a specialization (Archi's **Specializations Manager**) shows it with its type:
+  *<<Business Actor: Broker>>*.
+- A sketch or canvas view has its picture and, under *Notes*, the texts of its objects: each sticky, actor, block
+  and group with its name in bold and its text (a canvas sticky's notes too), formatted like any description.
+- Junctions are never described or listed. A relationship to a junction is followed through it (and through
+  junctions after it) to the elements on the other side, and shown as one relationship to all of them: *→ Triggering:
+  Check claim or Reject claim* for an Or junction, *and* for an And junction.
 
 ## Print order
 
@@ -166,10 +182,24 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 | `<sql>select ...</sql>` | an SQL code block (in Confluence: the code macro with SQL highlighting) |
 | `https://...` | a link |
 | `[[asset:file.png]]` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
+| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
+| `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
+| `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
+| a `\| A \| B \|` line, then `\|---\|---\|`, then rows | a table with a header row; without the line of dashes the `\|` stays text |
+| ```` ```java ```` ... ```` ``` ```` or `<code lang="java">...</code>` | a code block, the language optional (in Confluence: the code macro) |
+| `[[ref:<id>]]`, `[[ref:<id>\|label]]` | a link to that element or view showing its current name, or the label; its plain name when the export leaves it out |
 | blank line | a new paragraph; single line breaks stay |
 
 Keywords ignore case. Labels and panels only work for configured keywords (see below), so other `#words` stay as
 they are.
+
+**Insert Reference...** (right-click one element, relationship, view, note or the model, in the Models tree or in a
+view) picks an element or view and adds its `[[ref:...]]` at the end of the description; **Undo** takes it back.
+Renaming the target later never leaves an old name in the export.
+
+A whole-model export has a **Labels** page: for each configured label in use (`#risk`, `#todo`...), the views,
+elements and relationships whose description, notes or property values carry it, each linking to where it is
+described (a relationship, to the element it is described with).
 
 ## Changing how things look
 

@@ -13,6 +13,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import com.archimatetool.canvas.model.ICanvasFactory;
+import com.archimatetool.canvas.model.ICanvasModel;
+import com.archimatetool.canvas.model.ICanvasModelBlock;
+import com.archimatetool.canvas.model.ICanvasModelSticky;
 import com.archimatetool.model.FolderType;
 import com.archimatetool.model.IArchimateDiagramModel;
 import com.archimatetool.model.IArchimateElement;
@@ -20,13 +24,20 @@ import com.archimatetool.model.IArchimateFactory;
 import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IArchimateRelationship;
 import com.archimatetool.model.IDiagramModelArchimateObject;
+import com.archimatetool.model.IDiagramModelGroup;
 import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelReference;
+import com.archimatetool.model.IJunction;
+import com.archimatetool.model.IProfile;
+import com.archimatetool.model.ISketchModel;
+import com.archimatetool.model.ISketchModelActor;
+import com.archimatetool.model.ISketchModelSticky;
 import com.archimatetool.model.IProperty;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
+import io.github.p3chys.documentationarchi.doc.Relation;
 
 class ModelReaderTest {
 
@@ -311,5 +322,238 @@ class ModelReaderTest {
     void emptyFolderIsRefused() {
         assertThatThrownBy(() -> read(model.getFolder(FolderType.STRATEGY))).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("no views or elements");
+    }
+
+    private IArchimateRelationship connect(IArchimateRelationship r, IArchimateElement source, IArchimateElement target) {
+        r.connect(source, target);
+        model.getFolder(FolderType.RELATIONS).getElements().add(r);
+        return r;
+    }
+
+    private IJunction junction(String type) {
+        IJunction junction = F.createJunction();
+        junction.setType(type);
+        model.getFolder(FolderType.OTHER).getElements().add(junction);
+        return junction;
+    }
+
+    @Test
+    void junctionIsNeverDescribedOrListed() {
+        IJunction junction = junction(IJunction.AND_JUNCTION_TYPE);
+        add(first, junction);
+        connect(F.createTriggeringRelationship(), actor, junction);
+
+        Doc doc = read(model);
+
+        assertThat(doc.pages).flatExtracting(p -> p.entries).extracting(e -> e.type).doesNotContain("Junction");
+        assertThat(doc.pages).flatExtracting(p -> p.contents).extracting(l -> l.label).doesNotContain("Junction");
+        assertThatThrownBy(() -> read(junction)).hasMessageContaining("no views or elements");
+    }
+
+    @Test
+    void relationshipIsFollowedThroughChainedJunctionsWithoutLooping() {
+        IJunction or = junction(IJunction.OR_JUNCTION_TYPE);
+        IJunction and = junction(IJunction.AND_JUNCTION_TYPE);
+        IArchimateElement a = element(F.createBusinessProcess(), "A", FolderType.BUSINESS);
+        IArchimateElement b = element(F.createBusinessProcess(), "B", FolderType.BUSINESS);
+        IArchimateElement c = element(F.createBusinessProcess(), "C", FolderType.BUSINESS);
+        IArchimateRelationship start = connect(F.createTriggeringRelationship(), a, or);
+        start.setName("then");
+        connect(F.createTriggeringRelationship(), or, b);
+        connect(F.createTriggeringRelationship(), or, and);
+        connect(F.createTriggeringRelationship(), and, c);
+        connect(F.createTriggeringRelationship(), and, or); // a loop back
+        IArchimateDiagramModel view = view("Flow");
+        for (IArchimateElement e : List.of(a, b, c, or, and)) {
+            add(view, e);
+        }
+
+        DocPage page = read(view).pages.get(0);
+
+        assertThat(page.contents).extracting(l -> l.label).containsExactly("A", "B", "C");
+        Relation fromA = page.entries.get(0).relations.get(0);
+        assertThat(fromA.outgoing).isTrue();
+        assertThat(fromA.name).isEqualTo("then");
+        assertThat(fromA.junction).isEqualTo("or");
+        assertThat(fromA.others).extracting(l -> l.label).containsExactly("B", "C");
+        assertThat(fromA.outside).isFalse();
+        Relation intoC = page.entries.get(2).relations.get(0);
+        assertThat(intoC.outgoing).isFalse();
+        assertThat(intoC.junction).isEqualTo("and");
+        assertThat(intoC.others).extracting(l -> l.label).containsExactly("A");
+    }
+
+    @Test
+    void junctionLeadingNowhereLeavesTheRelationshipOut() {
+        IJunction junction = junction(IJunction.AND_JUNCTION_TYPE);
+        connect(F.createTriggeringRelationship(), actor, junction);
+
+        assertThat(read(first).pages.get(0).entries.get(0).relations).extracting(r -> r.type)
+                .containsExactly("Serving Relationship");
+    }
+
+    @Test
+    void sketchViewListsTheTextsOfItsStickiesAndActors() {
+        ISketchModel sketch = F.createSketchModel();
+        sketch.setName("Idea");
+        model.getFolder(FolderType.DIAGRAMS).getElements().add(sketch);
+        ISketchModelSticky sticky = F.createSketchModelSticky();
+        sticky.setName("Goal");
+        sticky.setContent("Sell more #todo");
+        sketch.getChildren().add(sticky);
+        ISketchModelActor actor = F.createSketchModelActor();
+        actor.setName("Customer");
+        actor.setDocumentation("Buys online");
+        sketch.getChildren().add(actor);
+        sketch.getChildren().add(F.createSketchModelSticky()); // empty: left out
+
+        DocPage page = read(sketch).pages.get(0);
+
+        assertThat(page.texts).extracting(t -> t.name + ": " + t.text)
+                .containsExactly("Goal: Sell more #todo", "Customer: Buys online");
+    }
+
+    @Test
+    void canvasViewListsTheTextsOfItsBlocksAndStickies() {
+        ICanvasFactory canvas = ICanvasFactory.eINSTANCE;
+        ICanvasModel view = canvas.createCanvasModel();
+        view.setName("Canvas");
+        model.getFolder(FolderType.DIAGRAMS).getElements().add(view);
+        ICanvasModelBlock block = canvas.createCanvasModelBlock();
+        block.setContent("Key partners");
+        view.getChildren().add(block);
+        ICanvasModelSticky sticky = canvas.createCanvasModelSticky();
+        sticky.setName("Bank");
+        sticky.setContent("Pays out");
+        sticky.setNotes("Contract until 2027");
+        block.getChildren().add(sticky);
+
+        DocPage page = read(view).pages.get(0);
+
+        assertThat(page.texts).extracting(t -> t.name + ": " + t.text)
+                .containsExactly(": Key partners", "Bank: Pays out\n\nContract until 2027");
+        assertThat(page.notes).isEmpty();
+    }
+
+    @Test
+    void specializationIsShownWithTheType() {
+        IProfile broker = F.createProfile();
+        broker.setName("Broker");
+        broker.setConceptType(actor.eClass().getName());
+        model.getProfiles().add(broker);
+        actor.getProfiles().add(broker);
+        IProfile api = F.createProfile();
+        api.setName("API call");
+        api.setConceptType("ServingRelationship");
+        model.getProfiles().add(api);
+        actor.getTargetRelationships().get(0).getProfiles().add(api);
+
+        DocPage page = read(first).pages.get(0);
+
+        assertThat(page.contents).extracting(l -> l.type).containsExactly("Business Actor: Broker", "Application Component");
+        Entry client = page.entries.get(0);
+        assertThat(client.type).isEqualTo("Business Actor: Broker");
+        assertThat(client.relations.get(0).type).isEqualTo("Serving Relationship: API call");
+        assertThat(page.entries.get(1).relations.get(0).other.type).isEqualTo("Business Actor: Broker");
+    }
+
+    private static IDiagramModelArchimateObject object(IArchimateElement element) {
+        IDiagramModelArchimateObject object = F.createDiagramModelArchimateObject();
+        object.setArchimateElement(element);
+        return object;
+    }
+
+    private static IDiagramModelGroup group(String name) {
+        IDiagramModelGroup group = F.createDiagramModelGroup();
+        group.setName(name);
+        return group;
+    }
+
+    @Test
+    void elementsInGroupsComeUnderTheGroupInItsOrderOnTheView() {
+        IArchimateDiagramModel view = view("Grouped");
+        IArchimateElement a = element(F.createNode(), "A", FolderType.TECHNOLOGY);
+        IArchimateElement b = element(F.createNode(), "B", FolderType.TECHNOLOGY);
+        IArchimateElement c = element(F.createNode(), "C", FolderType.TECHNOLOGY);
+        IArchimateElement d = element(F.createNode(), "D", FolderType.TECHNOLOGY);
+        IDiagramModelGroup zone = group("Zone 2");
+        IDiagramModelGroup inner = group("");
+        zone.getChildren().add(object(d));
+        zone.getChildren().add(object(b));
+        zone.getChildren().add(inner);
+        inner.getChildren().add(object(c));
+        IDiagramModelGroup zone1 = group("Zone 1");
+        zone1.getChildren().add(object(a));
+        view.getChildren().add(zone);
+        view.getChildren().add(zone1);
+        add(view, actor);
+        IArchimateElement order = printOrder();
+        position(d, order, "1");
+        position(b, order, "2");
+
+        DocPage page = read(view).pages.get(0);
+
+        assertThat(page.contents).extracting(l -> l.label).containsExactly("Client", "D", "B", "C", "A");
+        assertThat(page.entries).extracting(e -> e.name).containsExactly("Client", "D", "B", "C", "A");
+        assertThat(page.groups).doesNotContainKey(actor.getId()).containsEntry(d.getId(), "Zone 2")
+                .containsEntry(b.getId(), "Zone 2").containsEntry(c.getId(), "Group").containsEntry(a.getId(), "Zone 1");
+    }
+
+    @Test
+    void elementDrawnInsideAnotherWithoutRelationshipIsPartOfIt() {
+        IArchimateDiagramModel view = view("Nested");
+        IArchimateElement system = element(F.createApplicationComponent(), "System", FolderType.APPLICATION);
+        IArchimateElement module = element(F.createApplicationComponent(), "Module", FolderType.APPLICATION);
+        IDiagramModelArchimateObject outer = object(system);
+        IDiagramModelGroup group = group("Inside");
+        group.getChildren().add(object(module));
+        outer.getChildren().add(group);
+        outer.getChildren().add(object(portal)); // related: Portal serves Client, not System, so nested
+        IDiagramModelArchimateObject client = object(actor);
+        outer.getChildren().add(client);
+        view.getChildren().add(outer);
+        IArchimateRelationship composed = F.createCompositionRelationship();
+        composed.connect(system, actor);
+        model.getFolder(FolderType.RELATIONS).getElements().add(composed);
+
+        Doc doc = read(view);
+
+        Entry systemEntry = doc.pages.get(0).entries.stream().filter(e -> e.name.equals("System")).findFirst().get();
+        Entry moduleEntry = doc.pages.get(0).entries.stream().filter(e -> e.name.equals("Module")).findFirst().get();
+        Entry clientEntry = doc.pages.get(0).entries.stream().filter(e -> e.name.equals("Client")).findFirst().get();
+        assertThat(systemEntry.contains).extracting(l -> l.label).containsExactly("Module", "Portal");
+        assertThat(systemEntry.partOf).isEmpty();
+        assertThat(moduleEntry.partOf).extracting(l -> l.label).containsExactly("System");
+        assertThat(clientEntry.partOf).isEmpty(); // the composition says it already
+    }
+
+    @Test
+    void wholeModelHasLabelsPageListingWhatCarriesEachLabel() {
+        actor.setDocumentation("Who buys #todo");
+        IProperty state = F.createProperty();
+        state.setKey("state");
+        state.setValue("[[Risk]] and #draft");
+        portal.getProperties().add(state);
+        first.setDocumentation("Overview #risk");
+        ((IDiagramModelNote) first.getChildren().get(2)).setContent("Check #todo and #unknown");
+        actor.getTargetRelationships().get(0).setDocumentation("Slow #risk");
+
+        Doc doc = read(model);
+
+        DocPage labels = doc.pages.get(doc.pages.size() - 1);
+        assertThat(labels.title).isEqualTo("Labels");
+        assertThat(doc.pages.get(0).contents).extracting(l -> l.label).endsWith("Labels");
+        assertThat(labels.labels.keySet()).containsExactly("risk", "todo", "draft");
+        assertThat(labels.labels.get("risk")).extracting(l -> l.label + "@" + l.id)
+                .containsExactly("First@" + first.getId(), "Portal@" + portal.getId(),
+                        "Portal → Client@" + portal.getId());
+        assertThat(labels.labels.get("risk").get(2).type).isEqualTo("Serving Relationship");
+        assertThat(labels.labels.get("todo")).extracting(l -> l.label).containsExactly("First", "Client");
+        assertThat(read(first).pages).extracting(p -> p.title).containsExactly("First");
+    }
+
+    @Test
+    void noLabelsNoLabelsPage() {
+        assertThat(read(model).pages).extracting(p -> p.title).doesNotContain("Labels");
     }
 }

@@ -19,7 +19,9 @@ val archiModelJars = fileTree(archiHome) {
         include("$dir/com.archimatetool.model_*/*.jar", "$dir/org.eclipse.emf.common_*.jar",
             "$dir/org.eclipse.emf.ecore_*.jar", "$dir/org.eclipse.emf.ecore.xmi_*.jar", "$dir/org.eclipse.osgi_*.jar",
             // the editor's model commands, which PrintOrder builds and its tests run
-            "$dir/com.archimatetool.editor_*/*.jar", "$dir/org.eclipse.gef_*.jar", "$dir/org.eclipse.draw2d_*.jar")
+            "$dir/com.archimatetool.editor_*/*.jar", "$dir/org.eclipse.gef_*.jar", "$dir/org.eclipse.draw2d_*.jar",
+            // canvas views, whose texts ModelReader reads by the model's features (no dependency on the canvas plugin)
+            "$dir/com.archimatetool.canvas_*/*.jar")
     }
 }
 

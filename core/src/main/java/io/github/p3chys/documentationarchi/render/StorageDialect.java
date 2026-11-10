@@ -16,6 +16,18 @@ import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
 final class StorageDialect implements Dialect {
 
     private static final int MAX_IMAGE_WIDTH = 1200;
+    /** The languages of Confluence Data Center's code macro, by the names people write after ```. */
+    private static final Map<String, String> LANGUAGES = Map.ofEntries(
+            Map.entry("bash", "bash"), Map.entry("sh", "bash"), Map.entry("shell", "bash"),
+            Map.entry("c#", "c#"), Map.entry("csharp", "c#"), Map.entry("cs", "c#"),
+            Map.entry("cpp", "cpp"), Map.entry("c++", "cpp"), Map.entry("c", "cpp"), Map.entry("css", "css"),
+            Map.entry("diff", "diff"), Map.entry("groovy", "groovy"), Map.entry("java", "java"),
+            Map.entry("js", "js"), Map.entry("javascript", "js"), Map.entry("json", "js"), Map.entry("ts", "js"),
+            Map.entry("typescript", "js"), Map.entry("perl", "perl"), Map.entry("php", "php"),
+            Map.entry("powershell", "powershell"), Map.entry("ps1", "powershell"), Map.entry("py", "py"),
+            Map.entry("python", "py"), Map.entry("ruby", "ruby"), Map.entry("scala", "scala"), Map.entry("sql", "sql"),
+            Map.entry("text", "text"), Map.entry("vb", "vb"), Map.entry("xml", "xml"), Map.entry("html", "xml"),
+            Map.entry("yaml", "yml"), Map.entry("yml", "yml"));
 
     private final Map<DocPage, String> titles;
 
@@ -51,6 +63,14 @@ final class StorageDialect implements Dialect {
                 + (rule.lineNumbers ? parameter("linenumbers", "true") : "");
         return macro("code", parameter("language", "sql") + look
                 + "<ac:plain-text-body><![CDATA[" + text + "]]></ac:plain-text-body>");
+    }
+
+    /** The code macro, in a language it knows; any other code is plain text there. */
+    @Override
+    public String code(String code, String language) {
+        String known = language == null ? null : LANGUAGES.get(language.toLowerCase(Locale.ROOT));
+        return macro("code", (known == null ? "" : parameter("language", known)) + "<ac:plain-text-body><![CDATA["
+                + Xml.clean(code).replace("]]>", "]]]]><![CDATA[>") + "]]></ac:plain-text-body>");
     }
 
     private static String parameter(String name, String value) {

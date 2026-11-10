@@ -40,6 +40,8 @@ This guide explains every function of the plugin: where to find it, what it need
 | [Print Order...](#7-print-order) | Right-click a view (tree or view editor) | A view | The order in which the export describes the view's elements, saved in the model |
 | [Link to Work Package...](#8-work-packages-jira-tickets) | Right-click elements | One or more elements | Links between the elements and Jira-ticket work packages |
 | [Work Packages...](#8-work-packages-jira-tickets) | Right-click anything in a model | A model | An overview of all work packages, what they change and what isn't exported yet |
+| [Insert Reference...](#10-formatting-descriptions) | Right-click one object | One element, relationship, view, note or the model; the element or view to refer to | A `[[ref:id]]` link at the end of the description, showing the target's current name |
+| [Describe Here](#element-descriptions) | Right-click elements in an ArchiMate view | Elements of the view | The export describes them on this view's page instead of the first that shows them |
 | [Add Asset...](#12-assets-pictures-and-files) | Right-click one object | One element, relationship, view, note or the model; files from disk | The files copied into `Assets`, and a link to them in the description |
 | [Change marks](#9-change-marks-in-the-models-tree) | Models tree (automatic) | Nothing – it watches the model | Dots showing what no export reflects yet |
 | [Documentation Formatting...](#11-documentation-formatting-changing-the-look) | **Tools** menu, **Preferences > Documentation Export** | Your choice of colours, sizes and keywords | How headings, tokens, SQL, labels and panels look in every export |
@@ -136,6 +138,8 @@ selection fits.
 | Print Order... | ✓ | ✓ | – | one view (tree), or objects of the view (editor) |
 | Link to Work Package... | ✓ | ✓ | – | the selection holds elements |
 | Work Packages... | ✓ | ✓ | – | anything in a model is selected |
+| Describe Here | – | ✓ | – | the selection holds elements |
+| Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
 | Documentation Formatting... | **Tools** menu | | | always |
 
 ---
@@ -160,7 +164,7 @@ What you right-click decides the content:
 
 | You select | The export contains |
 |------------|---------------------|
-| the model | every view, an overview page, a page for elements that are in no view, and a *Work packages* page |
+| the model | every view, an overview page, a page for elements that are in no view, a *Work packages* page and a *Labels* page |
 | work packages | only the elements they change ([details](#export-a-work-package)) |
 | a folder | everything in it |
 | views | those views |
@@ -202,6 +206,7 @@ online-insurance/
 │   ├── sales-overview.html       one page per view
 │   ├── elements-not-in-any-view.html
 │   ├── work-packages.html
+│   ├── labels.html
 │   ├── images/                   view pictures
 │   ├── assets/                   copies of the assets the pages use
 │   └── style.css
@@ -253,6 +258,10 @@ Each view gets a page with, in this order:
 
 <p align="center"><img src="images/output-html-view.png" width="760" alt="Exported view page: description, contents and picture"></p>
 
+A **sketch or canvas view** has no elements, so its page shows the picture and, under *Notes*, the texts of its
+objects: every sticky, actor, block and group with text, its name in bold above what it says (for a canvas sticky
+also its notes), in the order they are on the view. These texts are formatted like any description.
+
 ### Element descriptions
 
 Each element is described with its description, its properties, a table of its relationships to other elements of
@@ -263,7 +272,24 @@ relationships to elements outside the view, grouped by type.
 
 - An element is described **once**, on the first page that shows it. Later pages link to that description. Links
   work in all three formats.
+- **Describe Here** chooses that page yourself: select elements in a view, right-click, **Describe Here**. Whenever
+  that view is part of an export, the elements are described on its page; when it isn't, the first page that shows
+  them describes them as usual. **Describe Here** again on elements already described there takes it back;
+  **Edit > Undo** works too. It is kept in the model as a `doc:home` property of the element holding the view's id,
+  which never appears among the element's properties in the export.
 - Elements are described in alphabetical order unless the view has a [print order](#7-print-order).
+- **Groups:** elements that sit in a visual group of the view (Archi's *Group*, not the ArchiMate Grouping) are listed
+  under the group's name, in *Contents* and among the descriptions. The groups follow their order on the view, the
+  print order applies inside each, and elements in no group come first.
+- **Nesting:** an element drawn inside another element on a view, with no relationship between the two, gets
+  *Part of: ...* in its description, and the outer one *Contains: ...*. When a relationship connects them, the
+  relationship already says how they belong together, so nothing is added.
+- The type in front of a name is the ArchiMate type, with the **specialization** after it when the element or
+  relationship has one (set in Archi's *Specializations Manager*): *<<Business Actor: Broker>>*,
+  *<<Serving Relationship: API call>>*.
+- **Junctions** are never described or listed. A relationship that ends in a junction is followed through it – and
+  through further junctions after it – to the elements on the other side, and shown as one relationship to all of
+  them, joined by *and* (And junction) or *or* (Or junction): for example *→ Check claim or Reject claim*.
 
 ### The PDF
 
@@ -417,10 +443,33 @@ status labels and code blocks).
 | `<sql>select ...</sql>` | an SQL code block |
 | `https://...` | a link |
 | `[[asset:file.png]]` | a picture or file from the Assets folder – see [Assets](#12-assets-pictures-and-files) |
+| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
+| `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
+| `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
+| a `\| A \| B \|` line, then `\|---\|---\|`, then rows | a table with a header row; without the line of dashes the `\|` stays text |
+| ```` ```java ```` ... ```` ``` ```` or `<code lang="java">...</code>` | a code block, the language optional (in Confluence: the code macro) |
+| `[[ref:<id>]]`, `[[ref:<id>\|label]]` | a link to that element or view showing its current name, or the label; its plain name when the export leaves it out |
 | a blank line | a new paragraph; single line breaks stay |
 
 Keywords ignore case. Labels and panels only work for configured keywords, so other `#words` stay as they are. You
 can add your own keywords – see the next section.
+
+**Lists, tables, emphasis, links and code** look the same in all three formats. A few rules keep older text as it
+was: a `*` only makes italic or bold with text right inside it and nothing word-like outside, so `select * from`,
+`count(*)` and `2*3*4` stay as they are; a table needs the line of dashes under its first row, so a `|` in a sentence
+stays a `|`; `[ORDERS]` stays a table name unless `(https://...)` follows it directly. Inside a table cell, write `\|`
+for a `|`. A code block marked `sql` looks like an `<sql>` block. In panels, lists and tables work too.
+
+**References.** `[[ref:<id>]]` links to an element or view by its Archi id and always shows its current name.
+**Insert Reference...** writes one for you: right-click one element, relationship, view, note or the model (in the
+Models tree or in a view), pick the element or view to refer to (type to filter the list), and the reference goes at
+the end of the description. **Edit > Undo** takes it back. When the export doesn't contain the target, its name is
+shown as plain text; an id the model doesn't have shows in red as *[missing reference: id]*.
+
+**The Labels page.** A whole-model export ends with a *Labels* page that collects them: for each configured label
+that occurs (`#risk`, `#todo`, your own...), the views, elements and relationships whose description, notes or
+property values carry it, each a link to where it is described. A relationship links to the element it is described
+with. Labels nobody uses are left out, and without any label there is no such page.
 
 **Example.** This description of *Buy Policy*:
 
@@ -657,6 +706,7 @@ Missing assets are logged as errors, and with `--documentation.strict` they fail
 |------|-------|---------------------|
 | Print orders | in the model (PrintOrder grouping and links) | yes, with the model |
 | Work packages and their links | in the model (Work Package elements, associations) | yes, with the model |
+| Describe Here | in the model (the element's `doc:home` property) | yes, with the model |
 | Asset files | the `Assets` folder next to the model file | yes, if you share the folder |
 | Formatting and keywords | Archi's preferences on your computer | no – use **Edit as Text...** to copy them |
 | Project rules (`documentation.rules`) | next to the model file | yes, if you share the folder |

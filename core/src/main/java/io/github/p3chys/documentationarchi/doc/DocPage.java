@@ -1,7 +1,10 @@
 package io.github.p3chys.documentationarchi.doc;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** One page of the export: the model overview, a view, or a list of elements without a view. */
 public final class DocPage {
@@ -17,12 +20,21 @@ public final class DocPage {
     /** Height of the image at {@link #imageWidth}, in CSS pixels; 0 when unknown. */
     public int imageHeight;
     public final List<String> notes = new ArrayList<>();
+    /** On a sketch or canvas view: the texts of its stickies, actors, blocks and groups, listed with the notes. */
+    public final List<ObjectText> texts = new ArrayList<>();
     /** Views this view refers to with a diagram reference. */
     public final List<Link> relatedViews = new ArrayList<>();
     /** The elements described on this page. */
     public final List<Entry> entries = new ArrayList<>();
     /** What the page holds: the pages of the export on the overview, every element of the view on a view's page. */
     public final List<Link> contents = new ArrayList<>();
+    /**
+     * On a view's page: the name of the visual group an element sits in, by the element's id. The contents and the
+     * entries list the elements of a group together, and the page puts the group's name above them.
+     */
+    public final Map<String, String> groups = new HashMap<>();
+    /** On the Labels page: per label, the views, elements and relationships that carry it. */
+    public final Map<String, List<Link>> labels = new LinkedHashMap<>();
 
     /** File name without extension, unique in the export. Set by {@link Doc}. */
     String slug;

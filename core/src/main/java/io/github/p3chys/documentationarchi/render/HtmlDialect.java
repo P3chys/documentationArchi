@@ -63,6 +63,11 @@ final class HtmlDialect implements Dialect {
     }
 
     @Override
+    public String code(String code, String language) {
+        return "<pre class=\"code\">" + Xml.escape(code) + "</pre>";
+    }
+
+    @Override
     public String tag(String label, TagColour colour) {
         return "<span class=\"tag " + colour.name().toLowerCase(Locale.ROOT) + "\">"
                 + Xml.escape(label.toUpperCase(Locale.ROOT)) + "</span>";

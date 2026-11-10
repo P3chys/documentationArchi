@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
@@ -11,6 +12,7 @@ import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
+import io.github.p3chys.documentationarchi.doc.ObjectText;
 import io.github.p3chys.documentationarchi.doc.Property;
 import io.github.p3chys.documentationarchi.doc.Relation;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
@@ -43,7 +45,7 @@ final class PageBody {
 
     private void page() {
         section(() -> description(page.documentation));
-        section(() -> links("Contents", page.contents));
+        section(() -> contents());
         section(() -> {
             if (page.image != null) {
                 out.append("<p>").append(dialect.image(page)).append("</p>");
@@ -51,20 +53,56 @@ final class PageBody {
         });
         section(() -> properties(page.properties));
         section(() -> {
-            if (!page.notes.isEmpty()) {
+            if (!page.notes.isEmpty() || !page.texts.isEmpty()) {
                 out.append(heading(2, "Notes"));
                 page.notes.forEach(this::description);
+                for (ObjectText t : page.texts) {
+                    if (!t.name.isBlank()) {
+                        out.append("<p><strong>").append(Xml.escape(t.name)).append("</strong></p>");
+                    }
+                    description(t.text);
+                }
             }
         });
         section(() -> links("Related views", page.relatedViews));
+        page.labels.forEach((label, links) -> section(() -> {
+            KeywordRules.TagColour colour = rules.tag(label);
+            out.append("<h2>").append(colour == null ? Xml.escape(label) : dialect.tag(label, colour)).append("</h2><ul>");
+            links.forEach(l -> out.append("<li>").append(link(l)).append("</li>"));
+            out.append("</ul>");
+        }));
         for (Entry entry : page.entries) {
             section(() -> {
-                if (entry == page.entries.get(0)) {
+                int i = page.entries.indexOf(entry);
+                if (i == 0) {
                     out.append(heading(2, "Elements"));
+                }
+                String group = page.groups.get(entry.id);
+                if (group != null && (i == 0 || !group.equals(page.groups.get(page.entries.get(i - 1).id)))) {
+                    out.append(heading(3, group));
                 }
                 entry(entry);
             });
         }
+    }
+
+    /** The elements of the page; those in a group of the view under its name. */
+    private void contents() {
+        if (page.contents.isEmpty()) {
+            return;
+        }
+        out.append(heading(2, "Contents"));
+        String group = null;
+        for (int i = 0; i < page.contents.size(); i++) {
+            Link l = page.contents.get(i);
+            String in = page.groups.get(l.id);
+            if (i == 0 || !Objects.equals(in, group)) {
+                out.append(i == 0 ? "" : "</ul>").append(in != null ? heading(3, in) : "").append("<ul>");
+            }
+            group = in;
+            out.append("<li>").append(link(l)).append("</li>");
+        }
+        out.append("</ul>");
     }
 
     /** A part of the page, with a line between it and what comes before. Writes nothing if the part is empty. */
@@ -91,6 +129,8 @@ final class PageBody {
         out.append(dialect.entryHeading(entry, styled(rules.heading(3), type(entry.type) + Xml.escape(entry.name))));
         description(entry.documentation);
         properties(entry.properties);
+        linkLine("Part of", entry.partOf);
+        linkLine("Contains", entry.contains);
         List<Relation> inside = new ArrayList<>();
         Map<String, List<Relation>> outside = new LinkedHashMap<>();
         for (Relation r : entry.relations) {
@@ -137,7 +177,7 @@ final class PageBody {
             if (!r.name.isEmpty()) {
                 out.append("<br/>").append(Xml.escape(r.name));
             }
-            out.append("</td><td>").append(link(r.other)).append("</td><td>");
+            out.append("</td><td>").append(others(r)).append("</td><td>");
             description(r.documentation);
             out.append("</td></tr>");
         }
@@ -147,7 +187,7 @@ final class PageBody {
     private void relationGroup(String type, List<Relation> relations) {
         out.append("<p><strong>").append(Xml.escape(type)).append("</strong></p><ul>");
         for (Relation r : relations) {
-            out.append("<li>").append(arrow(r)).append(link(r.other));
+            out.append("<li>").append(arrow(r)).append(others(r));
             if (!r.name.isEmpty()) {
                 out.append(" (").append(Xml.escape(r.name)).append(")");
             }
@@ -155,6 +195,15 @@ final class PageBody {
             out.append("</li>");
         }
         out.append("</ul>");
+    }
+
+    /** The element at the other end; through a junction, all of them, joined by its "and" or "or". */
+    private String others(Relation r) {
+        StringBuilder s = new StringBuilder();
+        for (Link l : r.others) {
+            s.append(s.length() == 0 ? "" : " " + Xml.escape(r.junction) + " ").append(link(l));
+        }
+        return s.toString();
     }
 
     private static String arrow(Relation r) {
@@ -194,11 +243,43 @@ final class PageBody {
     }
 
     private void description(String text) {
-        for (RichText.Block block : RichText.parse(text, rules)) {
-            String body = "<p>" + inlines(block.inlines) + "</p>";
-            out.append(block.sql != null ? dialect.sql(block.sql, rules.sql())
-                    : block.style == null ? body : dialect.panel(block.style, block.title, body));
+        RichText.parse(text, rules).forEach(block -> out.append(block(block)));
+    }
+
+    private String block(RichText.Block block) {
+        if (block.sql != null) {
+            return dialect.sql(block.sql, rules.sql());
         }
+        if (block.code != null) {
+            return dialect.code(block.code, block.language);
+        }
+        StringBuilder s = new StringBuilder();
+        if (block.items != null) {
+            String list = block.numbered ? "ol" : "ul";
+            s.append("<").append(list).append(">");
+            block.items.forEach(item -> s.append("<li>").append(inlines(item)).append("</li>"));
+            return s.append("</").append(list).append(">").toString();
+        }
+        if (block.rows != null) {
+            int columns = block.rows.get(0).size();
+            s.append("<table><tbody>");
+            for (List<List<RichText.Inline>> row : block.rows) {
+                String cell = row == block.rows.get(0) ? "th" : "td";
+                s.append("<tr>");
+                for (int i = 0; i < Math.max(columns, row.size()); i++) {
+                    s.append("<").append(cell).append(">").append(i < row.size() ? inlines(row.get(i)) : "")
+                            .append("</").append(cell).append(">");
+                }
+                s.append("</tr>");
+            }
+            return s.append("</tbody></table>").toString();
+        }
+        if (block.children.isEmpty()) {
+            s.append("<p>").append(inlines(block.inlines)).append("</p>");
+        } else {
+            block.children.forEach(b -> s.append(block(b)));
+        }
+        return block.style == null ? s.toString() : dialect.panel(block.style, block.title, s.toString());
     }
 
     private String inlines(List<RichText.Inline> inlines) {
@@ -212,6 +293,12 @@ final class PageBody {
                     s.append("<a href=\"").append(url).append("\">").append(url).append("</a>");
                     break;
                 case ASSET: s.append(asset(i)); break;
+                case BOLD: s.append("<strong>").append(inlines(i.children)).append("</strong>"); break;
+                case ITALIC: s.append("<em>").append(inlines(i.children)).append("</em>"); break;
+                case LINK:
+                    s.append("<a href=\"").append(Xml.escape(i.text)).append("\">").append(Xml.escape(i.label)).append("</a>");
+                    break;
+                case REF: s.append(reference(i)); break;
                 case STYLED:
                 case TABLE:
                 case CONSTANT:
@@ -223,6 +310,19 @@ final class PageBody {
             }
         }
         return s.toString();
+    }
+
+    /**
+     * A link to an element or view, by its current name; its plain name when the export doesn't describe it. One the
+     * model doesn't have stays visible in red, like a missing asset.
+     */
+    private String reference(RichText.Inline reference) {
+        String name = reference.label != null ? reference.label : doc.names.get(reference.text);
+        if (name == null) {
+            return "<span style=\"color: rgb(191,38,0);\">[missing reference: " + Xml.escape(reference.text) + "]</span>";
+        }
+        Doc.Location to = doc.locate(reference.text);
+        return to == null ? Xml.escape(name) : dialect.link(to, page, Xml.escape(name));
     }
 
     /** A reference to a file that isn't there stays visible in red, so whoever reads the page notices. */

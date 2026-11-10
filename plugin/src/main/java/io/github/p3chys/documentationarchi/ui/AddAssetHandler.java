@@ -92,7 +92,7 @@ public class AddAssetHandler extends AbstractHandler {
     }
 
     /** The one object whose description gets the asset: a diagram object means its element or relationship. */
-    private static EObject target(ISelection selection) {
+    static EObject target(ISelection selection) {
         if (!(selection instanceof IStructuredSelection) || ((IStructuredSelection) selection).size() != 1) {
             return null;
         }

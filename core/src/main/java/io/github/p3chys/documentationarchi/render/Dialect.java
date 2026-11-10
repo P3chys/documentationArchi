@@ -27,6 +27,9 @@ interface Dialect {
 
     String tag(String label, TagColour colour);
 
+    /** @param language as written in the description, null for none */
+    String code(String code, String language);
+
     /** Markup in a style: bold, italic and underline as tags, the rest as one inline style. */
     default String styled(String escapedText, TextStyle style) {
         StringBuilder css = new StringBuilder();

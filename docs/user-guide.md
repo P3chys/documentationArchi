@@ -747,7 +747,7 @@ export finishes, its message says how many objects the rules left out. The rule 
 The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
 `language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
 `text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
-are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, the verbs of relationships (`triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `reads`, `writes`, `reads-writes`, `read-by`, `written-by`, `read-written-by`), `role-and-higher`, `role-only` (with `{role}`), `input-parameters`, `output`, `request`, `response`. `generated` keeps the placeholders `{time}` and `{model}`, `page-of` (the PDF footer) `{page}` and `{pages}`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`. The names of element and relationship types stay as
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, the verbs of relationships (`triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`), `role-and-higher`, `role-only` (with `{role}`), `recursive-reference` (with `{name}`), `input-parameters`, `output`, `request`, `response`. `generated` keeps the placeholders `{time}` and `{model}`, `page-of` (the PDF footer) `{page}` and `{pages}`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`. The names of element and relationship types stay as
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 
@@ -838,6 +838,11 @@ unknown or repeated name is an error, reported with its line. Without the lines 
 `pdf cover off`, `pdf contents off` and `pdf landscape off` leave out the PDF's cover, its table of contents, and the
 landscape pages for views with wide pictures (they are then on upright pages, the picture made smaller). `on` instead
 of `off` turns one back on, for instance in `documentation.rules` when the preferences turned it off.
+
+### Single-file HTML
+
+`html single-file` makes the HTML format write one self-contained file per page: style sheet inside, views and image
+assets as `data:` pictures, no sidebar, search or script. See Command line and automation.
 
 ---
 
@@ -933,31 +938,38 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 
 | Option | Meaning |
 |--------|---------|
-| `--documentation.folder` | export the whole model's documentation to this folder |
+| `--documentation.folder` | export the whole model's documentation to this folder; default: `output=` of the profile, else the environment variable `HAF_OUT_DIR`, else a new folder `documentation-...` in the temporary folder (the log says which) |
 | `--documentation.formats` | comma separated `html`, `pdf`, `confluence`; default: all three |
 | `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.elements a,b` | only these elements: names or ids; they go on the "Selected elements" page |
+| `--documentation.single-file` | HTML as one self-contained file per page (rule: `html single-file`) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
 | `--documentation.profile name` | export as this profile of the rules says (see Export profiles); `--documentation.folder` is then optional, and options given here override the profile |
 | `--documentation.check` | list what is missing or wrong in the documentation (see Check Documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 
-Without `--documentation.workPackages`, `--documentation.views` and `--documentation.folders` the command line exports
-the whole model. Views and folders can be combined (`--documentation.views Overview --documentation.folders Views/Sales`);
-work packages cannot be mixed with them, run the export twice instead. Names are matched exactly; a work package by its
+Without `--documentation.workPackages`, `--documentation.views`, `--documentation.folders` and `--documentation.elements`
+the command line exports the whole model. Views, folders and elements can be combined (`--documentation.views Overview
+--documentation.folders Views/Sales`); work packages cannot be mixed with them, run the export twice instead. Names are matched exactly; a work package by its
 name or by the ticket key its name starts with, a folder by its path from the top folder (the folder names Archi shows,
 `Views` for example). A name that matches nothing, or a view name shared by several views, stops the run with an error
 that lists every name not found.
 
-**Failing a build.** Archi's command line providers signal failure by throwing an error, and Archi ends with a
-non-zero exit code only when you also pass its own `--abortOnException`. For CI use both:
+**Failing a build.** A failing run (unknown name, empty work package, unusable rules, an output folder without what the
+formats promise: `html/index.html`, the PDF, `confluence/manifest.json`) prints its message and exits with code 1,
+without an error dialog, with or without Archi's `--abortOnException`:
 
 ```bash
-Archi -application com.archimatetool.commandline.app -consoleLog -nosplash --abortOnException \
+Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
   --loadModel model.archimate --documentation.folder out --documentation.strict
 ```
+
+**Single-file HTML.** `--documentation.single-file`, or `html single-file` in the rules, makes the HTML format write
+one self-contained file per page (same names): style sheet inside, views and image assets as `data:` pictures, no
+sidebar, search or script; each page links to the first page and the two indexes. Other assets stay in `html/assets/`.
 
 An invalid rules file (the project file or the one given with `--documentation.rules`) always fails the run and names
 the file and line. The command line exports the whole model by default and uses the project rules file of the model if there is one, else the formatting settings of the Archi installation it runs in.

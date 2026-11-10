@@ -229,42 +229,66 @@ public final class Exporter {
     }
 
     private void html(Path folder, Progress progress) throws IOException {
-        Files.createDirectories(folder.resolve("images"));
-        Files.writeString(folder.resolve("style.css"), resource("style.css"));
-        Files.writeString(folder.resolve("nav.js"), resource("nav.js"));
-        HtmlDialect dialect = new HtmlDialect(doc, false);
+        boolean single = rules.htmlSingleFile();
+        String css = resource("style.css");
+        Files.createDirectories(folder);
+        if (!single) {
+            Files.createDirectories(folder.resolve("images"));
+            Files.writeString(folder.resolve("style.css"), css);
+            Files.writeString(folder.resolve("nav.js"), resource("nav.js"));
+        }
+        HtmlDialect dialect = new HtmlDialect(doc, false).inline(single);
         HtmlSite site = new HtmlSite(doc, dialect, rules.texts());
-        Files.writeString(folder.resolve(HtmlSite.SEARCH), site.searchData());
+        if (!single) {
+            Files.writeString(folder.resolve(HtmlSite.SEARCH), site.searchData());
+        }
+        String aToZ = rules.texts().get("elements-a-z");
+        String byType = rules.texts().get("elements-by-type");
         Set<Assets.Asset> used = new LinkedHashSet<>();
         for (DocPage page : doc.pages) {
             check(progress);
-            String nav = page == doc.pages.get(0) ? ""
-                    : "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
-            Files.writeString(folder.resolve(page.slug() + ".html"), htmlPage(page.title, site.sidebar(page, null),
-                    nav + "<h1>" + title(page, dialect) + "</h1>" + PageBody.render(doc, page, dialect, rules, used)
+            String nav = single ? singleFileNav(aToZ, byType)
+                    : page == doc.pages.get(0) ? "" : "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
+            Files.writeString(folder.resolve(page.slug() + ".html"), htmlPage(page.title,
+                    single ? null : site.sidebar(page, null), css, nav + "<h1>" + title(page, dialect) + "</h1>"
+                    + PageBody.render(doc, page, dialect, rules, used)
                     + (page == doc.pages.get(0) && version != null
                             ? "<footer class=\"version\">" + Xml.escape(version) + "</footer>" : "")));
-            if (page.image != null) {
+            if (page.image != null && !single) {
                 page.image.copyTo(folder.resolve("images").resolve(page.slug() + ".png"));
             }
         }
-        String home = "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
-        String aToZ = rules.texts().get("elements-a-z");
-        Files.writeString(folder.resolve(HtmlSite.A_Z), htmlPage(aToZ, site.sidebar(null, HtmlSite.A_Z),
-                home + "<h1>" + Xml.escape(aToZ) + "</h1>" + site.aToZ()));
-        String byType = rules.texts().get("elements-by-type");
-        Files.writeString(folder.resolve(HtmlSite.BY_TYPE), htmlPage(byType, site.sidebar(null, HtmlSite.BY_TYPE),
+        String home = single ? singleFileNav(aToZ, byType)
+                : "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
+        Files.writeString(folder.resolve(HtmlSite.A_Z), htmlPage(aToZ, single ? null : site.sidebar(null, HtmlSite.A_Z),
+                single ? css : null, home + "<h1>" + Xml.escape(aToZ) + "</h1>" + site.aToZ()));
+        Files.writeString(folder.resolve(HtmlSite.BY_TYPE), htmlPage(byType,
+                single ? null : site.sidebar(null, HtmlSite.BY_TYPE), single ? css : null,
                 home + "<h1>" + Xml.escape(byType) + "</h1>" + site.byType()));
+        used.removeIf(dialect::inlined); // those are inside their pages
         copy(used, folder.resolve("assets"));
     }
 
-    /** A page of the HTML export: the sidebar, then the content; the scripts only make the search work. */
-    private static String htmlPage(String title, String sidebar, String content) {
+    /** Without the sidebar, every single-file page leads to the first page and the two indexes. */
+    private String singleFileNav(String aToZ, String byType) {
+        return "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a> | <a href=\"" + HtmlSite.A_Z + "\">"
+                + Xml.escape(aToZ) + "</a> | <a href=\"" + HtmlSite.BY_TYPE + "\">" + Xml.escape(byType) + "</a></nav>";
+    }
+
+    /**
+     * A page of the HTML export: the sidebar, then the content; the scripts only make the search work.
+     *
+     * @param sidebar null in a single-file page, which has no sidebar and no scripts
+     * @param css the style sheet to put in the page; null to link to style.css
+     */
+    private static String htmlPage(String title, String sidebar, String css, String content) {
+        boolean single = sidebar == null;
         return "<!DOCTYPE html>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/>"
                 + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>" + Xml.escape(title)
-                + "</title><link rel=\"stylesheet\" href=\"style.css\"/></head><body class=\"site\">" + sidebar
-                + "<main>" + content + "</main><script src=\"" + HtmlSite.SEARCH + "\"></script>"
-                + "<script src=\"nav.js\"></script></body></html>\n";
+                + "</title>" + (single ? "<style>" + css + "</style>" : "<link rel=\"stylesheet\" href=\"style.css\"/>")
+                + "</head><body" + (single ? "" : " class=\"site\"") + ">" + (single ? "" : sidebar) + "<main>" + content
+                + "</main>" + (single ? "" : "<script src=\"" + HtmlSite.SEARCH + "\"></script><script src=\"nav.js\"></script>")
+                + "</body></html>\n";
     }
 
     private static void copy(Set<Assets.Asset> assets, Path folder) throws IOException {

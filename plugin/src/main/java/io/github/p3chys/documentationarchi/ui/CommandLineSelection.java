@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.archimatetool.model.IArchimateElement;
 import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IDiagramModel;
 import com.archimatetool.model.IFolder;
@@ -26,18 +27,24 @@ final class CommandLineSelection {
 
     /**
      * Nothing named: the whole model. Else work packages (by name or by the ticket key their name starts with), or
-     * views (by name or id) and folders (paths like {@code Views/Sales}).
+     * views (by name or id), folders (paths like {@code Views/Sales}) and elements (by name or id; they go on the
+     * "Selected elements" page, as when selected in Archi).
      *
-     * @throws IllegalArgumentException listing every name that matches nothing, or matches several views
+     * @throws IllegalArgumentException listing every name that matches nothing, or matches several views or elements
      */
     static ModelReader.Selection select(IArchimateModel model, List<String> workPackages, List<String> views,
             List<String> folders) {
-        if (workPackages.isEmpty() && views.isEmpty() && folders.isEmpty()) {
+        return select(model, workPackages, views, folders, List.of());
+    }
+
+    static ModelReader.Selection select(IArchimateModel model, List<String> workPackages, List<String> views,
+            List<String> folders, List<String> elements) {
+        if (workPackages.isEmpty() && views.isEmpty() && folders.isEmpty() && elements.isEmpty()) {
             return ModelReader.Selection.of(List.of(model));
         }
-        if (!workPackages.isEmpty() && !(views.isEmpty() && folders.isEmpty())) {
-            throw new IllegalArgumentException("Work packages cannot be combined with views or folders: export them in "
-                    + "separate runs.");
+        if (!workPackages.isEmpty() && !(views.isEmpty() && folders.isEmpty() && elements.isEmpty())) {
+            throw new IllegalArgumentException("Work packages cannot be combined with views, folders or elements: "
+                    + "export them in separate runs.");
         }
         List<String> problems = new ArrayList<>();
         Set<Object> chosen = new LinkedHashSet<>();
@@ -65,6 +72,23 @@ final class CommandLineSelection {
             } else if (found.size() > 1) {
                 problems.add("view \"" + name + "\" is ambiguous, use one of the ids "
                         + found.stream().map(IDiagramModel::getId).collect(Collectors.joining(", ")));
+            } else {
+                chosen.add(found.get(0));
+            }
+        }
+        for (String name : elements) {
+            List<IArchimateElement> found = new ArrayList<>();
+            model.eAllContents().forEachRemaining(o -> {
+                if (o instanceof IArchimateElement
+                        && (name.equals(((IArchimateElement) o).getId()) || name.equals(((IArchimateElement) o).getName()))) {
+                    found.add((IArchimateElement) o);
+                }
+            });
+            if (found.isEmpty()) {
+                problems.add("element \"" + name + "\"");
+            } else if (found.size() > 1) {
+                problems.add("element \"" + name + "\" is ambiguous, use one of the ids "
+                        + found.stream().map(IArchimateElement::getId).collect(Collectors.joining(", ")));
             } else {
                 chosen.add(found.get(0));
             }

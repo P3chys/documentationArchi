@@ -259,14 +259,17 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 |-------|--------|
 | `INFO: text`, `NOTE: text`, `TIP: text`, `WARNING: text` at the start of a line | a coloured panel with that title, up to the next blank line |
 | `<#>a remark</#>` (or up to the next blank line) | a note panel without a title |
+| `<#>` and `</#>` on lines of their own | a note panel up to `</#>`, across blank lines; it may hold SQL, tables, lists |
 | `#risk` or `[[risk]]` | a label; built in: `risk` (red), `deprecated` (grey), `todo` and `draft` (yellow), `new` (green) |
 | `Description:`, `Technically:` anywhere | bold |
 | `[ORDERS]` | a table name, coloured |
-| `'ACTIVE'` | a constant, coloured |
+| `'ACTIVE'` | a constant, coloured: capitals, digits, `_ ( ) :` in single quotes, with a capital (`'TYPE_1'`, `'NVL(X)'`; not `'hello'`, `'2024'`) |
 | `{client_id}` | a variable, coloured |
-| `<sql>select ...</sql>` | an SQL code block (in Confluence: the code macro with SQL highlighting) |
+| `<sql>select ...</sql>` | an SQL code block; in HTML and PDF keywords at the start of a line (`SELECT`, `FROM`, `WHERE`, `LEFT JOIN`...) are bold and `'CONSTANT'`, `{variable}`, `[object]` coloured (in Confluence: the code macro with SQL highlighting) |
 | `https://...` | a link |
-| `[[asset:file.png]]` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
+| `[[asset:file.png]]`, `<ass>file.png</ass>` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
+| `<tbl>` ... `</tbl>` | a table of the lines starting with `\|`, the first its header; no line of dashes needed; a line without `\|` goes on in the last cell |
+| a line of only `<name>` ... `</name>` | indents the lines in between by 20px per level; the tag lines are printed; `<section end>` ends all levels |
 | `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
 | `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
 | `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
@@ -316,6 +319,7 @@ text contents = Table of contents   replace one fixed text
 page description picture elements   sections of a view's page, in this order
 entry description relations     parts of an element's description, in this order
 pdf landscape off               no landscape pages in the PDF; also pdf cover off, pdf contents off
+assets Files                    the folder assets are read from (default: Assets)
 defaults off                    in documentation.rules: without the built-in panels, labels and bold texts
 ```
 
@@ -335,7 +339,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
@@ -389,6 +393,15 @@ A reference that finds no file shows in red as *[missing asset: name]* on its pa
 finishes (on the command line, as errors). Only files really inside `Assets` are used: a link from there to a file
 elsewhere, or an `Assets` folder that is itself a link, is ignored and reported. That way a model shared with you
 can't pull other files from your computer into an export.
+
+`<ass>path</ass>` works like `[[asset:path]]` and may be broken over lines (they are joined). A web address in it is a
+link, or a picture when it ends in `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp` or `.svg` (a query string is ignored). An
+absolute path, or one that leaves the folder with `..`, shows in red as *[Unsupported asset: path]* and is reported
+like a missing asset.
+
+**Another folder:** the rule line `assets <folder>` (relative to the model file's folder, or absolute; in quotes when
+it has spaces) says where assets are read from instead of `Assets`; Add Asset copies there too. On the command line
+`--documentation.assets <folder>` overrides it.
 
 ## Confluence
 
@@ -492,6 +505,7 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
 | `--documentation.profile name` | export as this profile of the rules says, see [Export profiles](#export-profiles); `--documentation.folder` is then optional, explicit options win |
 | `--documentation.check` | print what is missing or wrong in the documentation, see [Check Documentation](#check-documentation); with `--documentation.strict`, findings fail the run |
+| `--documentation.assets folder` | read assets from this folder (relative to the model's folder, or absolute), instead of the `assets` rule |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 

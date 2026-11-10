@@ -46,8 +46,26 @@ final class AssetLinks {
      * @throws Assets.LinkedFolderException when it links to another folder
      */
     static Path assetsFolder(Path modelFolder) throws IOException {
-        Path folder = Assets.folderIn(modelFolder);
-        return folder != null ? folder : modelFolder.resolve(Assets.FOLDER);
+        return assetsFolder(modelFolder, null);
+    }
+
+    /**
+     * The folder assets are kept in: the one the {@code assets} rule names (relative to the model's folder, or
+     * absolute), else the Assets folder next to the model file; it may not exist yet.
+     *
+     * @throws Assets.LinkedFolderException when it links to another folder
+     */
+    static Path assetsFolder(Path modelFolder, String setting) throws IOException {
+        if (setting == null || setting.isBlank()) {
+            Path folder = Assets.folderIn(modelFolder);
+            return folder != null ? folder : modelFolder.resolve(Assets.FOLDER);
+        }
+        Path folder = Assets.configured(modelFolder, setting);
+        if (folder != null) {
+            return folder;
+        }
+        Path wanted = Path.of(setting.strip());
+        return wanted.isAbsolute() ? wanted.normalize() : modelFolder.resolve(wanted).toAbsolutePath().normalize();
     }
 
     /**
@@ -56,9 +74,7 @@ final class AssetLinks {
      */
     static String bringIn(Path assets, Path chosen) throws IOException {
         Files.createDirectories(assets);
-        if (!assets.equals(assetsFolder(assets.getParent()))) {
-            throw new IOException(assets + " is not the Assets folder of " + assets.getParent());
-        }
+        Assets.requireNotLinked(assets); // a link would put the files in any folder of the computer
         Path real = chosen.toRealPath();
         Path folder = assets.toRealPath();
         if (!real.startsWith(folder)) {

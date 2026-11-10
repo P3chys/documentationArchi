@@ -219,11 +219,12 @@ public final class PreviewView extends ViewPart {
         KeywordRules rules = ProjectRules.resolve(of, null, Prefs::rules);
         IDiagramModel view = PreviewTarget.view(target);
         // what an export of the whole model gives; of the pictures only the one shown is needed
-        Doc doc = ModelReader.read(ModelReader.Selection.of(List.of(of)), (v, p) -> {
+        ModelReader.Selection selection = ModelReader.Selection.of(List.of(of));
+        Doc doc = ModelReader.read(selection, (v, p) -> {
             if (v == view) {
                 pictures.fill(v, p);
             }
-        }, new ArrayList<>());
+        }, new ArrayList<>(), rules, selection.exclusion(rules)); // with the project's rules: its assets folder
         List<IOException> failed = new ArrayList<>();
         Set<Assets.Asset> used = new HashSet<>();
         String html = PreviewTarget.html(target, doc, rules, p -> {

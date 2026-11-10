@@ -54,6 +54,7 @@ public final class Texts {
         add("page-of", "Page {page} of {pages}", "Strana {page} z {pages}");
         add("generated", "Generated {time} from {model}", "Vygenerováno {time} z {model}");
         add("missing-asset", "missing asset", "chybějící příloha");
+        add("unsupported-asset", "Unsupported asset", "Nepodporovaná příloha");
         add("missing-reference", "missing reference", "chybějící odkaz");
         // the page of changes since the published documentation
         add("changes-since", "Changes since {date}", "Změny od {date}");

@@ -3,6 +3,7 @@ package io.github.p3chys.documentationarchi.text;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -16,11 +17,15 @@ import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
  * A description from the model, split into blocks with tags, links and coloured tokens marked:
  * <pre>
  * &lt;sql&gt;select 1&lt;/sql&gt;     code block
- * &lt;#&gt;a remark&lt;/#&gt;       note panel (without the closing tag: up to the next blank line)
+ * &lt;#&gt;a remark&lt;/#&gt;       note panel (without the closing tag: up to the next blank line); with &lt;#&gt; and &lt;/#&gt;
+ *                      on lines of their own the note holds everything between them, blank lines, SQL and tables too
+ * &lt;tbl&gt;|a|b|, |1|2|&lt;/tbl&gt;   a table of lines starting with |, the first its header; other lines go on with the last cell
+ * &lt;loop&gt; ... &lt;/loop&gt;   a line that is only a tag indents the lines after it by 20px; &lt;section end&gt; ends all indents
+ * &lt;ass&gt;docs/SLA.pdf&lt;/ass&gt;   like [[asset:docs/SLA.pdf]]; a web address is a link, or a picture when it ends in .png, .jpg...
  * WARNING: ...         panel, see {@link KeywordRules}
  * #risk, [[risk]]      label, see {@link KeywordRules}
  * Description:         bold or another text style, see {@link KeywordRules}
- * [table] 'CONSTANT' {variable}   coloured text
+ * [table] 'CONSTANT' {variable}   coloured text; a constant is capitals, digits, _ ( ) and : in quotes, with a capital
  * [[asset:flow.png]], [[asset:docs/SLA.pdf|the SLA]], asset:flow.png   a file of the model's Assets folder
  * - item, * item, 1. item   bullet and numbered lists, one item per line (indented lines go on with the item)
  * | a | b |, then |---|---|   a table, the first row its header; without the line of dashes it is text
@@ -32,7 +37,13 @@ import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
  */
 public final class RichText {
 
-    public enum InlineKind { TEXT, BREAK, URL, TAG, STYLED, TABLE, CONSTANT, VARIABLE, ASSET, BOLD, ITALIC, LINK, REF }
+    public enum InlineKind {
+        TEXT, BREAK, URL, TAG, STYLED, TABLE, CONSTANT, VARIABLE, ASSET, BOLD, ITALIC, LINK, REF,
+        /** A picture at a web address, from {@code <ass>}. */
+        IMAGE_URL,
+        /** An {@code <ass>} path that is absolute or leaves the assets folder. */
+        BAD_ASSET
+    }
 
     public static final class Inline {
         public final InlineKind kind;
@@ -89,6 +100,8 @@ public final class RichText {
         public final List<List<List<Inline>>> rows;
         /** A panel holding lists or tables: its blocks, to show instead of {@link #inlines}. Empty otherwise. */
         public final List<Block> children;
+        /** How many nesting tags (a line of only {@code <name>}) are open where the block stands, 0 for none. */
+        public int indent;
 
         Block(PanelStyle style, String title, List<Inline> inlines, String sql) {
             this(style, title, inlines, sql, null, null, null, false, null, List.of());
@@ -126,14 +139,24 @@ public final class RichText {
     }
 
     private static final Pattern TAG_BLOCK = Pattern.compile(
-            "(?ism)<sql>(?<sql>.*?)(?:</sql>|\\z)|<#>(?<note>.*?)(?:</#>|\\n[ \\t]*\\n|\\z)"
+            "(?ism)<sql>(?<sql>.*?)(?:</sql>|\\z)|<tbl>(?<tbl>.*?)(?:</tbl>|\\z)"
+            // <#> and </#> on lines of their own: the note is everything between them
+            + "|^[ \\t]*<#>[ \\t]*\\n(?<longNote>.*?)^[ \\t]*</#>[ \\t]*$"
+            + "|<#>(?<note>.*?)(?:</#>|\\n[ \\t]*\\n|\\z)"
             // a fence on a line of its own, up to the next one or the end
             + "|^[ \\t]*```[ \\t]*(?<fence>[\\w+#.-]*)[ \\t]*\\n(?<fenced>.*?)(?:^[ \\t]*```[ \\t]*$|\\z)"
             + "|<code(?:\\s+lang\\s*=\\s*\"(?<lang>[^\"\\n]*)\")?\\s*>(?<code>.*?)(?:</code>|\\z)");
     private static final Pattern PREFIX = Pattern.compile("^\\s*([^:]{1,40}):\\s*(.*)$");
     private static final Pattern ITEM = Pattern.compile("^[ \\t]*(?:(?<bullet>[-*])|(?<number>\\d{1,9})\\.)[ \\t]+(?<item>\\S.*)$");
     private static final Pattern TABLE_RULE = Pattern.compile("^[ \\t]*\\|?[ \\t]*:?-{3,}:?[ \\t]*(?:\\|[ \\t]*:?-{3,}:?[ \\t]*)*\\|?[ \\t]*$");
-    private static final Pattern INLINE = Pattern.compile("(?<url>https?://[^\\s<>\"]+)"
+    /** A line of only a tag that opens or closes a level of indent, and the first word of its name. */
+    private static final Pattern NESTING = Pattern.compile("^<(?<close>/)?(?<name>\\p{L}(?:[^<>]|<>)*)>$");
+    private static final Pattern SECTION_END = Pattern.compile("(?i)^<section\\s+end>$");
+    private static final Set<String> KNOWN_TAGS = Set.of("sql", "tbl", "code", "ass");
+    /** A constant: capitals, digits, _ ( ) and : in single quotes, with a capital; not the apostrophes of don't or the '90s. */
+    public static final String CONSTANT = "(?<![\\p{L}\\p{N}'])'(?=[A-Z0-9_():]*[A-Z])[A-Z0-9_():]+'(?![\\p{L}\\p{N}])";
+    private static final Pattern INLINE = Pattern.compile("(?i:<ass>)(?<assTag>[^<]*\\S[^<]*)(?i:</ass>)"
+            + "|(?<url>https?://[^\\s<>\"]+)"
             + "|\\[\\[\\s*(?i:asset):(?<asset>[^\\]|\\n]+)(?:\\|(?<assetLabel>[^\\]\\n]*))?]]"
             + "|(?<![\\p{L}\\p{N}_/:])(?i:asset):(?<bareAsset>[^\\s<>\"\\[\\]|]+)"
             + "|\\[\\[\\s*(?i:ref):\\s*(?<ref>[^\\]|\\s]+)\\s*(?:\\|(?<refLabel>[^\\]\\n]*))?]]"
@@ -141,8 +164,7 @@ public final class RichText {
             // only "](" makes a link; [ORDERS] alone stays a table name
             + "|\\[(?<linkLabel>[^\\[\\]\\n]+)]\\((?<link>https?://[^\\s()<>\"]+)\\)"
             + "|(?<table>\\[[^\\[\\]\\n]+])"
-            // not the apostrophes of don't or the '90s
-            + "|(?<constant>(?<![\\p{L}\\p{N}'])'[^'\\n]+'(?![\\p{L}\\p{N}]))"
+            + "|(?<constant>" + CONSTANT + ")"
             + "|(?<variable>\\{[^{}\\n]+})"
             + "|(?<![\\p{L}\\p{N}_#&/])#(?<hash>[\\p{L}\\p{N}_-]+)"
             // not the * of select *, count(*), a * b or 2*3: text right inside, nothing word-like outside
@@ -157,11 +179,20 @@ public final class RichText {
         String source = text == null ? "" : text.replaceAll("\\R", "\n");
         List<Block> blocks = new ArrayList<>();
         Matcher m = TAG_BLOCK.matcher(source);
+        Nesting nesting = new Nesting();
         int done = 0;
         while (m.find()) {
-            lines(source.substring(done, m.start()), rules, blocks);
+            text(source.substring(done, m.start()), rules, blocks, nesting);
+            int from = blocks.size();
             if (m.group("sql") != null) {
                 sql(m.group("sql"), blocks);
+            } else if (m.group("tbl") != null) {
+                table(m.group("tbl"), rules, blocks);
+            } else if (m.group("longNote") != null) {
+                List<Block> children = parse(m.group("longNote"), rules);
+                if (!children.isEmpty()) {
+                    blocks.add(Block.panel(PanelStyle.NOTE, null, List.of(), children));
+                }
             } else if (m.group("note") != null) {
                 if (!m.group("note").isBlank()) {
                     String note = m.group("note").strip();
@@ -181,10 +212,89 @@ public final class RichText {
                     }
                 }
             }
+            indent(blocks, from, nesting.level);
             done = m.end();
         }
-        lines(source.substring(done), rules, blocks);
+        text(source.substring(done), rules, blocks, nesting);
         return blocks;
+    }
+
+    /** How many nesting tags are open; the lines of a description are indented by it. */
+    private static final class Nesting {
+        int level;
+    }
+
+    private static void indent(List<Block> blocks, int from, int level) {
+        blocks.subList(from, blocks.size()).forEach(b -> b.indent = level);
+    }
+
+    /**
+     * Text between the tag blocks: the lines, with a line of only a tag opening or closing a level of indent. The tag
+     * line is printed as text, an opening one at the outer level and a closing one too; {@code <section end>} closes
+     * all levels and is not printed.
+     */
+    private static void text(String text, KeywordRules rules, List<Block> blocks, Nesting nesting) {
+        List<String> chunk = new ArrayList<>();
+        for (String line : text.split("\n", -1)) {
+            String tag = line.strip();
+            Matcher m = NESTING.matcher(tag);
+            boolean section = SECTION_END.matcher(tag).matches();
+            boolean nest = !section && m.matches()
+                    && !KNOWN_TAGS.contains(m.group("name").split("[\\s=]", 2)[0].toLowerCase(Locale.ROOT));
+            if (!section && !nest) {
+                chunk.add(line);
+                continue;
+            }
+            int from = blocks.size();
+            lines(String.join("\n", chunk), rules, blocks);
+            indent(blocks, from, nesting.level);
+            chunk.clear();
+            if (section) {
+                nesting.level = 0;
+            } else if (m.group("close") == null) {
+                from = blocks.size();
+                paragraph(new ArrayList<>(List.of(tag)), rules, blocks);
+                indent(blocks, from, nesting.level++);
+            } else {
+                nesting.level = Math.max(0, nesting.level - 1);
+                from = blocks.size();
+                paragraph(new ArrayList<>(List.of(tag)), rules, blocks);
+                indent(blocks, from, nesting.level);
+            }
+        }
+        int from = blocks.size();
+        lines(String.join("\n", chunk), rules, blocks);
+        indent(blocks, from, nesting.level);
+    }
+
+    /** A {@code <tbl>}: rows are the lines starting with |, any other line goes on with the last cell. */
+    private static void table(String text, KeywordRules rules, List<Block> blocks) {
+        List<List<String>> rows = new ArrayList<>();
+        List<String> before = new ArrayList<>();
+        for (String line : text.split("\n")) {
+            String row = line.strip();
+            if (row.isEmpty() || row.startsWith("|") && TABLE_RULE.matcher(row).matches()) {
+                continue;
+            }
+            if (row.startsWith("|")) {
+                rows.add(rawCells(row));
+            } else if (rows.isEmpty()) {
+                before.add(row);
+            } else {
+                List<String> last = rows.get(rows.size() - 1);
+                last.set(last.size() - 1, last.get(last.size() - 1) + "\n" + row);
+            }
+        }
+        paragraph(before, rules, blocks);
+        if (!rows.isEmpty()) {
+            List<List<List<Inline>>> table = new ArrayList<>();
+            for (List<String> row : rows) {
+                List<List<Inline>> cells = new ArrayList<>();
+                row.forEach(cell -> cells.add(inlines(cell, rules)));
+                table.add(cells);
+            }
+            blocks.add(Block.table(table));
+        }
     }
 
     private static void sql(String text, List<Block> blocks) {
@@ -279,10 +389,17 @@ public final class RichText {
 
     /** The cells of a table row: split at each | that is not escaped as \| and not inside [[...]]. */
     private static List<List<Inline>> cells(String line, KeywordRules rules) {
+        List<List<Inline>> cells = new ArrayList<>();
+        rawCells(line).forEach(cell -> cells.add(inlines(cell, rules)));
+        return cells;
+    }
+
+    /** The text of the cells of a table row, see {@link #cells}. */
+    private static List<String> rawCells(String line) {
         String row = line.strip();
         row = row.startsWith("|") ? row.substring(1) : row;
         row = row.endsWith("|") && !row.endsWith("\\|") ? row.substring(0, row.length() - 1) : row;
-        List<List<Inline>> cells = new ArrayList<>();
+        List<String> cells = new ArrayList<>();
         StringBuilder cell = new StringBuilder();
         int depth = 0;
         for (int i = 0; i < row.length(); i++) {
@@ -298,13 +415,13 @@ public final class RichText {
                 depth--;
             }
             if (c == '|' && depth == 0) {
-                cells.add(inlines(cell.toString().strip(), rules));
+                cells.add(cell.toString().strip());
                 cell.setLength(0);
             } else {
                 cell.append(c);
             }
         }
-        cells.add(inlines(cell.toString().strip(), rules));
+        cells.add(cell.toString().strip());
         return cells;
     }
 
@@ -332,6 +449,7 @@ public final class RichText {
             block.rows.forEach(parts::addAll);
         }
         parts.forEach(p -> visit(p, visitor));
+        block.children.forEach(b -> visit(b, visitor));
     }
 
     private static void visit(List<Inline> inlines, Consumer<Inline> visitor) {
@@ -352,7 +470,11 @@ public final class RichText {
             TagColour colour = keyword != null ? rules.tag(keyword) : null;
             InlineKind token = m.group("table") != null ? InlineKind.TABLE : m.group("constant") != null ? InlineKind.CONSTANT
                     : m.group("variable") != null ? InlineKind.VARIABLE : null;
-            if (m.group("asset") != null) {
+            if (m.group("assTag") != null) {
+                addText(inlines, text.substring(done, m.start()), rules);
+                inlines.add(assetTag(m.group("assTag")));
+                done = m.end();
+            } else if (m.group("asset") != null) {
                 addText(inlines, text.substring(done, m.start()), rules);
                 inlines.add(new Inline(InlineKind.ASSET, m.group("asset").strip(), null, null, label(m.group("assetLabel"))));
                 done = m.end();
@@ -393,6 +515,44 @@ public final class RichText {
         }
         addText(inlines, text.substring(done), rules);
         return inlines;
+    }
+
+    /**
+     * The inline of {@code <ass>path</ass>}: lines of the path are joined, whitespace around them dropped. A relative
+     * path is an asset like {@code [[asset:path]]}, a web address a link or a picture, anything else unsupported.
+     */
+    private static Inline assetTag(String written) {
+        StringBuilder joined = new StringBuilder();
+        for (String line : written.split("\n")) {
+            joined.append(line.strip());
+        }
+        String path = joined.toString();
+        if (path.matches("(?i)https?://.+")) {
+            String bare = path.replaceAll("[?#].*$", "").toLowerCase(Locale.ROOT);
+            boolean picture = bare.matches(".*\\.(png|jpe?g|gif|bmp|svg)");
+            return new Inline(picture ? InlineKind.IMAGE_URL : InlineKind.URL, path, null);
+        }
+        return new Inline(unsupportedAsset(path) ? InlineKind.BAD_ASSET : InlineKind.ASSET, path, null);
+    }
+
+    /** Whether a path can't be a file of the assets folder: absolute, or going up out of it with {@code ..}. */
+    public static boolean unsupportedAsset(String path) {
+        String p = path.strip().replace('\\', '/');
+        if (p.startsWith("/") || p.matches("^[A-Za-z][A-Za-z0-9+.-]*:.*")) {
+            return true;
+        }
+        int depth = 0;
+        for (String part : p.split("/")) {
+            if (part.equals("..")) {
+                depth--;
+            } else if (!part.isEmpty() && !part.equals(".")) {
+                depth++;
+            }
+            if (depth < 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String label(String label) {

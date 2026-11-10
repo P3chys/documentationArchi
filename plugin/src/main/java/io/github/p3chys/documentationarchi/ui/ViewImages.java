@@ -1,12 +1,17 @@
 package io.github.p3chys.documentationarchi.ui;
 
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
+import org.eclipse.draw2d.FreeformFigure;
 import org.eclipse.draw2d.IFigure;
+import org.eclipse.draw2d.geometry.Rectangle;
 import org.eclipse.gef.EditPart;
 import org.eclipse.gef.GraphicalEditPart;
 import org.eclipse.gef.GraphicalViewer;
+import org.eclipse.gef.LayerConstants;
+import org.eclipse.gef.editparts.LayerManager;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.ImageData;
@@ -21,7 +26,10 @@ import com.archimatetool.model.IDiagramModelArchimateObject;
 
 import io.github.p3chys.documentationarchi.doc.DocPage;
 
-/** Pictures of views. Drawn at twice the size, so they stay sharp in the PDF and when zooming in. */
+/**
+ * Pictures of views, and where on them each element is drawn, so the pages can link the picture to the descriptions.
+ * Drawn at twice the size, so they stay sharp in the PDF and when zooming in.
+ */
 final class ViewImages {
 
     private static final int SCALE = 2;
@@ -46,9 +54,15 @@ final class ViewImages {
         try {
             GraphicalViewer viewer = DiagramUtils.createViewer(view, shell);
             removePrintOrder(view, viewer, hidden);
+            List<PictureAreas.Box> boxes = boxes(view, viewer); // after: what is taken out of the picture has no area
+            Rectangle extent = extent(layers(viewer));
             Image image = DiagramUtils.createImage(viewer, SCALE, MARGIN);
             try {
                 ImageData data = image.getImageData();
+                if (extent != null) {
+                    page.areas.addAll(PictureAreas.areas(boxes,
+                            new int[] { extent.x, extent.y, extent.width, extent.height }, data.width, data.height, SCALE));
+                }
                 ImageLoader loader = new ImageLoader();
                 loader.data = new ImageData[] { data };
                 ByteArrayOutputStream png = new ByteArrayOutputStream();
@@ -62,6 +76,46 @@ final class ViewImages {
         } finally {
             shell.dispose();
         }
+    }
+
+    private static IFigure layers(GraphicalViewer viewer) {
+        return ((LayerManager) viewer.getEditPartRegistry().get(LayerManager.ID))
+                .getLayer(LayerConstants.PRINTABLE_LAYERS);
+    }
+
+    /** Where each element's figure is, in the coordinates of the layers the picture is drawn of. */
+    private static List<PictureAreas.Box> boxes(IDiagramModel view, GraphicalViewer viewer) {
+        IFigure layers = layers(viewer);
+        List<PictureAreas.Box> boxes = new ArrayList<>();
+        for (IDiagramModelArchimateObject o : PictureAreas.figures(view)) {
+            Object part = viewer.getEditPartRegistry().get(o);
+            IFigure figure = part instanceof GraphicalEditPart ? ((GraphicalEditPart) part).getFigure() : null;
+            if (figure != null && figure.getParent() != null && figure.isVisible()) {
+                Rectangle r = figure.getBounds().getCopy();
+                figure.getParent().translateToAbsolute(r); // nested figures are placed inside their parent's
+                layers.translateToRelative(r);
+                boxes.add(new PictureAreas.Box(o.getArchimateElement(), r.x, r.y, r.width, r.height));
+            }
+        }
+        return boxes;
+    }
+
+    /**
+     * What the picture shows of the diagram before its margin is added: the figures' bounds, as Archi measures them
+     * for its pictures. Worked out here rather than asked of Archi, whose ways of saying it differ between versions.
+     */
+    private static Rectangle extent(IFigure figure) {
+        if (!(figure instanceof FreeformFigure)) {
+            return figure.getBounds();
+        }
+        Rectangle extent = null;
+        for (Object child : figure.getChildren()) {
+            Rectangle bounds = extent((IFigure) child);
+            if (bounds != null) {
+                extent = extent == null ? new Rectangle(bounds) : extent.union(bounds);
+            }
+        }
+        return extent;
     }
 
     /**

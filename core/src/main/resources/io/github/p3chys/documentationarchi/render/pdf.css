@@ -4,6 +4,8 @@ h1 { page-break-before: always; font-size: 18px; }
 h1:first-child { page-break-before: auto; }
 h2 { font-size: 14px; } h3 { font-size: 12px; page-break-after: avoid; }
 tr { page-break-inside: avoid; }
+span.diagram-links { display: block; position: relative; page-break-inside: avoid; }
+span.diagram-links a { position: absolute; display: block; }
 pre.sql { font-family: "DejaVu Sans Mono"; font-size: 9px; }
 h4 { font-size: 11px; }
 .panel, pre.sql { page-break-inside: avoid; }

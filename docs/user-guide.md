@@ -141,7 +141,9 @@ selection fits.
 | Check Documentation... | ✓ | ✓ | – | anything in a model is selected |
 | Describe Here | – | ✓ | – | the selection holds elements |
 | Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
+| Show in Documentation Preview | ✓ | ✓ | ✓ | anything in a model is selected |
 | Documentation Formatting... | **Tools** menu | | | always |
+| Documentation Preview | **Window** menu | | | always |
 
 ---
 
@@ -251,13 +253,20 @@ Each view gets a page with, in this order:
 
 1. the view's description,
 2. *Contents* – the elements of the view with their types,
-3. the view's picture (drawn at twice the size, so it stays sharp in the PDF and when zooming in),
+3. the view's picture (drawn at twice the size, so it stays sharp in the PDF and when zooming in) – click an element
+   in it to go to its description,
 4. the view's properties,
 5. *Notes* – the text of the notes on the view,
 6. *Related views* – views this view refers to,
 7. *Elements* – each element described in full.
 
 <p align="center"><img src="images/output-html-view.png" width="760" alt="Exported view page: description, contents and picture"></p>
+
+**Clickable pictures:** in the HTML pages and the PDF, every element drawn on a view's picture – nested ones too – is
+a link to where it is described: further down the same page, or on the page that describes it. Hover over it on a
+web page to see its name. An element that the export describes nowhere (for example one left out of a work package
+export) is not a link. On a web page a picture with links is shown at its own width, so the links stay on their
+elements; a wide one scrolls sideways instead of shrinking to the window. Confluence pages keep plain pictures.
 
 A **sketch or canvas view** has no elements, so its page shows the picture and, under *Notes*, the texts of its
 objects: every sticky, actor, block and group with text, its name in bold above what it says (for a canvas sticky
@@ -295,9 +304,37 @@ relationships to elements outside the view, grouped by type.
 ### The PDF
 
 The PDF holds the same pages, with bookmarks for every page and page numbers. Large pictures are scaled to fit the
-page.
+page, and their elements stay clickable at that size.
 
 <p align="center"><img src="images/output-pdf.png" width="960" alt="Three pages of the exported PDF"></p>
+
+### Documentation Preview
+
+To see how a description comes out without running an export, open **Window > Documentation Preview**, or right-click
+anything in the Models tree or in a view and choose **Show in Documentation Preview**. The view shows the selected
+object as the HTML export shows it – the same reading of the model, the same formatting rules (the model's
+`documentation.rules` if it has one, otherwise your preferences) and the same pictures and assets:
+
+| Selected | The preview shows |
+|----------|-------------------|
+| a view (or a note or group on it) | its whole page, with its picture |
+| an element | its description, with the page it is on (*Described on Sales*) |
+| a relationship | the descriptions of the elements at both ends, where its own description is |
+| the model | the overview page |
+| a junction, PrintOrder or a folder | a line saying why there is nothing to show |
+
+- It follows the selection in the Models tree and in the views. Changes show half a second after you stop – type a
+  description in the Properties view and watch it formatted. The focus stays where you type.
+- The picture of a view is drawn again only when something on that view changes (or an element on it is renamed).
+- Click a link to another element or view, or an element in the picture, to show that one. Web links open in your
+  browser, and links to the page's assets open the file with its program if it is a document or picture (PDF, Office
+  and OpenDocument files without macros, text, CSV, pictures) – never a program, script or other file, which a model
+  shared with you could bring along; other links do nothing. Scripts are off.
+- A missing asset shows in red, as in the export. An invalid `documentation.rules` file shows its error instead.
+- The preview only reads: it never changes the model, and it does not count as an export for the
+  [change marks](#9-change-marks-in-the-models-tree).
+- Each element is described where a whole-model export describes it, so an element on several views is described on
+  the first page that shows it (or its **Describe Here** view).
 
 ---
 
@@ -738,6 +775,9 @@ CONFLUENCE_TOKEN=<personal access token> python online-insurance/confluence/uplo
 
 Pages are matched by title, and existing ones get a new version, so you can upload the same export again after
 changes. Page titles start with the model name, because Confluence titles must be unique in a space.
+
+The pictures of views are plain pictures in Confluence: clicking an element in them leads nowhere, unlike in the HTML
+pages and the PDF.
 
 ---
 

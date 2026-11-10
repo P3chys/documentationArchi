@@ -173,6 +173,47 @@
       </menuContribution>
    </extension>
 
+   <!-- Documentation Preview: the view, opened from the Window menu like Archi's own views, and from context menus -->
+   <extension point="org.eclipse.ui.views">
+      <view id="io.github.p3chys.documentationarchi.preview" name="Documentation Preview"
+            class="io.github.p3chys.documentationarchi.ui.PreviewView" restorable="true"/>
+   </extension>
+   <extension point="org.eclipse.ui.commands">
+      <command id="io.github.p3chys.documentationarchi.preview.open" name="Documentation Preview"
+            description="Show the selected element, relationship or view as the documentation export shows it"/>
+      <command id="io.github.p3chys.documentationarchi.preview.show" name="Show in Documentation Preview"
+            description="Show this element, relationship or view as the documentation export shows it"/>
+   </extension>
+   <extension point="org.eclipse.ui.handlers">
+      <handler commandId="io.github.p3chys.documentationarchi.preview.open" class="io.github.p3chys.documentationarchi.ui.ShowPreviewHandler"/>
+      <handler commandId="io.github.p3chys.documentationarchi.preview.show" class="io.github.p3chys.documentationarchi.ui.ShowPreviewHandler"/>
+   </extension>
+   <extension point="org.eclipse.ui.menus">
+      <menuContribution locationURI="menu:window?after=show_view_append">
+         <command commandId="io.github.p3chys.documentationarchi.preview.open"/>
+      </menuContribution>
+      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
+         <command commandId="io.github.p3chys.documentationarchi.preview.show">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.preview.show">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:SketchEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.preview.show">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:CanvasEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.preview.show">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+      </menuContribution>
+   </extension>
+
    <extension point="org.eclipse.ui.startup">
       <startup class="io.github.p3chys.documentationarchi.ui.ExportMarks"/>
    </extension>

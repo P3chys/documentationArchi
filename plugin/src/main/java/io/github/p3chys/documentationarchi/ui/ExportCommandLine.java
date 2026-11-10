@@ -10,6 +10,7 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.ui.PlatformUI;
 
 import com.archimatetool.commandline.AbstractCommandLineProvider;
 import com.archimatetool.commandline.CommandLineState;
@@ -20,8 +21,8 @@ import io.github.p3chys.documentationarchi.text.ExportProfile;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 
 /**
- * Exports from Archi's command line, for CI and scheduled documentation builds. Archi's providers signal failure by
- * throwing from {@link #run}; with Archi's {@code --abortOnException} that ends the run with a non-zero exit.
+ * Exports from Archi's command line, for CI and scheduled documentation builds. A failure prints its message and ends
+ * the run with exit code 1, with no error dialog (see {@link #fail}), whatever options Archi was given.
  */
 public class ExportCommandLine extends AbstractCommandLineProvider {
 
@@ -36,13 +37,55 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
     private static final String PUBLISH = "documentation.publish";
     private static final String PROFILE = "documentation.profile";
     private static final String ASSETS = "documentation.assets";
+    private static final String ELEMENTS = "documentation.elements";
+    private static final String SINGLE_FILE = "documentation.single-file";
+
+    /** The environment variable that names the output folder when neither the options nor a profile do (HaF's). */
+    static final String OUT_DIR_VARIABLE = "HAF_OUT_DIR";
+
+    /**
+     * A failure that is already printed. Archi's own handling of a provider's exception ends the run with exit code 0
+     * (or, with --abortOnException, makes the launcher open an error dialog, which on macOS waits for a click), so
+     * {@link #run} prints the message and ends the run itself, see {@link #fail}.
+     */
+    private static final class Reported extends IllegalArgumentException {
+        private static final long serialVersionUID = 1L;
+
+        Reported(String message) {
+            super(message);
+        }
+    }
 
     @Override
     public void run(CommandLine line) throws Exception {
+        try {
+            export(line);
+        } catch (Exception e) {
+            if (!(e instanceof Reported)) {
+                logError(e.getMessage() != null ? e.getMessage() : e.toString());
+            }
+            fail(e);
+        }
+    }
+
+    /**
+     * Ends a failed run: with a non-zero exit code, and without any dialog. Only when Archi runs the command line
+     * (no workbench): an export from the user interface never ends the program.
+     */
+    private static void fail(Exception e) throws Exception {
+        if (!PlatformUI.isWorkbenchRunning()) {
+            System.err.flush();
+            System.out.flush();
+            System.exit(1);
+        }
+        throw e;
+    }
+
+    private void export(CommandLine line) throws Exception {
         if (line.hasOption(CHECK)) {
             check(line);
         }
-        if (!line.hasOption(FOLDER) && !line.hasOption(PROFILE)) {
+        if (!exports(line)) {
             return;
         }
         IArchimateModel model = CommandLineState.getModel();
@@ -52,29 +95,38 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
         Path rules = line.hasOption(RULES) ? Path.of(line.getOptionValue(RULES)) : null;
         ExportHandler.Result result;
         Path folder;
+        Set<Format> formats;
         try {
             ExportProfile profile = line.hasOption(PROFILE) ? Profiles.find(model, rules, line.getOptionValue(PROFILE))
                     : null;
             folder = line.hasOption(FOLDER) ? Path.of(line.getOptionValue(FOLDER))
-                    : Profiles.output(model, rules, profile);
+                    : profile != null ? Profiles.output(model, rules, profile) : null;
             if (folder == null) {
-                throw new IllegalArgumentException(Profiles.where(model, rules, profile) + " has no output=<folder>. "
-                        + "Add it, or give --" + FOLDER + ".");
+                folder = ExportOutput.defaultFolder(System.getenv(OUT_DIR_VARIABLE), System.getProperty("java.io.tmpdir"));
+                logMessage("No --" + FOLDER + " and no output= in a profile, exporting to " + folder
+                        + (System.getenv(OUT_DIR_VARIABLE) != null && !System.getenv(OUT_DIR_VARIABLE).isBlank()
+                                ? " (" + OUT_DIR_VARIABLE + ")" : " (a new folder in the temporary folder)"));
             }
             // what is given on the command line overrides the profile
             ModelReader.Selection selection = line.hasOption(WORK_PACKAGES) || line.hasOption(VIEWS)
-                    || line.hasOption(FOLDERS) || profile == null
+                    || line.hasOption(FOLDERS) || line.hasOption(ELEMENTS) || profile == null
                             ? CommandLineSelection.select(model, CommandLineSelection.names(line.getOptionValue(WORK_PACKAGES)),
                                     CommandLineSelection.names(line.getOptionValue(VIEWS)),
-                                    CommandLineSelection.names(line.getOptionValue(FOLDERS)))
+                                    CommandLineSelection.names(line.getOptionValue(FOLDERS)),
+                                    CommandLineSelection.names(line.getOptionValue(ELEMENTS)))
                             : Profiles.selection(model, rules, profile);
-            Set<Format> formats = line.hasOption(FORMATS) ? formats(line.getOptionValue(FORMATS))
+            formats = line.hasOption(FORMATS) ? formats(line.getOptionValue(FORMATS))
                     : profile != null ? Profiles.formats(profile, EnumSet.allOf(Format.class))
                             : EnumSet.allOf(Format.class);
             result = ExportHandler.exportAll(selection, folder, formats, rules, new NullProgressMonitor(),
-                    line.hasOption(PUBLISH) || profile != null && profile.publish, profile, line.getOptionValue(ASSETS));
+                    line.hasOption(PUBLISH) || profile != null && profile.publish, profile, line.getOptionValue(ASSETS),
+                    line.hasOption(SINGLE_FILE));
         } catch (IllegalArgumentException e) { // unknown names, unusable rules, nothing to export
             throw failure(e.getMessage());
+        }
+        String missing = ExportOutput.missing(folder, formats);
+        if (missing != null) {
+            throw failure("The export wrote no output: " + missing + " Nothing was exported to " + folder + ".");
         }
         List<String> problems = result.problems;
         problems.forEach(this::logError);
@@ -85,6 +137,18 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
             throw new IllegalStateException(problems.size() + " asset reference(s) have no file, see the errors above");
         }
     }
+
+    /** Whether the options ask for an export (and not only for the check). */
+    private static boolean exports(CommandLine line) {
+        for (String option : List.of(FOLDER, PROFILE, FORMATS, WORK_PACKAGES, VIEWS, FOLDERS, ELEMENTS, PUBLISH,
+                SINGLE_FILE)) {
+            if (line.hasOption(option)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     /** Lists what is missing or wrong in the documentation; with --documentation.strict, findings fail the run. */
     private void check(CommandLine line) {
@@ -109,7 +173,7 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
 
     private IllegalArgumentException failure(String message) {
         logError(message);
-        return new IllegalArgumentException(message);
+        return new Reported(message);
     }
 
     private static Set<Format> formats(String list) {
@@ -127,7 +191,9 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
     public Options getOptions() {
         Options options = new Options();
         options.addOption(Option.builder().longOpt(FOLDER).hasArg().argName("path")
-                .desc("Export the model's documentation to this folder").build());
+                .desc("Export the model's documentation to this folder (default: output= of the profile, else the "
+                        + "environment variable " + OUT_DIR_VARIABLE + ", else the temporary folder)")
+                .build());
         options.addOption(Option.builder().longOpt(PROFILE).hasArg().argName("name")
                 .desc("Export as this profile of the model's rules says (profile lines); " + "--" + FOLDER
                         + " is then optional, and the options given here override the profile")
@@ -140,6 +206,14 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                 .desc("Export only these views: names or ids, comma separated").build());
         options.addOption(Option.builder().longOpt(FOLDERS).hasArg().argName("list")
                 .desc("Export only these folders: paths like Views/Sales, comma separated").build());
+        options.addOption(Option.builder().longOpt(ELEMENTS).hasArg().argName("list")
+                .desc("Export only these elements (on the Selected elements page): names or ids, comma separated; "
+                        + "combinable with views and folders")
+                .build());
+        options.addOption(Option.builder().longOpt(SINGLE_FILE)
+                .desc("The HTML format writes one self-contained file per page: style and pictures inside, no "
+                        + "sidebar or search")
+                .build());
         options.addOption(Option.builder().longOpt(CHECK)
                 .desc("List what is missing or wrong in the documentation, without exporting; with "
                         + "--documentation.strict, findings fail the run")

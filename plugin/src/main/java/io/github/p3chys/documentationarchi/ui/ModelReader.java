@@ -14,7 +14,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -45,11 +44,14 @@ import com.archimatetool.model.IDiagramModelNote;
 import com.archimatetool.model.IDiagramModelObject;
 import com.archimatetool.model.IDiagramModelReference;
 import com.archimatetool.model.IDocumentable;
+import com.archimatetool.model.IFlowRelationship;
 import com.archimatetool.model.IFolder;
+import com.archimatetool.model.IInfluenceRelationship;
 import com.archimatetool.model.IJunction;
 import com.archimatetool.model.INameable;
 import com.archimatetool.model.IProfile;
 import com.archimatetool.model.IProperty;
+import com.archimatetool.model.IRealizationRelationship;
 import com.archimatetool.model.IServingRelationship;
 import com.archimatetool.model.ITextContent;
 import com.archimatetool.model.ITriggeringRelationship;
@@ -110,13 +112,22 @@ final class ModelReader {
     /** A work package named like this is a Jira ticket. */
     private static final Pattern TICKET = Pattern.compile("[A-Z][A-Z0-9_]*-\\d+");
     /** {@code ``name``}, or {@code `name`}: a relationship of the element named so, written into the text. */
-    private static final Pattern TOKEN = Pattern.compile("(?<!`)``([^`\\n]+)``(?!`)|(?<!`)`([^`\\n]+)`(?!`)");
+    /** HaF's token delimiter, U+02DD DOUBLE ACUTE ACCENT. */
+    private static final String ACUTE = "\u02dd";
+    /**
+     * A token naming a relationship of the element: {@code ˝˝NAME˝˝}, then {@code ˝NAME˝} (HaF), or {@code ``NAME``},
+     * {@code `NAME`}.
+     */
+    private static final Pattern TOKEN = Pattern.compile(ACUTE + ACUTE + "([^" + ACUTE + "\\n]+)" + ACUTE + ACUTE
+            + "|" + ACUTE + "([^" + ACUTE + "\\n]+)" + ACUTE + "|(?<!`)``([^`\\n]+)``(?!`)|(?<!`)`([^`\\n]+)`(?!`)");
+    /** HaF's business description: between a leading Description: and Technically:. */
+    private static final Pattern BUSINESS = Pattern.compile("(?is)^\\s*description\\s*:\\s*(.+?)(?=technically\\s*:?)");
     private static final Pattern AUTH = Pattern.compile("(?i)^\\s*\\[auth]\\s*(\\S.*?)\\s*$");
     /** The roles from the fewest rights to the most: a role named here allows the ones after it too. */
     private static final List<String> ROLES = List.of("VIEW", "DEV", "OPE", "ADMIN");
-    private static final Pattern SELLIST = Pattern.compile("(?is)<sellist>(.*?)</sellist>");
-    private static final Pattern UPDLIST = Pattern.compile("(?is)<updlist>(.*?)</updlist>");
-    private static final Pattern TECHNICALLY = Pattern.compile("(?im)^[ \\t]*Technically:[ \\t]*$");
+    /** Closed by its end tag, or by a second opening one as some HaF models have it. */
+    private static final Pattern SELLIST = Pattern.compile("(?is)<sellist>(.*?)(?:</sellist>|<sellist>)");
+    private static final Pattern UPDLIST = Pattern.compile("(?is)<updlist>(.*?)(?:</updlist>|<updlist>)");
     /** Assignment verbs, from the source's end and from the target's. */
     private static final Map<String, String> PASSIVE = Map.of("provides", "provided-by", "publishes", "published-by",
             "generates", "generated-by", "implements", "implemented-by");
@@ -439,6 +450,9 @@ final class ModelReader {
     private Doc readWorkPackages() {
         IArchimateModel model = selection.model;
         Set<IArchimateElement> changed = elements;
+        if (rules.workPackageOnePage()) {
+            return onePage(changed);
+        }
         List<DocPage> pages = new ArrayList<>();
         List<IDiagramModel> showing = new ArrayList<>();
         for (IDiagramModel view : model.getDiagramModels()) {
@@ -471,6 +485,30 @@ final class ModelReader {
         views.forEach(p -> first.relatedViews.add(new Link(p.id, p.title)));
         pages.add(0, first);
         return doc(selection.title(), pages);
+    }
+
+    /**
+     * {@code workpackage one-page}: one page, as HaF writes a work package: its description, then each element it
+     * changes described in full, in print order. Of several work packages, each is described first.
+     */
+    private Doc onePage(Set<IArchimateElement> changed) {
+        List<IWorkPackage> workPackages = new ArrayList<>(selection.workPackages);
+        DocPage page;
+        if (workPackages.size() == 1) {
+            IWorkPackage wp = workPackages.get(0);
+            page = new DocPage(wp.getId(), label(wp));
+            page.documentation = wp.getDocumentation();
+            page.properties = properties(wp.getProperties());
+            WorkPackages.links(wp).values().forEach(exported::addAll);
+            exported.add(wp);
+        } else {
+            page = new DocPage("work-packages", selection.title());
+            describe(new ArrayList<>(workPackages), List.of(), page);
+        }
+        List<IArchimateElement> ordered = ordered(changed, null);
+        ordered.forEach(e -> page.contents.add(link(e)));
+        describe(ordered, ordered, page);
+        return doc(selection.title(), List.of(page));
     }
 
     /**
@@ -707,14 +745,13 @@ final class ModelReader {
 
     private Entry entry(IArchimateElement element, Set<IArchimateConcept> inside) {
         exported.add(element);
-        // relationships the description says otherwise: written into its text, roles, parameters
+        // relationships the description says otherwise: written in by its tokens, roles, parameters
+        Set<IArchimateRelationship> used = new HashSet<>();
+        Body body = body(element, used, new LinkedHashSet<>(List.of(element)));
         Set<IArchimateRelationship> said = new HashSet<>();
-        Set<IArchimateElement> within = new HashSet<>(Set.of(element));
-        String documentation = tokens(element, element.getDocumentation(), said, within);
-        List<String> facts = new ArrayList<>();
-        List<Entry.Section> sections = new ArrayList<>();
-        roles(element, said, facts);
-        parameters(element, said, sections);
+        used.stream().filter(r -> r.getSource() == element).forEach(said::add);
+        List<String> facts = roles(element, used, said);
+        List<Entry.Section> sections = parameters(element, used, said);
         List<Relation> relations = new ArrayList<>();
         // links to PrintOrder are left out, those of work packages are listed apart
         for (IArchimateRelationship r : element.getSourceRelationships()) {
@@ -747,8 +784,11 @@ final class ModelReader {
                 exported.addAll(WorkPackages.links(wp).getOrDefault(element, List.of()));
             }
         }
-        Entry entry = new Entry(element.getId(), label(element), typeName(element), documentation,
+        Entry entry = new Entry(element.getId(), label(element), typeName(element), body.text.toString(),
                 properties(element.getProperties()), relations, views, workPackages, changes);
+        if (body.tokens) {
+            entry.body.addAll(body.parts);
+        }
         entry.facts.addAll(facts);
         entry.sections.addAll(sections);
         entry.headingUrl = jira(element);
@@ -756,120 +796,301 @@ final class ModelReader {
         return entry;
     }
 
+    /** A description with its tokens resolved. */
+    private static final class Body {
+        /** What to print: the text between the tokens, and what each token writes in its place. */
+        final List<Entry.Part> parts = new ArrayList<>();
+        /** The description with each token a reference to the element it names, for search, labels and changes. */
+        final StringBuilder text = new StringBuilder();
+        /** Whether a token wrote more than a name. */
+        boolean tokens;
+    }
+
     /**
-     * The description with each {@code `name`} that names a relationship of the element written as the element at
-     * its other end: a reference to it, or, for a part of the same type composed into this one, that part's own
-     * description, its tokens resolved too (once per part, so parts that contain each other end). A name no
-     * relationship has stays as it is.
+     * The element's description with each token ({@code ˝˝NAME˝˝}, {@code ˝NAME˝}, or {@code `NAME`}) that names one
+     * of its relationships written as HaF writes it: a role line, a part composed into it of its own type described in
+     * full, an access as its SQL or parameters, any other relationship as a sentence ("triggers «Process»Pay"). A
+     * composition to an element of another type is its name. A token no relationship has stays as it is.
      *
-     * @param said gets the relationships going out that the text says, which are not listed again
-     * @param within the elements whose description is being written, outermost first
+     * @param used gets the relationships the tokens wrote in
+     * @param within the elements being described, outermost first: a part among them is not described again
      */
-    private String tokens(IArchimateElement element, String text, Set<IArchimateRelationship> said,
-            Set<IArchimateElement> within) {
-        if (text == null || text.indexOf('`') < 0) {
-            return text == null ? "" : text;
-        }
+    private Body body(IArchimateElement element, Set<IArchimateRelationship> used, Set<IArchimateElement> within) {
+        Body body = new Body();
+        String text = lines(element.getDocumentation());
+        StringBuilder pending = new StringBuilder();
         Matcher m = TOKEN.matcher(text);
-        StringBuilder out = new StringBuilder();
         int done = 0;
         while (m.find()) {
-            String name = (m.group(1) != null ? m.group(1) : m.group(2)).strip();
-            IArchimateRelationship r = named(element, name);
+            IArchimateRelationship r = named(element, m);
             if (r == null) {
                 continue;
             }
-            IArchimateConcept other = r.getSource() == element ? r.getTarget() : r.getSource();
-            out.append(text, done, m.start());
+            boolean outgoing = r.getSource() == element;
+            IArchimateConcept other = outgoing ? r.getTarget() : r.getSource();
+            String before = text.substring(done, m.start());
             done = m.end();
+            used.add(r);
             exported.add(r);
-            if (r.getSource() == element) {
-                said.add(r);
+            body.text.append(before).append(reference(other));
+            Entry.Part part = part(element, r, outgoing, other, within);
+            if (part == null) { // just the name, where the token is
+                pending.append(before).append(reference(other));
+                continue;
             }
-            if (r instanceof ICompositionRelationship && r.getSource() == element
-                    && other.eClass() == element.eClass() && !within.contains(other)) {
-                IArchimateElement part = (IArchimateElement) other;
-                Set<IArchimateElement> deeper = new HashSet<>(within);
-                deeper.add(part);
-                out.append("**[[ref:").append(part.getId()).append("]]**\n")
-                        .append(tokens(part, part.getDocumentation(), new HashSet<>(), deeper).strip());
-            } else {
-                out.append("[[ref:").append(other.getId()).append("]]");
-            }
+            body.tokens = true;
+            pending.append(before);
+            flush(pending, body.parts);
+            body.parts.add(part);
         }
-        return out.append(text.substring(done)).toString();
+        body.text.append(text.substring(done));
+        pending.append(text.substring(done));
+        flush(pending, body.parts);
+        return body;
     }
 
-    /** The element's relationship of this name (ignoring case) to another element, either way round; null if none. */
-    private IArchimateRelationship named(IArchimateElement element, String name) {
+    /** The text so far as a part, without the line ends around the token that follows or went before. */
+    private static void flush(StringBuilder pending, List<Entry.Part> parts) {
+        String text = pending.toString().replaceAll("^(?:[ \\t]*\\n)+", "").stripTrailing();
+        if (!text.isBlank()) {
+            parts.add(Entry.Part.text(text));
+        }
+        pending.setLength(0);
+    }
+
+    /** {@code [[ref:id]]} for an element; a relationship at the other end (Archi allows that) by its name. */
+    private static String reference(IArchimateConcept concept) {
+        return concept instanceof IArchimateElement ? "[[ref:" + concept.getId() + "]]" : label(concept);
+    }
+
+    /** What a token writes for the relationship; null for just the other element's name. */
+    private Entry.Part part(IArchimateElement element, IArchimateRelationship r, boolean outgoing,
+            IArchimateConcept other, Set<IArchimateElement> within) {
+        String role = role(r, other);
+        if (role != null) {
+            return Entry.Part.plain(roleLine(role));
+        }
+        if (r instanceof ICompositionRelationship) {
+            if (!outgoing || other.eClass() != element.eClass()) {
+                return null;
+            }
+            if (within.contains(other)) {
+                return Entry.Part.plain("[" + t("recursive-reference").replace("{name}", label(other)) + "]");
+            }
+            return nested((IArchimateElement) other, within);
+        }
+        if (r instanceof IAccessRelationship && outgoing) {
+            return access((IAccessRelationship) r, element);
+        }
+        return Entry.Part.sentence(sentenceVerb(r, outgoing), shortLink(other), lines(r.getDocumentation()),
+                note(r, other));
+    }
+
+    /** A part composed into an element, described in full: its description, roles and accesses its text leaves out. */
+    private Entry.Part nested(IArchimateElement part, Set<IArchimateElement> within) {
+        exported.add(part);
+        Set<IArchimateElement> deeper = new LinkedHashSet<>(within);
+        deeper.add(part);
+        Set<IArchimateRelationship> used = new HashSet<>();
+        List<Entry.Part> parts = new ArrayList<>(body(part, used, deeper).parts);
+        roles(part, used, new HashSet<>()).forEach(line -> parts.add(Entry.Part.plain(line)));
+        for (IArchimateRelationship r : part.getSourceRelationships()) {
+            if (r instanceof IAccessRelationship && !used.contains(r) && !exclusion.excludedWithEnds(r)) {
+                exported.add(r);
+                parts.add(access((IAccessRelationship) r, part));
+            }
+        }
+        return Entry.Part.nested(shortLink(part), parts);
+    }
+
+    /**
+     * An access as HaF writes it: to {@code [parameters]}, a section with their description; with a {@code select}
+     * or {@code update} list, the SQL; otherwise "insert into «DataObject»ORDERS" and its description in grey.
+     */
+    private Entry.Part access(IAccessRelationship r, IArchimateElement source) {
+        IArchimateConcept target = r.getTarget();
+        String label = accessLabel(r);
+        String kind = label.toLowerCase(Locale.ROOT);
+        if (isParameters(target)) {
+            boolean api = label(source).strip().toLowerCase(Locale.ROOT).startsWith("[api]");
+            String title = kind.equals("read") || kind.equals("input") ? t(api ? "request" : "input-parameters")
+                    : kind.equals("write") || kind.equals("output") ? t(api ? "response" : "output") : label(target);
+            return Entry.Part.section(title, lines(target instanceof IDocumentable
+                    ? ((IDocumentable) target).getDocumentation() : ""));
+        }
+        String sql = accessSql(r);
+        if (sql != null) {
+            return Entry.Part.text(sql);
+        }
+        return Entry.Part.sentence(label + " " + t(reads(kind) ? "access-from" : "access-into"), shortLink(target),
+                lines(r.getDocumentation()), null);
+    }
+
+    private static boolean reads(String kind) {
+        return kind.equals("read") || kind.equals("select") || kind.equals("input");
+    }
+
+    /**
+     * What an access does: the name of its specialization, as written; otherwise Archi's access type, where HaF reads
+     * a plain "access" as a write.
+     */
+    private static String accessLabel(IAccessRelationship r) {
+        IProfile profile = r.getPrimaryProfile();
+        if (profile != null && profile.getName() != null && !profile.getName().isBlank()) {
+            return profile.getName().strip();
+        }
+        switch (r.getAccessType()) {
+            case IAccessRelationship.READ_ACCESS: return "read";
+            case IAccessRelationship.READ_WRITE_ACCESS: return "read/write";
+            default: return "write";
+        }
+    }
+
+    /**
+     * The SQL an access builds, as one {@code <sql>} block; null for none. A {@code select} of a {@code [select]}
+     * element: that element's query, then the access's description. A {@code select} with {@code <sellist>}:
+     * {@code select}, the lines of the list as written, {@code from <target>}, the other lines of the description; an
+     * {@code update} with {@code <updList>} the same with {@code update <target>} first.
+     */
+    static String accessSql(IArchimateRelationship relationship) {
+        if (!(relationship instanceof IAccessRelationship)) {
+            return null;
+        }
+        IAccessRelationship r = (IAccessRelationship) relationship;
+        String kind = accessLabel(r).toLowerCase(Locale.ROOT);
+        IArchimateConcept target = r.getTarget();
+        String description = lines(r.getDocumentation());
+        if (kind.equals("select") && label(target).strip().toLowerCase(Locale.ROOT).startsWith("[select]")) {
+            String query = lines(target instanceof IDocumentable ? ((IDocumentable) target).getDocumentation() : "").strip();
+            if (query.isEmpty()) {
+                return null;
+            }
+            String block = query.toLowerCase(Locale.ROOT).contains("<sql>") ? query : "<sql>" + query + "</sql>";
+            return description.isBlank() ? block : block + "\n" + description.strip();
+        }
+        Pattern list = kind.equals("select") ? SELLIST : kind.equals("update") ? UPDLIST : null;
+        Matcher m = list == null ? null : list.matcher(description);
+        if (m == null || !m.find()) {
+            return null;
+        }
+        List<String> sql = new ArrayList<>();
+        String name = label(target).strip();
+        if (kind.equals("select")) {
+            sql.add("select");
+            sql.addAll(nonBlank(m.group(1)));
+            sql.add("from " + name);
+        } else {
+            sql.add("update " + name);
+            sql.addAll(nonBlank(m.group(1)));
+        }
+        sql.addAll(nonBlank(description.substring(0, m.start()) + "\n" + description.substring(m.end())));
+        return "<sql>" + String.join("\n", sql) + "</sql>";
+    }
+
+    /** The lines that are not blank, as written. */
+    private static List<String> nonBlank(String text) {
+        List<String> lines = new ArrayList<>();
+        for (String line : text.split("\n")) {
+            if (!line.isBlank()) {
+                lines.add(line.stripTrailing());
+            }
+        }
+        return lines;
+    }
+
+    /** The text with every kind of line end as \n: HaF models have \r\n. */
+    private static String lines(String text) {
+        return text == null ? "" : text.replaceAll("\\R", "\n");
+    }
+
+    /**
+     * The relationship a token names: of any type, either way round, named as the token is written ({@code ˝˝0035˝˝},
+     * then {@code ˝0035˝}), else by the name inside; null if none.
+     */
+    private IArchimateRelationship named(IArchimateElement element, Matcher token) {
+        String inner = token.group(1) != null ? token.group(1) : token.group(2) != null ? token.group(2)
+                : token.group(3) != null ? token.group(3) : token.group(4);
+        boolean acute = token.group(1) != null || token.group(2) != null;
+        List<String> names = acute ? List.of(ACUTE + ACUTE + inner + ACUTE + ACUTE, ACUTE + inner + ACUTE) : List.of();
         List<IArchimateRelationship> all = new ArrayList<>(element.getSourceRelationships());
         all.addAll(element.getTargetRelationships());
+        for (String name : names) {
+            for (IArchimateRelationship r : all) {
+                if (tokenTarget(element, r) && r.getName() != null && r.getName().strip().equals(name)) {
+                    return r;
+                }
+            }
+        }
         for (IArchimateRelationship r : all) {
-            IArchimateConcept other = r.getSource() == element ? r.getTarget() : r.getSource();
-            if (r.getName() != null && r.getName().strip().equalsIgnoreCase(name) && other instanceof IArchimateElement
-                    && !(other instanceof IJunction) && !isPrintOrder(other) && WorkPackages.changed(r) == null
-                    && !exclusion.excludedWithEnds(r)) {
+            if (tokenTarget(element, r) && r.getName() != null && r.getName().strip().equalsIgnoreCase(inner.strip())) {
                 return r;
             }
         }
         return null;
     }
 
-    /**
-     * "Available only for role DEV and higher": from associations to Business Roles named {@code [auth] DEV}, the
-     * role with the fewest rights of several. Those associations are not listed among the relationships.
-     */
-    private void roles(IArchimateElement element, Set<IArchimateRelationship> said, List<String> facts) {
-        List<String> roles = new ArrayList<>();
-        List<IArchimateRelationship> all = new ArrayList<>(element.getSourceRelationships());
-        all.addAll(element.getTargetRelationships());
-        for (IArchimateRelationship r : all) {
-            IArchimateConcept other = r.getSource() == element ? r.getTarget() : r.getSource();
-            Matcher m = other instanceof IBusinessRole ? AUTH.matcher(label(other)) : null;
-            if (r instanceof IAssociationRelationship && m != null && m.matches() && !exclusion.excludedWithEnds(r)) {
-                said.add(r);
-                exported.add(r);
-                roles.add(m.group(1));
-            }
-        }
-        if (roles.isEmpty()) {
-            return;
-        }
-        roles.sort(Comparator.comparingInt(role -> {
-            int rank = ROLES.indexOf(role.toUpperCase(Locale.ROOT));
-            return rank < 0 ? ROLES.size() : rank;
-        }));
-        String role = roles.get(0);
-        boolean higher = ROLES.contains(role.toUpperCase(Locale.ROOT))
-                && !role.equalsIgnoreCase(ROLES.get(ROLES.size() - 1));
-        facts.add(t(higher ? "role-and-higher" : "role-only").replace("{role}", role));
+    /** Whether a token may name this relationship: not to a junction or PrintOrder, no work package's, not left out. */
+    private boolean tokenTarget(IArchimateElement element, IArchimateRelationship r) {
+        IArchimateConcept other = r.getSource() == element ? r.getTarget() : r.getSource();
+        return !(other instanceof IJunction) && !isPrintOrder(other) && WorkPackages.changed(r) == null
+                && !exclusion.excludedWithEnds(r);
+    }
+
+    /** The role of an association to a Business Role named {@code [auth] ROLE}; null for any other relationship. */
+    private static String role(IArchimateRelationship r, IArchimateConcept other) {
+        Matcher m = r instanceof IAssociationRelationship && other instanceof IBusinessRole ? AUTH.matcher(label(other))
+                : null;
+        return m != null && m.matches() ? m.group(1) : null;
+    }
+
+    /** "Available only for role DEV and higher.", or without "and higher" for ADMIN and roles HaF doesn't rank. */
+    private String roleLine(String role) {
+        String upper = role.toUpperCase(Locale.ROOT);
+        boolean higher = ROLES.contains(upper) && !upper.equals(ROLES.get(ROLES.size() - 1));
+        return t(higher ? "role-and-higher" : "role-only").replace("{role}", role);
     }
 
     /**
-     * The descriptions of the {@code [parameters]} elements the element accesses: read, its input parameters,
-     * written, its output (for an {@code [api]} element: request and response). They are not listed as relationships.
+     * A line per association to a Business Role named {@code [auth] ROLE} that no token wrote in already. None of
+     * them is listed among the relationships.
      */
-    private void parameters(IArchimateElement element, Set<IArchimateRelationship> said, List<Entry.Section> sections) {
-        boolean api = label(element).strip().toLowerCase(Locale.ROOT).startsWith("[api]");
-        List<Entry.Section> input = new ArrayList<>();
-        List<Entry.Section> output = new ArrayList<>();
+    private List<String> roles(IArchimateElement element, Set<IArchimateRelationship> used,
+            Set<IArchimateRelationship> said) {
+        List<String> lines = new ArrayList<>();
+        List<IArchimateRelationship> all = new ArrayList<>(element.getSourceRelationships());
+        all.addAll(element.getTargetRelationships());
+        for (IArchimateRelationship r : all) {
+            String role = role(r, r.getSource() == element ? r.getTarget() : r.getSource());
+            if (role != null && !exclusion.excludedWithEnds(r)) {
+                said.add(r);
+                exported.add(r);
+                if (!used.contains(r)) {
+                    lines.add(roleLine(role));
+                }
+            }
+        }
+        return lines;
+    }
+
+    /**
+     * The {@code [parameters]} elements the element accesses that no token wrote in already, as sections after its
+     * description. None of them is listed among the relationships.
+     */
+    private List<Entry.Section> parameters(IArchimateElement element, Set<IArchimateRelationship> used,
+            Set<IArchimateRelationship> said) {
+        List<Entry.Section> sections = new ArrayList<>();
         for (IArchimateRelationship r : element.getSourceRelationships()) {
             if (!(r instanceof IAccessRelationship) || !isParameters(r.getTarget()) || exclusion.excludedWithEnds(r)) {
                 continue;
             }
             said.add(r);
             exported.add(r);
-            String text = r.getTarget() instanceof IDocumentable ? ((IDocumentable) r.getTarget()).getDocumentation() : "";
-            int access = access((IAccessRelationship) r);
-            if (access != IAccessRelationship.WRITE_ACCESS) {
-                input.add(new Entry.Section(t(api ? "request" : "input-parameters"), text));
-            }
-            if (access == IAccessRelationship.WRITE_ACCESS || access == IAccessRelationship.READ_WRITE_ACCESS) {
-                output.add(new Entry.Section(t(api ? "response" : "output"), text));
+            if (!used.contains(r)) {
+                Entry.Part section = access((IAccessRelationship) r, element);
+                sections.add(new Entry.Section(section.title, section.text));
             }
         }
-        sections.addAll(input);
-        sections.addAll(output);
+        return sections;
     }
 
     private static boolean isParameters(IArchimateConcept concept) {
@@ -877,75 +1098,10 @@ final class ModelReader {
                 && concept.getName().strip().toLowerCase(Locale.ROOT).startsWith("[parameters]");
     }
 
-    /**
-     * Whether the access reads, writes or both: its specialization says ({@code select} reads; {@code update},
-     * {@code insert}, {@code delete} write), otherwise Archi's own setting. One of the {@link IAccessRelationship}
-     * constants.
-     */
-    private static int access(IAccessRelationship r) {
-        String kind = specialization(r);
-        if (kind != null) {
-            switch (kind) {
-                case "select": case "read": return IAccessRelationship.READ_ACCESS;
-                case "update": case "insert": case "delete": case "write": case "merge":
-                    return IAccessRelationship.WRITE_ACCESS;
-                default:
-            }
-        }
-        return r.getAccessType();
-    }
-
-    /** The name of the concept's specialization in lower case, null for none. */
-    private static String specialization(IArchimateConcept concept) {
-        IProfile profile = concept.getPrimaryProfile();
-        return profile == null || profile.getName() == null || profile.getName().isBlank() ? null
-                : profile.getName().strip().toLowerCase(Locale.ROOT);
-    }
-
-    /**
-     * The relationship's description, with what an access builds: {@code <sellist>a, b</sellist>} of a {@code select}
-     * access becomes {@code SELECT a, b FROM table}, {@code <updList>} of an {@code update} one {@code UPDATE table
-     * SET ...}; the query of a {@code [select]} element accessed follows.
-     */
+    /** The relationship's description; an access's with the SQL it builds. */
     static String documentation(IArchimateRelationship r) {
-        String text = r.getDocumentation() == null ? "" : r.getDocumentation();
-        if (!(r instanceof IAccessRelationship)) {
-            return text;
-        }
-        String table = label(r.getTarget()).replaceFirst("^\\s*\\[[^\\]]*]\\s*", "").strip();
-        String kind = specialization(r);
-        if ("select".equals(kind)) {
-            text = sql(text, SELLIST, items -> "SELECT " + String.join(",\n       ", items) + "\nFROM " + table);
-        } else if ("update".equals(kind)) {
-            text = sql(text, UPDLIST, items -> "UPDATE " + table + "\nSET " + String.join(",\n    ", items));
-        }
-        IArchimateConcept target = r.getTarget();
-        String query = target instanceof IDocumentable ? ((IDocumentable) target).getDocumentation() : null;
-        if (target.getName() != null && target.getName().strip().toLowerCase(Locale.ROOT).startsWith("[select]")
-                && query != null && !query.isBlank()) {
-            boolean tagged = query.toLowerCase(Locale.ROOT).contains("<sql>");
-            text = (text.isBlank() ? "" : text.stripTrailing() + "\n")
-                    + (tagged ? query.strip() : "<sql>" + query.strip() + "</sql>");
-        }
-        return text;
-    }
-
-    /** Each list of the pattern in the text as the SQL built from its items (split at commas and line ends). */
-    private static String sql(String text, Pattern list, Function<List<String>, String> build) {
-        Matcher m = list.matcher(text);
-        StringBuilder out = new StringBuilder();
-        int done = 0;
-        while (m.find()) {
-            List<String> items = new ArrayList<>();
-            for (String item : m.group(1).split("[,\\n]")) {
-                if (!item.isBlank()) {
-                    items.add(item.strip());
-                }
-            }
-            out.append(text, done, m.start()).append("<sql>").append(build.apply(items)).append("</sql>");
-            done = m.end();
-        }
-        return out.append(text.substring(done)).toString();
+        String sql = accessSql(r);
+        return sql != null ? sql : lines(r.getDocumentation());
     }
 
     /**
@@ -1044,12 +1200,31 @@ final class ModelReader {
         }
         exported.add(r);
         String text = documentation(r);
-        // serving and triggering show what the other element is for, triggering only when the relationship doesn't say
-        String note = others.size() == 1 && (r instanceof IServingRelationship
-                || r instanceof ITriggeringRelationship && text.isBlank()) ? business(others.get(0)) : null;
         to.add(new Relation(outgoing, typeName(r), r.getName(), text,
                 others.stream().map(ModelReader::link).collect(Collectors.toList()), junction,
-                others.stream().noneMatch(inside::contains), verb(r, outgoing), note));
+                others.stream().noneMatch(inside::contains), verb(r, outgoing),
+                others.size() == 1 ? note(r, others.get(0)) : null));
+    }
+
+    /**
+     * The other element's business description to show with the relationship: for serving always, for triggering
+     * only when the relationship has no description of its own; null otherwise.
+     */
+    private String note(IArchimateRelationship r, IArchimateConcept other) {
+        boolean show = r instanceof IServingRelationship
+                || r instanceof ITriggeringRelationship && lines(r.getDocumentation()).isBlank();
+        return show ? business(other) : null;
+    }
+
+    /** "<<Process>>"-free link for HaF's sentences: the type without its layer, shown «Process»Pay. */
+    private static Link shortLink(IArchimateConcept concept) {
+        return new Link(concept.getId(), label(concept), shortType(concept));
+    }
+
+    /** How the relationship reads in a sentence: its verb, or its type in lower case ("aggregation"). */
+    private String sentenceVerb(IArchimateRelationship r, boolean outgoing) {
+        String verb = verb(r, outgoing);
+        return verb != null ? verb : typeName((EObject) r).replaceFirst(" Relationship$", "").toLowerCase(Locale.ROOT);
     }
 
     /** How the relationship reads from the end it is listed at; null where its type says it best. */
@@ -1063,13 +1238,25 @@ final class ModelReader {
         if (r instanceof ICompositionRelationship) {
             return t(outgoing ? "composed-of" : "part-of-whole");
         }
+        if (r instanceof IAssociationRelationship) {
+            return t("associated-with");
+        }
+        if (r instanceof IRealizationRelationship) {
+            return t(outgoing ? "realizes" : "realized-by");
+        }
+        if (r instanceof IInfluenceRelationship) {
+            return t(outgoing ? "influences" : "influenced-by");
+        }
+        if (r instanceof IFlowRelationship) {
+            return t(outgoing ? "flows-to" : "flows-from");
+        }
         if (r instanceof IAccessRelationship) {
-            switch (access((IAccessRelationship) r)) {
-                case IAccessRelationship.READ_ACCESS: return t(outgoing ? "reads" : "read-by");
-                case IAccessRelationship.WRITE_ACCESS: return t(outgoing ? "writes" : "written-by");
-                case IAccessRelationship.READ_WRITE_ACCESS: return t(outgoing ? "reads-writes" : "read-written-by");
-                default: return null;
+            String kind = accessLabel((IAccessRelationship) r);
+            String lower = kind.toLowerCase(Locale.ROOT);
+            if (outgoing) {
+                return kind + " " + t(reads(lower) ? "access-from" : "access-into");
             }
+            return t(reads(lower) ? "read-by" : lower.equals("read/write") ? "read-written-by" : "written-by");
         }
         if (r instanceof IAssignmentRelationship) {
             String source = r.getSource().eClass().getName();
@@ -1088,20 +1275,32 @@ final class ModelReader {
     }
 
     /**
-     * What the element is for: its description up to a line {@code Technically:}, without a {@code Description:} in
-     * front; null when it has none.
+     * What the element is for: the text between a leading {@code Description:} and {@code Technically:}, as HaF reads
+     * it, its tokens as the names they stand for; null when the description is not written that way.
      */
-    static String business(IArchimateConcept concept) {
-        String text = concept instanceof IDocumentable ? ((IDocumentable) concept).getDocumentation() : null;
-        if (text == null || text.isBlank()) {
+    String business(IArchimateConcept concept) {
+        String text = concept instanceof IDocumentable ? lines(((IDocumentable) concept).getDocumentation()) : "";
+        Matcher m = BUSINESS.matcher(text);
+        if (!m.find()) {
             return null;
         }
-        Matcher technically = TECHNICALLY.matcher(text);
-        if (technically.find()) {
-            text = text.substring(0, technically.start());
+        String business = m.group(1);
+        if (concept instanceof IArchimateElement) {
+            Matcher token = TOKEN.matcher(business);
+            StringBuilder out = new StringBuilder();
+            int done = 0;
+            while (token.find()) {
+                IArchimateRelationship r = named((IArchimateElement) concept, token);
+                String inner = token.group(1) != null ? token.group(1) : token.group(2) != null ? token.group(2)
+                        : token.group(3) != null ? token.group(3) : token.group(4);
+                out.append(business, done, token.start()).append(r == null ? inner
+                        : reference(r.getSource() == concept ? r.getTarget() : r.getSource()));
+                done = token.end();
+            }
+            business = out.append(business.substring(done)).toString();
         }
-        text = text.strip().replaceFirst("(?i)^Description:\\s*", "").strip();
-        return text.isEmpty() ? null : text;
+        business = business.strip();
+        return business.isEmpty() ? null : business;
     }
 
     /** The elements a junction leads to, going on in the same direction, through further junctions once each. */

@@ -44,8 +44,8 @@ class HafRenderingTest {
 
         assertThat(html).contains("<td>→ triggers<br/><span style=\"color: rgb(107,119,140);\">Triggering Relationship: "
                 + "Sync</span><br/>go</td>")
-                .contains("<p><em><span style=\"color: rgb(107,119,140);\">Signs the <em>contract</em>.</span></em></p>")
-                .contains("<li>← use X<p><em><span style=\"color: rgb(107,119,140);\">Gives prices.</span></em></p></li>");
+                .contains("<p><em><span style=\"color: rgb(107,119,140);\">(Signs the <em>contract</em>.)</span></em></p>")
+                .contains("<li>← use X<p><em><span style=\"color: rgb(107,119,140);\">(Gives prices.)</span></em></p></li>");
     }
 
     @Test
@@ -78,5 +78,48 @@ class HafRenderingTest {
         assertThat(html).contains("<a href=\"https://jira.example.com/browse/ABC-1\">ABC-1</a></h3>")
                 .contains("See <a href=\"https://wiki.example.com/x#id-X-%C2%ABNode%C2%BBC\">C</a>.")
                 .contains("<a href=\"#e-d\">D</a>"); // no link of its own: its description here
+    }
+
+    @Test
+    void tokensWriteSentencesSectionsAndNestedPartsInPlace() throws Exception {
+        DocPage page = new DocPage("v", "View");
+        Entry entry = new Entry("a", "A", "Application Function", "ignored when there is a body", List.of(), List.of(),
+                List.of());
+        entry.body.add(Entry.Part.text("Before"));
+        entry.body.add(Entry.Part.sentence("triggers", new Link("b", "B", "Process"), "Line one\nLine two",
+                "Signs it."));
+        entry.body.add(Entry.Part.sentence("insert into", new Link("t", "[table ORDERS]", "DataObject"),
+                "Rows:\n<tbl>\nA | B |\n1 | 2 |\n</tbl>", null));
+        entry.body.add(Entry.Part.section("Input parameters", "- id"));
+        entry.body.add(Entry.Part.nested(new Link("p", "Part", "Function"), List.of(Entry.Part.text("Inner"),
+                Entry.Part.plain("[recursive reference: A]"))));
+        entry.body.add(Entry.Part.text("<sql>select\nID\nfrom [table ORDERS]</sql>"));
+        page.entries.add(entry);
+        page.entries.add(new Entry("b", "B", "Business Process", "", List.of(), List.of(), List.of()));
+
+        String html = html(new Doc("Model", List.of(page)));
+        String grey = "<span style=\"color: rgb(107,119,140);\">";
+
+        assertThat(html).doesNotContain("ignored when")
+                .contains("<p>Before</p><p>triggers «Process»<a href=\"#e-b\">B</a> <em>" + grey
+                        + "(Signs it.)</span></em></p><p>" + grey + "Line one<br/>Line two</span></p>")
+                .contains("<p>insert into «DataObject»[table ORDERS]</p><p>" + grey + "Rows:</span></p>"
+                        + "<table><tbody><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></tbody></table>")
+                .contains("<h4>Input parameters</h4><ul><li>id</li></ul>")
+                .contains("<div style=\"margin-left: 20px; border-left: 2px solid rgb(223,225,230); padding-left: 10px;\">"
+                        + "<p><strong>«Function»Part</strong></p><p>Inner</p><p>[recursive reference: A]</p></div>")
+                .contains("<strong>select</strong>");
+    }
+
+    @Test
+    void hafTypeStyleWritesTheShortTypeRightBeforeTheName() throws Exception {
+        DocPage page = new DocPage("v", "View");
+        page.contents.add(new Link("a", "Pay", "Business Process: Broker"));
+        page.entries.add(new Entry("a", "Pay", "Business Process: Broker", "", List.of(), List.of(), List.of()));
+        new Exporter(new Doc("Model", List.of(page)), KeywordRules.parseFile("type style haf"))
+                .export(folder, EnumSet.of(Format.HTML));
+
+        assertThat(Files.readString(folder.resolve("html/index.html")))
+                .contains("<li>«Process»<a href=\"#e-a\">Pay</a></li>").doesNotContain("&lt;&lt;");
     }
 }

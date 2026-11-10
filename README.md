@@ -159,28 +159,42 @@ The PrintOrder element and its links never appear in the export or its pictures.
 
 Models written for HaF, the earlier documentation scripts, use these conventions; the export reads them the same way.
 
-- **Relationships in the text:** `` `NAME` `` (or ``` ``NAME`` ```) in an element's description, where `NAME` is the
-  name of one of its relationships (either way round, ignoring case), becomes a link to the element at the other end,
-  and that relationship is not listed again among the outgoing ones. When it is a composition to a part of the same
-  type, the part's whole description takes its place (with the part's own tokens, each part once). A name that no
-  relationship has stays as it is.
+- **Tokens:** `˝˝NAME˝˝` or `˝NAME˝` (U+02DD, as HaF writes them; also `` `NAME` ``) in an element's description names
+  one of its relationships, of any type and either way round: the relationship named exactly so, delimiters included
+  (`˝˝0035˝˝`), else by the name inside. Where the token stands, the export writes what HaF writes:
+  - a **sentence** for most relationships: *triggers «Process»Pay*, with the relationship's description under it in
+    grey (a `<tbl>` in it a table) and, for serving (and triggering without a description), the other element's
+    business description in grey italics, in parentheses;
+  - for a **composition** to a part of the element's own type, the part described in full, indented: its heading
+    `«Type»Name`, its description with its own tokens, its roles and the accesses its text leaves out; a part already
+    being described says *[recursive reference: Name]*. A composition to another type is just the linked name;
+  - for an **access**, its SQL or parameters (below); for an `[auth]` role, the role line.
+
+  Relationships going out that a token wrote in are not listed again; incoming ones stay. A token no relationship has
+  stays as written. Check Documentation reports both kinds of broken tokens.
 - **How relationships read:** the relationship column says what it does, with the type (and specialization) under
-  it: *triggers* / *is triggered by*, *is used by* / *use* (serving), *composed of* / *is a part of*, and for an
-  assignment from a component *provides* (a service), *publishes* (an interface), *generates* (an event), *implements*
-  (a process or function), from an interface to a service *publishes*, read backwards *is provided by* and so on.
-  Serving and triggering show the other element's business description (its description up to a line
-  `Technically:`, without `Description:`) in grey italics; triggering only when the relationship has no description.
-- **Access:** *read from* / *write into* (backwards *is read by* / *is written by*), from the specialization
-  (`select` reads; `update`, `insert`, `delete` write) or else Archi's access type. A `select` access with
-  `<sellist>ID, STATE</sellist>` in its description shows `SELECT ID, STATE FROM <table>`, an `update` access with
-  `<updList>STATE = 'DONE'</updList>` shows `UPDATE <table> SET ...` (the table is the target's name without a
-  `[table]`-like prefix). An access to an element named `[select] ...` shows that element's description as its query.
-- **Parameters:** what an element reads from an element named `[parameters] ...` becomes its *Input parameters*, what
-  it writes its *Output* (*Request* and *Response* for an element named `[api] ...`), with that element's description;
-  `[parameters]` elements are never listed among the related elements.
-- **Roles:** an association to a Business Role named `[auth] DEV` (any case) prints *Available only for role DEV and
-  higher*, in the order VIEW, DEV, OPE, ADMIN (for ADMIN, without "and higher"; of several, the lowest); it is not
-  listed as an association.
+  it: *triggers* / *is triggered by*, *is used by* / *use* (serving), *composed of* / *is a part of*, *associated
+  with*, *realizes*, *influences*, *flows to* / *flows from*, and for an assignment from a component *provides* (a
+  service), *publishes* (an interface), *generates* (an event), *implements* (a process or function), from an
+  interface to a service *publishes*, read backwards *is provided by* and so on.
+- **Business description:** the text between a leading `Description:` and `Technically:`. A description not written
+  that way has none.
+- **Access:** what it does is the name of its specialization (`select`, `update`, `insert`...), else Archi's access
+  type: *read*, *write*, *read/write*, and a plain *access* counts as *write* as in HaF. It reads *select from*,
+  *insert into* (backwards *is read by* / *is written by*).
+  - `select` with `<sellist>...</sellist>`: one SQL block `select`, the list's lines as written, `from <target>`, then
+    the other lines of the description (the WHERE part);
+  - `update` with `<updList>...</updList>`: `update <target>`, the list's lines as written (write the `set`
+    yourself), the other lines. A second opening tag closes a list too;
+  - `select` of an element named `[select] ...`: that element's description as the query, then the access's
+    description;
+  - to an element named `[parameters] ...`: a section *Input parameters* (read, input) or *Output* (write, output),
+    *Request* / *Response* for an element named `[api] ...`, else titled with the parameters' name, holding their
+    description. Where no token puts it, it follows the description. `[parameters]` elements are never listed among
+    the related elements.
+- **Roles:** each association to a Business Role named `[auth] DEV` (any case) prints a line *Available only for role
+  DEV and higher.*, in the order VIEW, DEV, OPE, ADMIN (ADMIN and other roles without "and higher"); it is not listed
+  as an association.
 - **Confluence pages:** an element with a property `confluenceUrl` is documented there: every link to it goes to
   `<url>#id-<PageTitle>-<«Type»Name>`, Confluence's anchor of its heading (spaces and `-` left out, `+` and `%20` out
   of the title, other than ASCII percent-encoded, the type without Business/Application/Technology). An address with
@@ -188,6 +202,9 @@ Models written for HaF, the earlier documentation scripts, use these conventions
   says so once. Only `http(s)` addresses are used.
 - **Jira:** with the rule line `jira https://jira.example.com/browse/`, a work package named exactly like a ticket
   (`RBWDP-20025`, not `RBWDP-20025 portal`) has its heading and every link to it go to the ticket.
+- **Looks:** the rule line `type style haf` shows types as HaF does, `«Process»Pay` instead of
+  `<<Business Process>> Pay`; `workpackage one-page` exports a work package as one page, its description and then
+  each element it changes described in full.
 
 Elements with neither a Confluence page nor a ticket link to their description in the export.
 
@@ -245,6 +262,9 @@ Right-click anything in a model and choose **Check Documentation...** to list pr
 - `[[ref:...]]` references to objects that no longer exist,
 - `#words` that look like a label but are not a configured one: they differ from one by one or two characters
   (`#rsik` for `#risk`),
+- `˝˝NAME˝˝` and `˝NAME˝` tokens in an element's description that match no relationship of the element (a relationship
+  named exactly like the token),
+- malformed tokens: an odd number of `˝`, or a `¨` typed for one,
 - work packages that change no element.
 
 Objects the rules leave out of the export are not checked.
@@ -306,7 +326,7 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 | `<sql>select ...</sql>` | an SQL code block; in HTML and PDF keywords at the start of a line (`SELECT`, `FROM`, `WHERE`, `LEFT JOIN`...) are bold and `'CONSTANT'`, `{variable}`, `[object]` coloured (in Confluence: the code macro with SQL highlighting) |
 | `https://...` | a link |
 | `[[asset:file.png]]`, `<ass>file.png</ass>` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
-| `<tbl>` ... `</tbl>` | a table of the lines starting with `\|`, the first its header; no line of dashes needed; a line without `\|` goes on in the last cell |
+| `<tbl>` ... `</tbl>` | a table of the lines starting with `\|`, the first its header; no line of dashes needed; a line without `\|` goes on in the last cell. HaF form: rows `a \| b \|` with no leading `\|`; a line not ending in `\|` goes on in the last cell on the next line |
 | a line of only `<name>` ... `</name>` | indents the lines in between by 20px per level; the tag lines are printed; `<section end>` ends all levels |
 | `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
 | `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
@@ -357,9 +377,12 @@ text contents = Table of contents   replace one fixed text
 page description picture elements   sections of a view's page, in this order
 entry description relations     parts of an element's description, in this order
 pdf landscape off               no landscape pages in the PDF; also pdf cover off, pdf contents off
+html single-file                one self-contained HTML file per page, see "Single-file HTML"
 assets Files                    the folder assets are read from (default: Assets)
 defaults off                    in documentation.rules: without the built-in panels, labels and bold texts
 jira https://jira.example.com/browse/   work packages named like a ticket link to it
+type style haf                  types as «Process»Pay
+workpackage one-page            a work package's export is one page
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
@@ -378,7 +401,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `reads`, `writes`, `reads-writes`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `input-parameters`, `output`, `request`, `response`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `recursive-reference`, `input-parameters`, `output`, `request`, `response`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
@@ -545,6 +568,8 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.elements a,b` | only these elements (names or ids), on the "Selected elements" page; combinable with views and folders |
+| `--documentation.single-file` | HTML as one self-contained file per page, see [Single-file HTML](#single-file-html) (rule: `html single-file`) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
 | `--documentation.profile name` | export as this profile of the rules says, see [Export profiles](#export-profiles); `--documentation.folder` is then optional, explicit options win |
 | `--documentation.check` | print what is missing or wrong in the documentation, see [Check Documentation](#check-documentation); with `--documentation.strict`, findings fail the run |
@@ -552,10 +577,20 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 
-Views and folders can be combined; work packages are a run of their own. A name that matches nothing (or a view name
-that matches several) is an error that lists what was not found. A run fails the way Archi's command line providers
-fail: it throws, and with Archi's own `--abortOnException` the process exits with a non-zero code. Add that option to
-CI runs. The model's `documentation.rules` file is used automatically; an invalid one fails the run.
+Views, folders and elements can be combined; work packages are a run of their own. A name that matches nothing (or a
+view or element name that matches several) is an error that lists what was not found. Without `--documentation.folder`
+(and no `output=` in the profile) the export goes to the environment variable `HAF_OUT_DIR`, else a new folder `documentation-...` in the temporary folder;
+the log says which. A failing run prints its message and exits with code 1 without any error dialog, with or without
+Archi's `--abortOnException`; so does a run whose output folder lacks what the formats promise (`html/index.html`, the
+PDF, `confluence/manifest.json`). The model's `documentation.rules` file is used automatically; an invalid one fails
+the run.
+
+### Single-file HTML
+
+With `html single-file` in the rules (or `--documentation.single-file`) the HTML format writes one self-contained file
+per page, with the same names: the style sheet is inside, views and image assets are `data:` pictures, and there is no
+sidebar, search or script (each page links to the first page and the two indexes instead). Other assets stay files in
+`html/assets/`, so keep that folder next to the pages. Links between pages stay relative.
 
 ## For developers
 

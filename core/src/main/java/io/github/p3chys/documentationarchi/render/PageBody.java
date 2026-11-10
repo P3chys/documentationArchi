@@ -44,45 +44,57 @@ final class PageBody {
     }
 
     private void page() {
-        section(() -> description(page.documentation));
-        section(() -> contents());
-        section(() -> {
-            if (page.image != null) {
-                out.append("<p>").append(dialect.image(page)).append("</p>");
-            }
-        });
-        section(() -> properties(page.properties));
-        section(() -> {
-            if (!page.notes.isEmpty() || !page.texts.isEmpty()) {
-                out.append(heading(2, "Notes"));
-                page.notes.forEach(this::description);
-                for (ObjectText t : page.texts) {
-                    if (!t.name.isBlank()) {
-                        out.append("<p><strong>").append(Xml.escape(t.name)).append("</strong></p>");
+        for (String name : rules.pageSections()) {
+            switch (name) {
+                case "description": section(() -> description(page.documentation)); break;
+                case "contents": section(() -> contents()); break;
+                case "picture": section(() -> {
+                    if (page.image != null) {
+                        out.append("<p>").append(dialect.image(page)).append("</p>");
                     }
-                    description(t.text);
-                }
+                }); break;
+                case "properties": section(() -> properties(page.properties)); break;
+                case "notes": section(this::notes); break;
+                case "related":
+                    section(() -> links(t("related-views"), page.relatedViews));
+                    page.labels.forEach((label, links) -> section(() -> {
+                        KeywordRules.TagColour colour = rules.tag(label);
+                        out.append("<h2>").append(colour == null ? Xml.escape(label) : dialect.tag(label, colour))
+                                .append("</h2><ul>");
+                        links.forEach(l -> out.append("<li>").append(link(l)).append("</li>"));
+                        out.append("</ul>");
+                    }));
+                    break;
+                case "elements":
+                    for (Entry entry : page.entries) {
+                        section(() -> {
+                            int i = page.entries.indexOf(entry);
+                            if (i == 0) {
+                                out.append(heading(2, t("elements")));
+                            }
+                            String group = page.groups.get(entry.id);
+                            if (group != null && (i == 0 || !group.equals(page.groups.get(page.entries.get(i - 1).id)))) {
+                                out.append(heading(3, group));
+                            }
+                            entry(entry);
+                        });
+                    }
+                    break;
+                default: // the rules check the names
             }
-        });
-        section(() -> links("Related views", page.relatedViews));
-        page.labels.forEach((label, links) -> section(() -> {
-            KeywordRules.TagColour colour = rules.tag(label);
-            out.append("<h2>").append(colour == null ? Xml.escape(label) : dialect.tag(label, colour)).append("</h2><ul>");
-            links.forEach(l -> out.append("<li>").append(link(l)).append("</li>"));
-            out.append("</ul>");
-        }));
-        for (Entry entry : page.entries) {
-            section(() -> {
-                int i = page.entries.indexOf(entry);
-                if (i == 0) {
-                    out.append(heading(2, "Elements"));
+        }
+    }
+
+    private void notes() {
+        if (!page.notes.isEmpty() || !page.texts.isEmpty()) {
+            out.append(heading(2, t("notes")));
+            page.notes.forEach(this::description);
+            for (ObjectText t : page.texts) {
+                if (!t.name.isBlank()) {
+                    out.append("<p><strong>").append(Xml.escape(t.name)).append("</strong></p>");
                 }
-                String group = page.groups.get(entry.id);
-                if (group != null && (i == 0 || !group.equals(page.groups.get(page.entries.get(i - 1).id)))) {
-                    out.append(heading(3, group));
-                }
-                entry(entry);
-            });
+                description(t.text);
+            }
         }
     }
 
@@ -91,7 +103,7 @@ final class PageBody {
         if (page.contents.isEmpty()) {
             return;
         }
-        out.append(heading(2, "Contents"));
+        out.append(heading(2, t("contents")));
         String group = null;
         for (int i = 0; i < page.contents.size(); i++) {
             Link l = page.contents.get(i);
@@ -103,6 +115,10 @@ final class PageBody {
             out.append("<li>").append(link(l)).append("</li>");
         }
         out.append("</ul>");
+    }
+
+    private String t(String key) {
+        return rules.texts().get(key);
     }
 
     /** A part of the page, with a line between it and what comes before. Writes nothing if the part is empty. */
@@ -127,10 +143,6 @@ final class PageBody {
 
     private void entry(Entry entry) {
         out.append(dialect.entryHeading(entry, styled(rules.heading(3), type(entry.type) + Xml.escape(entry.name))));
-        description(entry.documentation);
-        properties(entry.properties);
-        linkLine("Part of", entry.partOf);
-        linkLine("Contains", entry.contains);
         List<Relation> inside = new ArrayList<>();
         Map<String, List<Relation>> outside = new LinkedHashMap<>();
         for (Relation r : entry.relations) {
@@ -140,17 +152,30 @@ final class PageBody {
                 inside.add(r);
             }
         }
-        if (!entry.changes.isEmpty()) {
-            out.append(heading(4, "Changed elements")).append("<ul>");
-            entry.changes.forEach(l -> out.append("<li>").append(link(l)).append("</li>"));
-            out.append("</ul>");
-        }
-        relationTable(inside);
-        linkLine("Views", entry.views);
-        linkLine("Work packages", entry.workPackages);
-        if (!outside.isEmpty()) {
-            out.append(heading(4, "Other related elements"));
-            outside.forEach(this::relationGroup);
+        for (String part : rules.entryParts()) {
+            switch (part) {
+                case "description": description(entry.documentation); break;
+                case "properties": properties(entry.properties); break;
+                case "relations":
+                    linkLine(t("part-of"), entry.partOf);
+                    linkLine(t("contains"), entry.contains);
+                    if (!entry.changes.isEmpty()) {
+                        out.append(heading(4, t("changed-elements"))).append("<ul>");
+                        entry.changes.forEach(l -> out.append("<li>").append(link(l)).append("</li>"));
+                        out.append("</ul>");
+                    }
+                    relationTable(inside);
+                    break;
+                case "views": linkLine(t("views"), entry.views); break;
+                case "workpackages": linkLine(t("work-packages"), entry.workPackages); break;
+                case "other":
+                    if (!outside.isEmpty()) {
+                        out.append(heading(4, t("other-related-elements")));
+                        outside.forEach(this::relationGroup);
+                    }
+                    break;
+                default: // the rules check the names
+            }
         }
     }
 
@@ -158,7 +183,7 @@ final class PageBody {
         if (links.isEmpty()) {
             return;
         }
-        out.append("<p>").append(label).append(": ");
+        out.append("<p>").append(Xml.escape(label)).append(": ");
         String separator = "";
         for (Link l : links) {
             out.append(separator).append(link(l));
@@ -171,7 +196,9 @@ final class PageBody {
         if (relations.isEmpty()) {
             return;
         }
-        out.append("<table><tbody><tr><th>Relationship</th><th>Element</th><th>Description</th></tr>");
+        out.append("<table><tbody><tr><th>").append(Xml.escape(t("relationship"))).append("</th><th>")
+                .append(Xml.escape(t("element"))).append("</th><th>").append(Xml.escape(t("description")))
+                .append("</th></tr>");
         for (Relation r : relations) {
             out.append("<tr><td>").append(arrow(r)).append(Xml.escape(r.type));
             if (!r.name.isEmpty()) {
@@ -234,7 +261,8 @@ final class PageBody {
         if (properties.isEmpty()) {
             return;
         }
-        out.append("<table><tbody><tr><th>Property</th><th>Value</th></tr>");
+        out.append("<table><tbody><tr><th>").append(Xml.escape(t("property"))).append("</th><th>")
+                .append(Xml.escape(t("value"))).append("</th></tr>");
         for (Property p : properties) {
             out.append("<tr><td>").append(Xml.escape(p.key)).append("</td><td>")
                     .append(inlines(RichText.inlines(p.value, rules))).append("</td></tr>");
@@ -319,7 +347,7 @@ final class PageBody {
     private String reference(RichText.Inline reference) {
         String name = reference.label != null ? reference.label : doc.names.get(reference.text);
         if (name == null) {
-            return "<span style=\"color: rgb(191,38,0);\">[missing reference: " + Xml.escape(reference.text) + "]</span>";
+            return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(t("missing-reference")) + ": " + Xml.escape(reference.text) + "]</span>";
         }
         Doc.Location to = doc.locate(reference.text);
         return to == null ? Xml.escape(name) : dialect.link(to, page, Xml.escape(name));
@@ -329,7 +357,7 @@ final class PageBody {
     private String asset(RichText.Inline reference) {
         Assets.Asset asset = doc.assets.find(reference.text, page.title);
         if (asset == null) {
-            return "<span style=\"color: rgb(191,38,0);\">[missing asset: " + Xml.escape(reference.text) + "]</span>";
+            return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(t("missing-asset")) + ": " + Xml.escape(reference.text) + "]</span>";
         }
         used.add(asset);
         return dialect.asset(asset, Xml.escape(reference.label != null ? reference.label : asset.name));

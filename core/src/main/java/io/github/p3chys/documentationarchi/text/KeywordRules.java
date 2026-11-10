@@ -22,6 +22,12 @@ import java.util.regex.Pattern;
  * token variable color=#6554c0 italic   how {variable} looks; also table ([table]) and constant ('constant')
  * heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
  * sql background=#f4f5f7 theme=midnight linenumbers   how SQL blocks look; theme and line numbers are Confluence's
+ * exclude label draft             views, elements and relationships labelled #draft stay out of every export
+ * hide property internal*         properties with this key are never printed; * at the end matches any ending
+ * language cs                     the fixed texts of the output in Czech (default: en)
+ * text contents = Table of contents   replaces one fixed text, see {@link Texts}
+ * page description picture notes  the sections of a view's page to print, in this order ({@link #PAGE_SECTIONS})
+ * entry description relations     the parts of an element's description to print, in this order ({@link #ENTRY_PARTS})
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -31,7 +37,17 @@ public final class KeywordRules {
 
     public enum TagColour { GREY, RED, YELLOW, GREEN, BLUE }
 
-    public enum Kind { PANEL, TAG, STYLE, TOKEN, HEADING, SQL }
+    public enum Kind {
+        PANEL(false), TAG(false), STYLE(false), TOKEN(false), HEADING(false), SQL(false),
+        /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
+        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true);
+
+        public final boolean setting;
+
+        Kind(boolean setting) {
+            this.setting = setting;
+        }
+    }
 
     /** Coloured tokens in descriptions, with how they look when no rule says otherwise. */
     public enum Token {
@@ -59,6 +75,14 @@ public final class KeywordRules {
 
     public static final int HEADING_LEVELS = 4;
 
+    /** The sections of a view's page, in the usual order. */
+    public static final List<String> PAGE_SECTIONS = List.of("description", "contents", "picture", "properties", "notes",
+            "related", "elements");
+
+    /** The parts of an element's description, in the usual order. */
+    public static final List<String> ENTRY_PARTS = List.of("description", "properties", "relations", "views",
+            "workpackages", "other");
+
     private static final String HELP = String.join("\n",
             "# panel <info|note|tip|warning> <keyword>   line starting with \"keyword:\"",
             "# tag <grey|red|yellow|green|blue> <keyword>   #keyword or [[keyword]] in the text",
@@ -67,6 +91,12 @@ public final class KeywordRules {
             "# token <table|constant|variable> <options>   how [table], 'constant' and {variable} look",
             "# heading <1-4> <options>   how headings look (1: page title)",
             "# sql <options> [theme=<confluence theme>] [linenumbers]   how SQL blocks look",
+            "# exclude label <keyword>   views, elements and relationships labelled #keyword stay out of every export",
+            "# hide property <key>   properties with this key are never printed; * at the end matches any ending",
+            "# language <en|cs>   the language of the fixed texts of the output (default: en)",
+            "# text <key> = <replacement>   replaces one fixed text, e.g. text contents = Table of contents",
+            "# page <section>...   the sections of a view's page to print, in this order: description contents picture properties notes related elements",
+            "# entry <part>...   the parts of an element's description to print, in this order: description properties relations views workpackages other",
             "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
             "");
 
@@ -207,9 +237,16 @@ public final class KeywordRules {
         /** Confluence's theme for an SQL block, null for Confluence's default. */
         public final CodeTheme theme;
         public final boolean lineNumbers;
+        /** For a {@code text} rule: what replaces the text. */
+        public final String value;
 
         private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
                 boolean lineNumbers) {
+            this(kind, keyword, panel, tag, style, theme, lineNumbers, null);
+        }
+
+        private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
+                boolean lineNumbers, String value) {
             if (keyword == null || keyword.isBlank()) {
                 throw new IllegalArgumentException("the keyword is empty");
             }
@@ -223,6 +260,7 @@ public final class KeywordRules {
             this.style = style;
             this.theme = theme;
             this.lineNumbers = lineNumbers;
+            this.value = value;
         }
 
         public static Rule panel(String keyword, PanelStyle style) {
@@ -254,9 +292,77 @@ public final class KeywordRules {
             return new Rule(Kind.SQL, "sql", null, null, Objects.requireNonNull(style), theme, lineNumbers);
         }
 
+        /** @param label the keyword, without # */
+        public static Rule excludeLabel(String label) {
+            return new Rule(Kind.EXCLUDE_LABEL, label.startsWith("#") ? label.substring(1) : label, null, null, null,
+                    null, false);
+        }
+
+        /** @param key a property key; {@code *} at the end stands for any ending */
+        public static Rule hideProperty(String key) {
+            return new Rule(Kind.HIDE_PROPERTY, key, null, null, null, null, false);
+        }
+
+        /** @param language one of {@link Texts#LANGUAGES} */
+        public static Rule language(String language) {
+            if (!Texts.LANGUAGES.contains(language.strip().toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("unknown language \"" + language + "\", use "
+                        + String.join(" or ", Texts.LANGUAGES));
+            }
+            return new Rule(Kind.LANGUAGE, language.strip().toLowerCase(Locale.ROOT), null, null, null, null, false);
+        }
+
+        /** @param key one of {@link Texts#keys()} @param replacement the text to print instead */
+        public static Rule text(String key, String replacement) {
+            if (!Texts.exists(key.strip())) {
+                throw new IllegalArgumentException("unknown text \"" + key + "\", use one of "
+                        + String.join(", ", Texts.keys()));
+            }
+            if (replacement.isBlank() || replacement.contains("\n") || replacement.contains("\r")) {
+                throw new IllegalArgumentException("the replacement must be one line of text");
+            }
+            return new Rule(Kind.TEXT, key.strip().toLowerCase(Locale.ROOT), null, null, null, null, false,
+                    replacement.strip());
+        }
+
+        /** @param sections names out of {@link KeywordRules#PAGE_SECTIONS}, in the order to print them */
+        public static Rule page(List<String> sections) {
+            return new Rule(Kind.PAGE, names(sections, PAGE_SECTIONS, "section"), null, null, null, null, false);
+        }
+
+        /** @param parts names out of {@link KeywordRules#ENTRY_PARTS}, in the order to print them */
+        public static Rule entry(List<String> parts) {
+            return new Rule(Kind.ENTRY, names(parts, ENTRY_PARTS, "part"), null, null, null, null, false);
+        }
+
+        private static String names(List<String> names, List<String> known, String what) {
+            List<String> checked = new ArrayList<>();
+            for (String name : names) {
+                String n = name.toLowerCase(Locale.ROOT);
+                if (!known.contains(n)) {
+                    throw new IllegalArgumentException("unknown " + what + " \"" + name + "\", use "
+                            + String.join(", ", known));
+                }
+                if (checked.contains(n)) {
+                    throw new IllegalArgumentException("the " + what + " \"" + name + "\" is there twice");
+                }
+                checked.add(n);
+            }
+            if (checked.isEmpty()) {
+                throw new IllegalArgumentException("expected the " + what + "s to print: " + String.join(" ", known));
+            }
+            return String.join(" ", checked);
+        }
+
         /** The rule as one line of text, which {@link KeywordRules#parse} reads back. */
         public String line() {
             switch (kind) {
+                case PAGE: return "page " + keyword;
+                case ENTRY: return "entry " + keyword;
+                case LANGUAGE: return "language " + keyword;
+                case TEXT: return "text " + keyword + " = " + value;
+                case EXCLUDE_LABEL: return "exclude label " + keyword;
+                case HIDE_PROPERTY: return "hide property " + keyword;
                 case PANEL: return "panel " + lower(panel) + " " + keyword;
                 case TAG: return "tag " + lower(tag) + " " + keyword;
                 case TOKEN: return join("token " + keyword, style.options());
@@ -281,6 +387,9 @@ public final class KeywordRules {
         }
 
         String key() {
+            if (kind == Kind.LANGUAGE || kind == Kind.PAGE || kind == Kind.ENTRY) {
+                return kind.name(); // one language
+            }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
         }
 
@@ -303,6 +412,11 @@ public final class KeywordRules {
     private final List<Rule> rules;
     private final Map<String, PanelStyle> panels = new LinkedHashMap<>();
     private final Map<String, TagColour> tags = new LinkedHashMap<>();
+    private final List<String> excludedLabels = new ArrayList<>();
+    private final List<String> hiddenProperties = new ArrayList<>();
+    private Texts fixedTexts = Texts.english();
+    private List<String> pageSections = PAGE_SECTIONS;
+    private List<String> entryParts = ENTRY_PARTS;
     private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
@@ -315,16 +429,25 @@ public final class KeywordRules {
         for (Token token : Token.values()) {
             tokens.put(token, token.builtIn);
         }
+        String language = "en";
+        Map<String, String> replaced = new LinkedHashMap<>();
         for (Rule rule : rules) {
             switch (rule.kind) {
+                case LANGUAGE: language = rule.keyword; break;
+                case PAGE: pageSections = List.of(rule.keyword.split(" ")); break;
+                case ENTRY: entryParts = List.of(rule.keyword.split(" ")); break;
+                case TEXT: replaced.put(rule.keyword, rule.value); break;
                 case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
                 case TAG: tags.put(rule.keyword.toLowerCase(Locale.ROOT), rule.tag); break;
                 case TOKEN: tokens.put(Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT)), rule.style); break;
                 case HEADING: headings[Integer.parseInt(rule.keyword)] = rule.style; break;
                 case SQL: sql = rule; break;
+                case EXCLUDE_LABEL: excludedLabels.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
+                case HIDE_PROPERTY: hiddenProperties.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 default: texts.add(rule);
             }
         }
+        fixedTexts = new Texts(language, replaced);
         // the longest text first, so "Key point" wins over "Key"; one numbered group per text tells which one matched
         texts.sort(Comparator.comparingInt((Rule r) -> r.keyword.length()).reversed());
         StringBuilder alternatives = new StringBuilder();
@@ -410,6 +533,33 @@ public final class KeywordRules {
                 Options o = Options.read(rest, true).only();
                 return Rule.sql(o.style(), o.theme, o.lineNumbers);
             }
+            case "page":
+                return Rule.page(words(rest));
+            case "entry":
+                return Rule.entry(words(rest));
+            case "language":
+                return Rule.language(rest);
+            case "text": {
+                int equals = rest.indexOf('=');
+                if (equals < 0) {
+                    throw new IllegalArgumentException("expected: text <key> = <replacement>");
+                }
+                return Rule.text(rest.substring(0, equals).strip(), rest.substring(equals + 1).strip());
+            }
+            case "exclude": {
+                String[] label = rest.split("\\s+", 2);
+                if (!label[0].equalsIgnoreCase("label") || label.length < 2 || label[1].isBlank()) {
+                    throw new IllegalArgumentException("expected: exclude label <keyword>");
+                }
+                return Rule.excludeLabel(oneWord(label[1], "keyword"));
+            }
+            case "hide": {
+                String[] key = rest.split("\\s+", 2);
+                if (!key[0].equalsIgnoreCase("property") || key.length < 2 || key[1].isBlank()) {
+                    throw new IllegalArgumentException("expected: hide property <key>");
+                }
+                return Rule.hideProperty(key[1].strip());
+            }
             default:
         }
         String[] parts = rule.split("\\s+", 3);
@@ -426,7 +576,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading or sql");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page or entry");
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -500,6 +650,21 @@ public final class KeywordRules {
         }
     }
 
+    private static List<String> words(String text) {
+        return text.isBlank() ? List.of() : List.of(text.strip().split("\\s+"));
+    }
+
+    private static String oneWord(String text, String what) {
+        String word = text.strip();
+        if (word.startsWith("#")) {
+            word = word.substring(1);
+        }
+        if (word.isEmpty() || word.matches(".*\\s.*")) {
+            throw new IllegalArgumentException("the " + what + " must be one word");
+        }
+        return word;
+    }
+
     private static boolean isOption(String word) {
         String w = word.toLowerCase(Locale.ROOT);
         return w.contains("=") || w.equals("bold") || w.equals("italic") || w.equals("underline") || w.equals("strike");
@@ -559,6 +724,37 @@ public final class KeywordRules {
             }
         }
         return labels;
+    }
+
+    /** The sections of a view's page to print, in order: all of them in the usual order unless a rule says so. */
+    public List<String> pageSections() {
+        return pageSections;
+    }
+
+    /** The parts of an element's description to print, in order. */
+    public List<String> entryParts() {
+        return entryParts;
+    }
+
+    /** The fixed texts of the output: the language of the rules, with the replacements. */
+    public Texts texts() {
+        return fixedTexts;
+    }
+
+    /** The labels (without #) that leave a view, element or relationship out of every export, lower case. */
+    public List<String> excludedLabels() {
+        return Collections.unmodifiableList(excludedLabels);
+    }
+
+    /** Whether properties with this key are never printed: a {@code hide property} rule matches it. */
+    public boolean hidesProperty(String key) {
+        String k = key == null ? "" : key.toLowerCase(Locale.ROOT);
+        for (String hidden : hiddenProperties) {
+            if (hidden.endsWith("*") ? k.startsWith(hidden.substring(0, hidden.length() - 1)) : k.equals(hidden)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Matches any styled text; {@link #style} tells which one. */

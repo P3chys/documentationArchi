@@ -412,6 +412,22 @@ navigation from there.
 - **Export...** (or a double-click) exports the selected work packages.
 - **Show in Model Tree** selects the chosen elements – or, if none are chosen, the work packages – in the Models tree.
 
+### Kind of change, closing a ticket, changes without a ticket
+
+**Kind of change:** in **Link to Work Package...** choose the **Kind of change** (*new*, *change*, *remove*). It
+becomes the name of the link, so you can also write it on a link you draw yourself, and the documentation shows it
+next to the ticket and the element: *Work packages: RBWDP-20025 (new)*. *(not said)* leaves the links as they are.
+
+**Closing a ticket:** when a ticket is done, select it in **Work Packages...** and press **Close**. The work package
+stays in the model with its links, but the dialogs, the *Work packages* page and the elements' descriptions no
+longer list it; exporting it directly still gives its specification. Tick **Show closed work packages** to see them
+and **Reopen** one. Closing sets the property `doc:closed` on the work package, and **Undo** takes it back.
+
+**What changed without a ticket:** **Changed Since Publish...** in **Work Packages...** finds the elements that the
+documentation shows differently from what was published (see *Publishing*) and that no open work package changes
+yet, and opens **Link to Work Package...** on them, with the kind of change it found: *new* for an element added
+since, *change* for one that says something else.
+
 ### Export a work package
 
 Right-click one or more work packages and choose **Export Documentation...**, or use **Export...** in the overview.

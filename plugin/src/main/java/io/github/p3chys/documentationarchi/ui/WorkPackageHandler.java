@@ -49,7 +49,8 @@ public class WorkPackageHandler extends AbstractHandler {
         IArchimateModel model = models.iterator().next();
         WorkPackageDialog dialog = new WorkPackageDialog(shell, model, elements);
         if (dialog.open() == Window.OK) {
-            execute(model, WorkPackages.change(model, elements, dialog.link(), dialog.unlink(), dialog.newName()));
+            execute(model, WorkPackages.change(model, elements, dialog.link(), dialog.unlink(), dialog.newName(),
+                    dialog.kind()));
         }
         return null;
     }

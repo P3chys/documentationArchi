@@ -255,7 +255,8 @@ public class ExportHandler extends AbstractHandler {
         long time = System.currentTimeMillis();
         Published before = published(selection);
         Doc shownDoc = selection.wholeModel && before.lastTime() > 0 ? Published.with(doc, Published.page(
-                before.changesTo(doc, true), DATE.format(Instant.ofEpochMilli(before.lastTime()).atZone(ZoneId.systemDefault()))))
+                before.changesTo(doc, true), DATE.format(Instant.ofEpochMilli(before.lastTime()).atZone(ZoneId.systemDefault())),
+                rules.texts()::get))
                 : doc;
         List<String> notes = new ArrayList<>();
         Doc generatedDoc = shownDoc;

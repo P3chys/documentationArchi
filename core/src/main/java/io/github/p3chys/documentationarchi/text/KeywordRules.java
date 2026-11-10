@@ -37,6 +37,8 @@ import java.util.regex.Pattern;
  * pdf landscape off               leaves out a part of the PDF's layout ({@link #PDF_PARTS})
  * defaults off                    a rules file without the built-in rules, see {@link #parseFile}
  * jira https://jira.example.com/browse/   work packages named like a ticket (ABC-123) link to it there
+ * type style haf                 types as HaF writes them: «Process»Pay instead of <<Business Process>> Pay
+ * workpackage one-page           a work package's export is one page: its description, then each element
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -53,6 +55,10 @@ public final class KeywordRules {
         PROFILE(true), CATALOG(true), INDEX(true),
         /** {@code jira <url>}: where a work package named after a ticket ({@code ABC-123}) links to. */
         JIRA(true),
+        /** {@code type style haf|default}: how an element's type is shown with its name. */
+        TYPE_STYLE(true),
+        /** {@code workpackage one-page|pages}: whether a work package's export is one page. */
+        WORK_PACKAGE(true),
         /** The PDF's layout: {@code pdf cover|contents|landscape off}. */
         PDF(true),
         /** {@code defaults off}: a rules file that does not start from the built-in rules, see {@link #parseFile}. */
@@ -408,6 +414,24 @@ public final class KeywordRules {
             return new Rule(Kind.JIRA, u, null, null, null, null, false);
         }
 
+        /** @param style {@code haf} or {@code default} */
+        public static Rule typeStyle(String style) {
+            String s = style.strip().toLowerCase(Locale.ROOT);
+            if (!s.equals("haf") && !s.equals("default")) {
+                throw new IllegalArgumentException("expected: type style haf (or default)");
+            }
+            return new Rule(Kind.TYPE_STYLE, s, null, null, null, null, false);
+        }
+
+        /** @param layout {@code one-page} or {@code pages} */
+        public static Rule workPackage(String layout) {
+            String l = layout.strip().toLowerCase(Locale.ROOT);
+            if (!l.equals("one-page") && !l.equals("pages")) {
+                throw new IllegalArgumentException("expected: workpackage one-page (or pages)");
+            }
+            return new Rule(Kind.WORK_PACKAGE, l, null, null, null, null, false);
+        }
+
         /** @param sections names out of {@link KeywordRules#PAGE_SECTIONS}, in the order to print them */
         public static Rule page(List<String> sections) {
             return new Rule(Kind.PAGE, names(sections, PAGE_SECTIONS, "section"), null, null, null, null, false);
@@ -450,6 +474,8 @@ public final class KeywordRules {
                 case CATALOG: return "catalog " + catalog.text();
                 case INDEX: return "index " + keyword;
                 case JIRA: return "jira " + keyword;
+                case TYPE_STYLE: return "type style " + keyword;
+                case WORK_PACKAGE: return "workpackage " + keyword;
                 case TEXT: return "text " + keyword + " = " + value;
                 case EXCLUDE_LABEL: return "exclude label " + keyword;
                 case HIDE_PROPERTY: return "hide property " + keyword;
@@ -478,7 +504,8 @@ public final class KeywordRules {
 
         String key() {
             if (kind == Kind.LANGUAGE || kind == Kind.ASSETS || kind == Kind.PAGE || kind == Kind.ENTRY
-                    || kind == Kind.DEFAULTS || kind == Kind.JIRA) {
+                    || kind == Kind.DEFAULTS || kind == Kind.JIRA
+                    || kind == Kind.TYPE_STYLE || kind == Kind.WORK_PACKAGE) {
                 return kind.name(); // one language
             }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
@@ -517,6 +544,8 @@ public final class KeywordRules {
     private final List<TextStyle> styles = new ArrayList<>();
     private Rule sql;
     private String jira;
+    private boolean hafTypes;
+    private boolean workPackageOnePage;
     private String assetsFolder;
     private Pattern styled;
 
@@ -549,6 +578,8 @@ public final class KeywordRules {
                 case HEADING: headings[Integer.parseInt(rule.keyword)] = rule.style; break;
                 case SQL: sql = rule; break;
                 case JIRA: jira = rule.keyword; break;
+                case TYPE_STYLE: hafTypes = rule.keyword.equals("haf"); break;
+                case WORK_PACKAGE: workPackageOnePage = rule.keyword.equals("one-page"); break;
                 case EXCLUDE_LABEL: excludedLabels.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 case HIDE_PROPERTY: hiddenProperties.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 case PROFILE: profiles.put(rule.keyword.toLowerCase(Locale.ROOT), rule.profile); break;
@@ -741,6 +772,15 @@ public final class KeywordRules {
                 return Rule.catalog(Catalog.parse(rest));
             case "jira":
                 return Rule.jira(rest);
+            case "type": {
+                String[] w = rest.strip().split("\\s+");
+                if (w.length != 2 || !w[0].equalsIgnoreCase("style")) {
+                    throw new IllegalArgumentException("expected: type style haf (or default)");
+                }
+                return Rule.typeStyle(w[1]);
+            }
+            case "workpackage":
+                return Rule.workPackage(rest);
             case "profile":
                 return Rule.profile(ExportProfile.parse(rest));
             case "hide": {
@@ -766,7 +806,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, assets, text, page, entry, pdf, profile, catalog, index, jira or defaults");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, assets, text, page, entry, pdf, profile, catalog, index, jira, type, workpackage or defaults");
     }
 
     /** Whether a folder as written stays inside the folder it is relative to: not absolute, no way up out of it. */
@@ -905,6 +945,16 @@ public final class KeywordRules {
     /** How headings of a level look, null for unchanged. */
     public TextStyle heading(int level) {
         return level >= 1 && level <= HEADING_LEVELS ? headings[level] : null;
+    }
+
+    /** Whether types are shown as HaF does: «Process»Pay. */
+    public boolean hafTypes() {
+        return hafTypes;
+    }
+
+    /** Whether a work package's export is one page: its description, then each element it changes. */
+    public boolean workPackageOnePage() {
+        return workPackageOnePage;
     }
 
     /** Where tickets are, a work package's key goes after it; null when no rule says. */

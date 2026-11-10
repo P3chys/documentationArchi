@@ -31,6 +31,8 @@ final class PageBody {
     private final KeywordRules rules;
     private final Set<Assets.Asset> used;
     private final StringBuilder out = new StringBuilder();
+    /** Paragraphs in grey: a relationship's description written with it. */
+    private boolean grey;
 
     private PageBody(Doc doc, DocPage page, Dialect dialect, KeywordRules rules, Set<Assets.Asset> used) {
         this.doc = doc;
@@ -226,7 +228,11 @@ final class PageBody {
         for (String part : rules.entryParts()) {
             switch (part) {
                 case "description":
-                    description(entry.documentation);
+                    if (entry.body.isEmpty()) {
+                        description(entry.documentation);
+                    } else {
+                        parts(entry.body);
+                    }
                     entry.facts.forEach(f -> out.append("<p>").append(Xml.escape(f)).append("</p>"));
                     for (Entry.Section section : entry.sections) {
                         out.append(heading(4, section.title));
@@ -255,6 +261,57 @@ final class PageBody {
                 default: // the rules check the names
             }
         }
+    }
+
+    /** A description with what its tokens write in their places. */
+    private void parts(List<Entry.Part> parts) {
+        for (Entry.Part p : parts) {
+            switch (p.kind) {
+                case TEXT: description(p.text); break;
+                case PLAIN: out.append("<p>").append(Xml.escape(p.text)).append("</p>"); break;
+                case SECTION:
+                    out.append(heading(4, p.title));
+                    description(p.text);
+                    break;
+                case SENTENCE:
+                    out.append("<p>").append(Xml.escape(p.verb)).append(" ").append(haf(p.link));
+                    if (p.note != null) {
+                        out.append(" ").append(noteMarkup(p.note));
+                    }
+                    out.append("</p>");
+                    greyDescription(p.text);
+                    break;
+                case NESTED:
+                    out.append("<div style=\"margin-left: 20px; border-left: 2px solid rgb(223,225,230); padding-left: 10px;\">")
+                            .append("<p><strong>").append(haf(p.link)).append("</strong></p>");
+                    parts(p.parts);
+                    out.append("</div>");
+                    break;
+                default:
+            }
+        }
+    }
+
+    /** «Process»Pay, the name a link to where it is documented. */
+    private String haf(Link link) {
+        String type = link.type == null ? "" : "\u00ab" + Xml.escape(link.type) + "\u00bb";
+        return type + target(link.id, Xml.escape(link.label));
+    }
+
+    /** A relationship's description in grey: its text lines grey, a table in it as a table. */
+    private void greyDescription(String text) {
+        boolean was = grey;
+        grey = true;
+        try {
+            description(text);
+        } finally {
+            grey = was;
+        }
+    }
+
+    /** The other element's business description: in parentheses, grey italics. */
+    private String noteMarkup(String note) {
+        return "<em>" + grey("(" + inlines(RichText.inlines(note, rules)) + ")") + "</em>";
     }
 
     private void linkLine(String label, List<Link> links) {
@@ -318,10 +375,10 @@ final class PageBody {
         return s.toString();
     }
 
-    /** The other element's business description, in grey italics. */
+    /** The other element's business description, in parentheses, grey italics. */
     private void note(Relation r) {
         if (r.note != null) {
-            out.append("<p><em>").append(grey(inlines(RichText.inlines(r.note, rules)))).append("</em></p>");
+            out.append("<p>").append(noteMarkup(r.note)).append("</p>");
         }
     }
 
@@ -368,9 +425,21 @@ final class PageBody {
         return to == null ? escapedLabel : dialect.link(to, page, escapedLabel);
     }
 
-    /** The type in front of an element's name. {@code small} and an inline colour both survive in Confluence. */
-    private static String type(String type) {
+    /**
+     * The type in front of an element's name. {@code small} and an inline colour both survive in Confluence. With
+     * {@code type style haf}: {@code «Process»} right before the name, as HaF writes it.
+     */
+    private String type(String type) {
+        if (rules.hafTypes()) {
+            return "\u00ab" + Xml.escape(shortType(type)) + "\u00bb";
+        }
         return "<small><span style=\"color: rgb(107,119,140);\">&lt;&lt;" + Xml.escape(type) + "&gt;&gt;</span></small> ";
+    }
+
+    /** "Business Process: Broker" to "Process": without the layer, the specialization and spaces. */
+    static String shortType(String type) {
+        String t = type.contains(":") ? type.substring(0, type.indexOf(':')) : type;
+        return t.strip().replaceFirst("^(Business|Application|Technology) ", "").replace(" ", "");
     }
 
     private void properties(List<Property> properties) {
@@ -425,7 +494,8 @@ final class PageBody {
             return s.append("</tbody></table>").toString();
         }
         if (block.children.isEmpty()) {
-            s.append("<p>").append(inlines(block.inlines)).append("</p>");
+            String text = inlines(block.inlines);
+            s.append("<p>").append(grey ? grey(text) : text).append("</p>");
         } else {
             block.children.forEach(b -> s.append(block(b)));
         }

@@ -36,12 +36,17 @@ final class WorkPackagesDialog extends TitleAreaDialog {
     static final int EXPORT = IDialogConstants.CLIENT_ID + 1;
     /** Return code: show {@link #shown()} in the model tree. */
     static final int SHOW = IDialogConstants.CLIENT_ID + 2;
+    /** Link what changed since the documentation was published; the handler does it once the dialog is closed. */
+    static final int CHANGED = IDialogConstants.CLIENT_ID + 3;
+    private static final int CLOSE_TICKET = IDialogConstants.CLIENT_ID + 4;
 
     private final IArchimateModel model;
     private Table packages;
     private Table elements;
     private Button export;
     private Button show;
+    private Button closeTicket;
+    private Button showClosed;
     private final List<IWorkPackage> selected = new ArrayList<>();
     private final List<Object> shown = new ArrayList<>();
 
@@ -76,19 +81,6 @@ final class WorkPackagesDialog extends TitleAreaDialog {
         column(packages, "Elements", 70);
         column(packages, "Not exported", 100);
         column(packages, "Description", 300);
-        ExportState state = ExportState.get();
-        for (IWorkPackage wp : WorkPackages.of(model)) {
-            List<IArchimateElement> changed = WorkPackages.elements(wp);
-            int behind = 0;
-            for (IArchimateElement e : changed) {
-                behind += behind(state, e) ? 1 : 0;
-            }
-            TableItem item = new TableItem(packages, SWT.NONE);
-            item.setData(wp);
-            item.setText(new String[] { ModelReader.label(wp), String.valueOf(changed.size()),
-                    behind == 0 ? "" : String.valueOf(behind), WorkPackageDialog.firstLine(wp.getDocumentation()) });
-            item.setImage(0, ArchiLabelProvider.INSTANCE.getImage(wp));
-        }
         packages.addListener(SWT.Selection, e -> refresh());
         packages.addListener(SWT.DefaultSelection, e -> buttonPressed(EXPORT));
 
@@ -100,11 +92,36 @@ final class WorkPackagesDialog extends TitleAreaDialog {
         column(elements, "Export", 240);
         elements.addListener(SWT.Selection, e -> updateButtons());
 
-        if (packages.getItemCount() == 0) {
+        showClosed = new Button(c, SWT.CHECK);
+        showClosed.setText("Show &closed work packages (tickets that are done)");
+        showClosed.addListener(SWT.Selection, e -> fill());
+        fill();
+
+        if (WorkPackages.of(model).isEmpty()) {
             setMessage("The model has no work packages yet. Right-click elements and choose \"Link to Work Package...\" "
                     + "to make one, named after its Jira ticket.");
         }
         return area;
+    }
+
+    /** Lists the work packages: the open ones, and the closed ones when asked for. */
+    private void fill() {
+        packages.removeAll();
+        ExportState state = ExportState.get();
+        for (IWorkPackage wp : showClosed.getSelection() ? WorkPackages.of(model) : WorkPackages.open(model)) {
+            List<IArchimateElement> changed = WorkPackages.elements(wp);
+            int behind = 0;
+            for (IArchimateElement e : changed) {
+                behind += behind(state, e) ? 1 : 0;
+            }
+            TableItem item = new TableItem(packages, SWT.NONE);
+            item.setData(wp);
+            item.setText(new String[] { ModelReader.label(wp) + (WorkPackages.closed(wp) ? " (closed)" : ""),
+                    String.valueOf(changed.size()), behind == 0 ? "" : String.valueOf(behind),
+                    WorkPackageDialog.firstLine(wp.getDocumentation()) });
+            item.setImage(0, ArchiLabelProvider.INSTANCE.getImage(wp));
+        }
+        refresh();
     }
 
     private static Table table(Composite parent, int style, int height) {
@@ -156,9 +173,17 @@ final class WorkPackagesDialog extends TitleAreaDialog {
             String export = status == ExportState.Status.NEW ? "in no export yet"
                     : status == ExportState.Status.CHANGED ? "changed since the last export"
                     : behind(state, e) ? "newly linked since the last export" : "";
+            Set<String> kinds = new LinkedHashSet<>();
+            selected.forEach(wp -> {
+                String kind = WorkPackages.kind(wp, e);
+                if (kind != null) {
+                    kinds.add(kind);
+                }
+            });
             TableItem item = new TableItem(elements, SWT.NONE);
             item.setData(e);
-            item.setText(new String[] { ModelReader.label(e), labels.getDefaultName(e.eClass()), export });
+            item.setText(new String[] { ModelReader.label(e) + (kinds.isEmpty() ? "" : " (" + String.join(", ", kinds) + ")"),
+                    labels.getDefaultName(e.eClass()), export });
             item.setImage(0, labels.getImage(e));
         }
         elements.setRedraw(true);
@@ -166,12 +191,23 @@ final class WorkPackagesDialog extends TitleAreaDialog {
     }
 
     private void updateButtons() {
+        if (export == null) {
+            return; // the tables are filled before the buttons are made
+        }
         export.setEnabled(!selected.isEmpty() && elements.getItemCount() > 0);
         show.setEnabled(!selected.isEmpty());
+        closeTicket.setEnabled(!selected.isEmpty());
+        closeTicket.setText(!selected.isEmpty() && selected.stream().allMatch(WorkPackages::closed) ? "Re&open" : "C&lose");
     }
 
     @Override
     protected void createButtonsForButtonBar(Composite parent) {
+        Button changed = createButton(parent, CHANGED, "Changed Since &Publish...", false);
+        changed.setToolTipText("Link the elements that changed since the documentation was published, and that no open "
+                + "work package changes yet, to a work package");
+        closeTicket = createButton(parent, CLOSE_TICKET, "C&lose", false);
+        closeTicket.setToolTipText("The ticket is done: the work package stays in the model with its links, but the "
+                + "dialogs and the exports of other things no longer list it. Reopen brings it back. Undo works.");
         show = createButton(parent, SHOW, "&Show in Model Tree", false);
         show.setToolTipText("Select the chosen elements, or else the selected work packages, in the model tree");
         export = createButton(parent, EXPORT, "&Export...", true);
@@ -192,6 +228,12 @@ final class WorkPackagesDialog extends TitleAreaDialog {
             }
             setReturnCode(id);
             close();
+        } else if (id == CHANGED) {
+            setReturnCode(id);
+            close();
+        } else if (id == CLOSE_TICKET && closeTicket.isEnabled()) {
+            WorkPackageHandler.execute(model, WorkPackages.close(selected, !selected.stream().allMatch(WorkPackages::closed)));
+            fill();
         } else if (id == IDialogConstants.CLOSE_ID) {
             setReturnCode(CANCEL);
             close();

@@ -2,12 +2,15 @@ package io.github.p3chys.documentationarchi.ui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.TitleAreaDialog;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridLayout;
+import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
@@ -33,14 +36,28 @@ final class WorkPackageDialog extends TitleAreaDialog {
     private final List<IWorkPackage> workPackages;
     private Table table;
     private Text name;
+    private Combo kinds;
+    /** The kind of change found for each element (see {@link WorkPackages#unassigned}); null when none was. */
+    private final Map<IArchimateElement, String> found;
+    private Function<IArchimateElement, String> kind = e -> null;
     private final List<IWorkPackage> link = new ArrayList<>();
     private final List<IWorkPackage> unlink = new ArrayList<>();
     private String create;
 
     WorkPackageDialog(Shell shell, IArchimateModel model, List<IArchimateElement> elements) {
+        this(shell, model, elements, null);
+    }
+
+    /** @param found the kind of change to suggest per element, for elements found changed; null for none */
+    WorkPackageDialog(Shell shell, IArchimateModel model, List<IArchimateElement> elements,
+            Map<IArchimateElement, String> found) {
         super(shell);
         this.elements = elements;
+        this.found = found;
+        // closed ones only where an element is still linked, so the link can be taken off
         this.workPackages = WorkPackages.of(model);
+        this.workPackages.removeIf(wp -> WorkPackages.closed(wp)
+                && elements.stream().noneMatch(WorkPackages.elements(wp)::contains));
     }
 
     @Override
@@ -75,7 +92,8 @@ final class WorkPackageDialog extends TitleAreaDialog {
             long linked = elements.stream().filter(changed::contains).count();
             TableItem item = new TableItem(table, SWT.NONE);
             item.setData(wp);
-            item.setText(new String[] { ModelReader.label(wp), String.valueOf(changed.size()), firstLine(wp.getDocumentation()) });
+            item.setText(new String[] { ModelReader.label(wp) + (WorkPackages.closed(wp) ? " (closed)" : ""),
+                    String.valueOf(changed.size()), firstLine(wp.getDocumentation()) });
             item.setImage(0, ArchiLabelProvider.INSTANCE.getImage(wp));
             item.setChecked(linked > 0);
             item.setGrayed(linked > 0 && linked < elements.size());
@@ -96,6 +114,17 @@ final class WorkPackageDialog extends TitleAreaDialog {
         if (workPackages.isEmpty()) {
             name.setFocus();
         }
+
+        new Label(c, SWT.NONE).setText("&Kind of change:");
+        kinds = new Combo(c, SWT.DROP_DOWN | SWT.READ_ONLY);
+        if (found != null) {
+            kinds.add("as found: new or change");
+        }
+        kinds.add("(not said)");
+        WorkPackages.KINDS.forEach(kinds::add);
+        kinds.select(0);
+        kinds.setToolTipText("Names the links to the ticked work packages, and shows in the documentation next to the "
+                + "ticket: RBWDP-20025 (new). \"(not said)\" leaves the links as they are.");
         return area;
     }
 
@@ -128,6 +157,9 @@ final class WorkPackageDialog extends TitleAreaDialog {
             }
         }
         create = name.getText().strip().isEmpty() ? null : name.getText().strip();
+        String chosen = kinds.getText();
+        kind = WorkPackages.KINDS.contains(chosen) ? e -> chosen
+                : found != null && kinds.getSelectionIndex() == 0 ? found::get : e -> null;
         super.okPressed();
     }
 
@@ -137,6 +169,11 @@ final class WorkPackageDialog extends TitleAreaDialog {
 
     List<IWorkPackage> unlink() {
         return unlink;
+    }
+
+    /** The kind of change to each element, null for one where it isn't said. */
+    Function<IArchimateElement, String> kind() {
+        return kind;
     }
 
     /** The name of a work package to make, null for none. */

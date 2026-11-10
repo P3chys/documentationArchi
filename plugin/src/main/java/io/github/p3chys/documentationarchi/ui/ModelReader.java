@@ -294,8 +294,9 @@ final class ModelReader {
                 .filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
         // of the whole model, the work packages get a page of their own: the overview of the Jira tickets
         List<IArchimateElement> workPackages = selection.wholeModel
-                ? rest.stream().filter(IWorkPackage.class::isInstance).collect(Collectors.toList()) : List.of();
+                ? rest.stream().filter(IWorkPackage.class::isInstance).collect(Collectors.toList()) : new ArrayList<>();
         rest.removeAll(workPackages);
+        workPackages.removeIf(wp -> WorkPackages.closed((IWorkPackage) wp)); // done: exported only when asked for
         elementsPage(rest, selection.wholeModel ? t("elements-not-in-any-view") : t("selected-elements"), pages);
         if (!workPackages.isEmpty()) {
             workPackages.sort(Comparator.comparing(ModelReader::label, ModelReader::compareNatural));
@@ -543,13 +544,14 @@ final class ModelReader {
         if (element instanceof IWorkPackage) {
             Map<IArchimateElement, List<IArchimateRelationship>> links = WorkPackages.links((IWorkPackage) element);
             links.values().forEach(exported::addAll);
-            ordered(visible(links.keySet()), null).forEach(e -> changes.add(link(e)));
+            ordered(visible(links.keySet()), null).forEach(e -> changes.add(new Link(e.getId(),
+                    label(e) + kind((IWorkPackage) element, e), typeName(e))));
         } else {
             for (IWorkPackage wp : WorkPackages.of(element)) {
-                if (exclusion.excluded(wp)) {
+                if (exclusion.excluded(wp) || WorkPackages.closed(wp) && !selection.workPackages.contains(wp)) {
                     continue;
                 }
-                workPackages.add(new Link(wp.getId(), label(wp)));
+                workPackages.add(new Link(wp.getId(), label(wp) + kind(wp, element)));
                 exported.addAll(WorkPackages.links(wp).getOrDefault(element, List.of()));
             }
         }
@@ -765,6 +767,12 @@ final class ModelReader {
     static String label(INameable object) {
         String name = object.getName();
         return name == null || name.isBlank() ? typeName((EObject) object) : name;
+    }
+
+    /** " (new)": the kind of change the work package makes to the element, as their link names it; "" for none. */
+    private static String kind(IWorkPackage wp, IArchimateElement element) {
+        String kind = WorkPackages.kind(wp, element);
+        return kind == null ? "" : " (" + kind + ")";
     }
 
     /** "BusinessActor" to "Business Actor". */

@@ -13,6 +13,8 @@ public final class DocPage {
     public final String title;
     public String documentation = "";
     public List<Property> properties = new ArrayList<>();
+    /** The folder of the view below the model's Views folder; null at the top, and for pages that are no view. */
+    public DocFolder folder;
     /** PNG of the view, null for pages without a diagram. */
     public byte[] image;
     /** Width to show the image at, in CSS pixels. */

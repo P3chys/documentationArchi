@@ -91,6 +91,9 @@ grouped by type.
   usual). **Describe Here** on elements already described there takes it back, and **Undo** does too. It is kept in
   the model as a `doc:home` property of the element (the view's id), which the export never shows.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
+  An export of the whole model or of a folder lists the views under their folders (below *Views*) as headings, with
+  each folder's description, sorted by name as the Models tree shows them; the PDF bookmarks nest the same way, and
+  in Confluence each folder becomes a page that holds its views. A model without such folders is listed as before.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
 - Click an element in a view's picture to go to its description, on the same page or the one that describes it, in
   the HTML pages and the PDF (not in Confluence). Elements that the export describes nowhere aren't clickable. On a
@@ -300,7 +303,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `generated`, `missing-asset`, `missing-reference`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
@@ -365,6 +368,7 @@ CONFLUENCE_TOKEN=<personal access token> python <model>/confluence/upload_to_con
 
 - `--parent "Existing page"` puts the pages under an existing page.
 - Without a token, it uses `CONFLUENCE_USER` and `CONFLUENCE_PASSWORD`.
+- Views in folders go under a page per folder, as in the Models tree.
 - Pages are matched by title. Existing ones get a new version, so you can upload the same export again after
   changes.
 - Page titles start with the model name, because Confluence titles must be unique in a space.

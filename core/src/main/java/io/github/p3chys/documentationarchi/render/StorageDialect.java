@@ -42,6 +42,12 @@ final class StorageDialect implements Dialect {
         return "<ac:link" + anchor + ">" + page + "<ac:link-body>" + label + "</ac:link-body></ac:link>";
     }
 
+    /** A link to a whole page by its title, such as from a folder's page to what is in it. */
+    static String pageLink(String title, String escapedLabel) {
+        return "<ac:link><ri:page ri:content-title=\"" + Xml.escape(title) + "\"/><ac:link-body>" + escapedLabel
+                + "</ac:link-body></ac:link>";
+    }
+
     @Override
     public String entryHeading(Entry entry, String content) {
         return macro("anchor", "<ac:parameter ac:name=\"\">" + Xml.escape(entry.anchor()) + "</ac:parameter>")

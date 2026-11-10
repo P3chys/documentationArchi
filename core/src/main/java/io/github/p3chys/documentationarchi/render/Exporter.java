@@ -40,6 +40,7 @@ import com.openhtmltopdf.util.XRLog;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
+import io.github.p3chys.documentationarchi.doc.DocFolder;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 
@@ -312,16 +313,41 @@ public final class Exporter {
     private String singleDocument(Set<Assets.Asset> used) throws IOException {
         HtmlDialect dialect = new HtmlDialect(doc, true);
         StringBuilder bookmarks = new StringBuilder();
+        bookmarks(doc.outline, bookmarks);
         StringBuilder body = new StringBuilder();
         for (DocPage page : doc.pages) {
             String id = HtmlDialect.pageId(page);
-            bookmarks.append("<bookmark name=\"").append(Xml.escape(page.title)).append("\" href=\"#").append(id).append("\"/>");
             body.append("<h1 id=\"").append(id).append("\">").append(title(page, dialect)).append("</h1>")
                     .append(PageBody.render(doc, page, dialect, rules, used));
         }
         return "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>" + Xml.escape(doc.title)
                 + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css") + firstPage()
                 + "</style></head><body>" + body + "</body></html>";
+    }
+
+    /** The bookmarks of the PDF, nested as the folders; a folder's leads to its first page. */
+    private static void bookmarks(List<Doc.Node> nodes, StringBuilder to) {
+        for (Doc.Node node : nodes) {
+            DocPage page = node.page != null ? node.page : first(node);
+            to.append("<bookmark name=\"").append(Xml.escape(node.page != null ? page.title : node.folder.name))
+                    .append("\" href=\"#").append(HtmlDialect.pageId(page)).append("\"");
+            if (node.page != null) {
+                to.append("/>");
+            } else {
+                to.append(">");
+                bookmarks(node.children, to);
+                to.append("</bookmark>");
+            }
+        }
+    }
+
+    /** The first page in a folder, or in the folders in it; every folder of the outline has one. */
+    static DocPage first(Doc.Node folder) {
+        Doc.Node node = folder;
+        while (node.page == null) {
+            node = node.children.get(0);
+        }
+        return node.page;
     }
 
     /** The version line as the last line of the first page: a page margin box, which sits below the content. */
@@ -347,10 +373,13 @@ public final class Exporter {
     private void confluence(Path folder, Progress progress) throws IOException {
         Path pages = Files.createDirectories(folder.resolve("pages"));
         Path attachments = Files.createDirectories(folder.resolve("attachments"));
-        Map<DocPage, String> titles = confluenceTitles();
+        Set<String> taken = new HashSet<>();
+        Map<DocPage, String> titles = new LinkedHashMap<>();
+        doc.pages.forEach(p -> titles.put(p, confluenceTitle(p.title, taken)));
+        Map<DocFolder, String> folders = new LinkedHashMap<>();
+        doc.folders.forEach(f -> folders.put(f, confluenceTitle(f.name, taken)));
         StorageDialect dialect = new StorageDialect(titles);
-        StringBuilder manifest = new StringBuilder("{\n  \"pages\": [");
-        String separator = "\n";
+        List<String> entries = new ArrayList<>();
         for (DocPage page : doc.pages) {
             check(progress);
             Set<Assets.Asset> used = new LinkedHashSet<>();
@@ -360,33 +389,71 @@ public final class Exporter {
                 files.add(json(page.slug() + ".png"));
                 Files.write(attachments.resolve(page.slug() + ".png"), page.image);
             }
-            copy(used, attachments);
-            used.forEach(a -> files.add(json(a.name)));
-            String parent = page == doc.pages.get(0) ? "null" : json(titles.get(doc.pages.get(0)));
-            manifest.append(separator).append("    {\"title\": ").append(json(titles.get(page)))
-                    .append(", \"parent\": ").append(parent)
-                    .append(", \"file\": ").append(json("pages/" + page.slug() + ".xml"))
-                    .append(", \"attachments\": [").append(String.join(", ", files)).append("]}");
-            separator = ",\n";
+            String parent = page == doc.pages.get(0) ? null
+                    : page.folder != null ? folders.get(page.folder) : titles.get(doc.pages.get(0));
+            entries.add(manifestEntry(titles.get(page), parent, page.slug(), files, used, attachments));
         }
-        Files.writeString(folder.resolve("manifest.json"), manifest.append("\n  ]\n}\n").toString());
+        // after the first page, each folder before what is in it, so that the upload makes the parents first
+        List<String> folderEntries = new ArrayList<>();
+        for (DocFolder f : doc.folders) {
+            Set<Assets.Asset> used = new LinkedHashSet<>();
+            Files.writeString(pages.resolve(f.slug() + ".xml"), folderPage(f, dialect, titles, folders, used));
+            String parent = f.parent == null ? titles.get(doc.pages.get(0)) : folders.get(f.parent);
+            folderEntries.add(manifestEntry(folders.get(f), parent, f.slug(), new ArrayList<>(), used, attachments));
+        }
+        entries.addAll(1, folderEntries);
+        Files.writeString(folder.resolve("manifest.json"),
+                "{\n  \"pages\": [\n" + String.join(",\n", entries) + "\n  ]\n}\n");
         Files.writeString(folder.resolve("upload_to_confluence.py"), resource("upload_to_confluence.py"));
     }
 
-    /** Page titles are unique per Confluence space, ignoring case, so the model name goes in front of each view's. */
-    private Map<DocPage, String> confluenceTitles() {
-        Map<DocPage, String> titles = new LinkedHashMap<>();
-        Set<String> taken = new HashSet<>();
-        for (DocPage page : doc.pages) {
-            String title = page.title.equals(doc.title) ? page.title : doc.title + " - " + page.title;
-            title = title.length() > MAX_TITLE ? title.substring(0, MAX_TITLE) : title;
-            String candidate = title;
-            for (int i = 2; !taken.add(candidate.toLowerCase(Locale.ROOT)); i++) {
-                candidate = title + " (" + i + ")";
-            }
-            titles.put(page, candidate);
+    /** @param parent title of the parent page, null for the top */
+    private static String manifestEntry(String title, String parent, String slug, List<String> files,
+            Set<Assets.Asset> used, Path attachments) throws IOException {
+        copy(used, attachments);
+        used.forEach(a -> files.add(json(a.name)));
+        return "    {\"title\": " + json(title) + ", \"parent\": " + (parent == null ? "null" : json(parent))
+                + ", \"file\": " + json("pages/" + slug + ".xml") + ", \"attachments\": [" + String.join(", ", files) + "]}";
+    }
+
+    /** The page of a folder: its description, then links to what is in it, pages and folders. */
+    private String folderPage(DocFolder folder, StorageDialect dialect, Map<DocPage, String> titles,
+            Map<DocFolder, String> folders, Set<Assets.Asset> used) {
+        DocPage page = new DocPage(folder.id, folder.name);
+        page.documentation = folder.documentation;
+        StringBuilder list = new StringBuilder();
+        for (Doc.Node node : node(doc.outline, folder).children) {
+            String title = node.page != null ? titles.get(node.page) : folders.get(node.folder);
+            String label = Xml.escape(node.page != null ? node.page.title : node.folder.name);
+            list.append("<li>").append(StorageDialect.pageLink(title, label)).append("</li>");
         }
-        return titles;
+        String description = PageBody.render(doc, page, dialect, rules, used);
+        return description + (description.isEmpty() ? "" : "<hr/>") + "<ul>" + list + "</ul>";
+    }
+
+    /** The node of a folder in the outline, null if it is not there. */
+    static Doc.Node node(List<Doc.Node> nodes, DocFolder folder) {
+        for (Doc.Node node : nodes) {
+            if (node.folder == null) {
+                continue;
+            }
+            Doc.Node found = node.folder == folder ? node : node(node.children, folder);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** Page titles are unique per Confluence space, ignoring case, so the model name goes in front of each view's. */
+    private String confluenceTitle(String name, Set<String> taken) {
+        String title = name.equals(doc.title) ? name : doc.title + " - " + name;
+        title = title.length() > MAX_TITLE ? title.substring(0, MAX_TITLE) : title;
+        String candidate = title;
+        for (int i = 2; !taken.add(candidate.toLowerCase(Locale.ROOT)); i++) {
+            candidate = title + " (" + i + ")";
+        }
+        return candidate;
     }
 
     private static String json(String text) {

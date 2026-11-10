@@ -1,6 +1,7 @@
 package io.github.p3chys.documentationarchi.ui;
 
 import java.math.BigInteger;
+import java.text.Collator;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -47,6 +48,7 @@ import com.archimatetool.model.IWorkPackage;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
+import io.github.p3chys.documentationarchi.doc.DocFolder;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
@@ -80,6 +82,8 @@ final class ModelReader {
     static final String PRINT_ORDER = "PrintOrder";
     /** The property holding the id of the view an element is described on. */
     static final String HOME = "doc:home";
+    /** How the model tree sorts names. */
+    private static final Collator TREE = Collator.getInstance();
     private static final Pattern CHUNK = Pattern.compile("\\d+|\\D+");
 
     /** What to export: the model, or some views and elements of it. */
@@ -92,6 +96,8 @@ final class ModelReader {
         final Set<IWorkPackage> workPackages = new LinkedHashSet<>();
         /** What the user selected themselves: exported even if the rules leave it out, see {@link Exclusion}. */
         final Set<Object> exempt = new LinkedHashSet<>();
+        /** The whole model or a folder: the views' pages go under their folders. */
+        boolean folders;
 
         private Selection(IArchimateModel model, boolean wholeModel) {
             this.model = model;
@@ -161,6 +167,7 @@ final class ModelReader {
             }
             Selection selection = new Selection(model, objects.contains(model));
             objects.forEach(selection::exempt);
+            selection.folders = selection.wholeModel;
             if (selection.wholeModel) {
                 selection.views.addAll(model.getDiagramModels());
                 model.eAllContents().forEachRemaining(o -> {
@@ -179,6 +186,7 @@ final class ModelReader {
 
         private void add(Object o) {
             if (o instanceof IFolder) {
+                folders = true;
                 ((IFolder) o).getElements().forEach(this::add);
                 ((IFolder) o).getFolders().forEach(this::add);
             } else if (o instanceof IDiagramModel) {
@@ -288,7 +296,17 @@ final class ModelReader {
 
         List<DocPage> pages = new ArrayList<>();
         views.forEach(view -> viewPages.put(view.getId(), shown(view)));
-        views.forEach(view -> pages.add(viewPage(view, null)));
+        List<IDiagramModel> order = new ArrayList<>(views);
+        boolean nested = selection.folders && order.stream().anyMatch(v -> !path(v).isEmpty());
+        if (nested) {
+            order.sort(ModelReader::treeOrder);
+        }
+        Map<IFolder, DocFolder> folders = new HashMap<>();
+        for (IDiagramModel view : order) {
+            DocPage page = viewPage(view, null);
+            page.folder = nested ? folder(path(view), folders) : null;
+            pages.add(page);
+        }
 
         List<IArchimateElement> rest = ordered(elements, null).stream()
                 .filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
@@ -315,8 +333,54 @@ final class ModelReader {
             pages.forEach(p -> overview.contents.add(new Link(p.id, p.title)));
             pages.add(0, overview);
             exported.add(model);
+        } else {
+            pages.forEach(p -> p.folder = null); // one page: nothing to put under folders
         }
         return doc(label(model), pages);
+    }
+
+    /** The folders of the view below the model's Views folder, the outermost first. */
+    static List<IFolder> path(IDiagramModel view) {
+        List<IFolder> path = new ArrayList<>();
+        for (EObject f = view.eContainer(); f instanceof IFolder && f.eContainer() instanceof IFolder; f = f.eContainer()) {
+            path.add(0, (IFolder) f);
+        }
+        return path;
+    }
+
+    /**
+     * The order of the model tree, by name: folders sorted, views in a folder sorted. A folder's own views come
+     * before its folders, so that in the overview a folder's heading never seems to hold the views after it.
+     */
+    static int treeOrder(IDiagramModel a, IDiagramModel b) {
+        List<IFolder> p = path(a);
+        List<IFolder> q = path(b);
+        for (int i = 0;; i++) {
+            if (i == p.size() && i == q.size()) {
+                return TREE.compare(label(a), label(b));
+            }
+            if (i == p.size() || i == q.size()) {
+                return i == p.size() ? -1 : 1; // the view directly in the folder first
+            }
+            if (p.get(i) != q.get(i)) {
+                int names = TREE.compare(label(p.get(i)), label(q.get(i)));
+                return names != 0 ? names : p.get(i).getId().compareTo(q.get(i).getId());
+            }
+        }
+    }
+
+    private static DocFolder folder(List<IFolder> path, Map<IFolder, DocFolder> folders) {
+        DocFolder parent = null;
+        for (IFolder f : path) {
+            DocFolder known = folders.get(f);
+            if (known == null) {
+                known = new DocFolder(f.getId(), label(f), parent);
+                known.documentation = f.getDocumentation();
+                folders.put(f, known);
+            }
+            parent = known;
+        }
+        return parent;
     }
 
     /**

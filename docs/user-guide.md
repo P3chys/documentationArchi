@@ -239,6 +239,13 @@ those folders.
 With more than one page, the export starts with an overview: the model's purpose (its description), its properties
 and the list of pages.
 
+When the views are in folders in the Models tree (below *Views*), an export of the whole model or of a folder lists
+them under their folders: each folder is a heading, with its description under it if it has one, and folders inside it
+are headings one level lower. Folders and the views in a folder are sorted by name, as the Models tree shows them; a
+folder's own views come before the folders inside it, and the pages come in that order in the PDF too. Views directly
+in *Views* stay at the top, and the pages after the folders (elements in no view, work packages, labels) come under
+*Other pages*. A model without folders below *Views* is listed as before, in the order of the model.
+
 <p align="center"><img src="images/output-html-overview.png" width="760" alt="Exported overview page"></p>
 
 At the bottom of the overview page (and as the last line of the first page of the PDF) one line says which state of the
@@ -303,7 +310,8 @@ relationships to elements outside the view, grouped by type.
 
 ### The PDF
 
-The PDF holds the same pages, with bookmarks for every page and page numbers. Large pictures are scaled to fit the
+The PDF holds the same pages, with bookmarks for every page and page numbers. The bookmarks nest as the folders of
+the views do on the overview page; a folder's bookmark opens its first page. Large pictures are scaled to fit the
 page, and their elements stay clickable at that size.
 
 <p align="center"><img src="images/output-pdf.png" width="960" alt="Three pages of the exported PDF"></p>
@@ -680,7 +688,7 @@ export finishes, its message says how many objects the rules left out. The rule 
 The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
 `language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
 `text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
-are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 
@@ -758,7 +766,9 @@ pictures and assets as attachments – plus a script that uploads them to **Conf
 **What it takes:** Python 3.8+, the Confluence URL, a space key and a personal access token (or user name and
 password).
 
-**What it gives:** one Confluence page per exported page, with its attachments.
+**What it gives:** one Confluence page per exported page, with its attachments. When the overview lists the views
+under their folders, each folder gets a page too, with its description and links to what is in it, and the pages go
+under it, so the uploaded pages form the same tree as the folders.
 
 ```bash
 CONFLUENCE_TOKEN=<personal access token> python online-insurance/confluence/upload_to_confluence.py \

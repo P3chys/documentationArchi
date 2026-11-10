@@ -40,6 +40,7 @@ This guide explains every function of the plugin: where to find it, what it need
 | [Print Order...](#7-print-order) | Right-click a view (tree or view editor) | A view | The order in which the export describes the view's elements, saved in the model |
 | [Link to Work Package...](#8-work-packages-jira-tickets) | Right-click elements | One or more elements | Links between the elements and Jira-ticket work packages |
 | [Work Packages...](#8-work-packages-jira-tickets) | Right-click anything in a model | A model | An overview of all work packages, what they change and what isn't exported yet |
+| [Insert Reference...](#10-formatting-descriptions) | Right-click one object | One element, relationship, view, note or the model; the element or view to refer to | A `[[ref:id]]` link at the end of the description, showing the target's current name |
 | [Describe Here](#element-descriptions) | Right-click elements in an ArchiMate view | Elements of the view | The export describes them on this view's page instead of the first that shows them |
 | [Add Asset...](#12-assets-pictures-and-files) | Right-click one object | One element, relationship, view, note or the model; files from disk | The files copied into `Assets`, and a link to them in the description |
 | [Change marks](#9-change-marks-in-the-models-tree) | Models tree (automatic) | Nothing – it watches the model | Dots showing what no export reflects yet |
@@ -138,6 +139,7 @@ selection fits.
 | Link to Work Package... | ✓ | ✓ | – | the selection holds elements |
 | Work Packages... | ✓ | ✓ | – | anything in a model is selected |
 | Describe Here | – | ✓ | – | the selection holds elements |
+| Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
 | Documentation Formatting... | **Tools** menu | | | always |
 
 ---
@@ -418,10 +420,28 @@ status labels and code blocks).
 | `<sql>select ...</sql>` | an SQL code block |
 | `https://...` | a link |
 | `[[asset:file.png]]` | a picture or file from the Assets folder – see [Assets](#12-assets-pictures-and-files) |
+| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
+| `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
+| `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
+| a `\| A \| B \|` line, then `\|---\|---\|`, then rows | a table with a header row; without the line of dashes the `\|` stays text |
+| ```` ```java ```` ... ```` ``` ```` or `<code lang="java">...</code>` | a code block, the language optional (in Confluence: the code macro) |
+| `[[ref:<id>]]`, `[[ref:<id>\|label]]` | a link to that element or view showing its current name, or the label; its plain name when the export leaves it out |
 | a blank line | a new paragraph; single line breaks stay |
 
 Keywords ignore case. Labels and panels only work for configured keywords, so other `#words` stay as they are. You
 can add your own keywords – see the next section.
+
+**Lists, tables, emphasis, links and code** look the same in all three formats. A few rules keep older text as it
+was: a `*` only makes italic or bold with text right inside it and nothing word-like outside, so `select * from`,
+`count(*)` and `2*3*4` stay as they are; a table needs the line of dashes under its first row, so a `|` in a sentence
+stays a `|`; `[ORDERS]` stays a table name unless `(https://...)` follows it directly. Inside a table cell, write `\|`
+for a `|`. A code block marked `sql` looks like an `<sql>` block. In panels, lists and tables work too.
+
+**References.** `[[ref:<id>]]` links to an element or view by its Archi id and always shows its current name.
+**Insert Reference...** writes one for you: right-click one element, relationship, view, note or the model (in the
+Models tree or in a view), pick the element or view to refer to (type to filter the list), and the reference goes at
+the end of the description. **Edit > Undo** takes it back. When the export doesn't contain the target, its name is
+shown as plain text; an id the model doesn't have shows in red as *[missing reference: id]*.
 
 **The Labels page.** A whole-model export ends with a *Labels* page that collects them: for each configured label
 that occurs (`#risk`, `#todo`, your own...), the views, elements and relationships whose description, notes or

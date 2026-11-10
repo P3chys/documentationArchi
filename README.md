@@ -170,10 +170,20 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 | `<sql>select ...</sql>` | an SQL code block (in Confluence: the code macro with SQL highlighting) |
 | `https://...` | a link |
 | `[[asset:file.png]]` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
+| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
+| `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
+| `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
+| a `\| A \| B \|` line, then `\|---\|---\|`, then rows | a table with a header row; without the line of dashes the `\|` stays text |
+| ```` ```java ```` ... ```` ``` ```` or `<code lang="java">...</code>` | a code block, the language optional (in Confluence: the code macro) |
+| `[[ref:<id>]]`, `[[ref:<id>\|label]]` | a link to that element or view showing its current name, or the label; its plain name when the export leaves it out |
 | blank line | a new paragraph; single line breaks stay |
 
 Keywords ignore case. Labels and panels only work for configured keywords (see below), so other `#words` stay as
 they are.
+
+**Insert Reference...** (right-click one element, relationship, view, note or the model, in the Models tree or in a
+view) picks an element or view and adds its `[[ref:...]]` at the end of the description; **Undo** takes it back.
+Renaming the target later never leaves an old name in the export.
 
 A whole-model export has a **Labels** page: for each configured label in use (`#risk`, `#todo`...), the views,
 elements and relationships whose description, notes or property values carry it, each linking to where it is

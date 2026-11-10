@@ -47,7 +47,7 @@ import io.github.p3chys.documentationarchi.text.KeywordRules;
 /**
  * Writes a {@link Doc} to a folder:
  * <pre>
- * html/index.html, html/&lt;view&gt;.html, html/images/, html/assets/, html/style.css
+ * html/index.html, html/&lt;view&gt;.html, html/elements_a-z.html, html/elements_by-type.html, html/search.js, html/nav.js, html/images/, html/assets/, html/style.css
  * &lt;title&gt;.pdf, assets/ (the files the PDF links to)
  * confluence/pages/&lt;view&gt;.xml, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
  * </pre>
@@ -220,24 +220,40 @@ public final class Exporter {
     private void html(Path folder, Progress progress) throws IOException {
         Files.createDirectories(folder.resolve("images"));
         Files.writeString(folder.resolve("style.css"), resource("style.css"));
+        Files.writeString(folder.resolve("nav.js"), resource("nav.js"));
         HtmlDialect dialect = new HtmlDialect(doc, false);
+        HtmlSite site = new HtmlSite(doc, dialect, rules.texts());
+        Files.writeString(folder.resolve(HtmlSite.SEARCH), site.searchData());
         Set<Assets.Asset> used = new LinkedHashSet<>();
         for (DocPage page : doc.pages) {
             check(progress);
             String nav = page == doc.pages.get(0) ? ""
                     : "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
-            Files.writeString(folder.resolve(page.slug() + ".html"), "<!DOCTYPE html>\n"
-                    + "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>"
-                    + Xml.escape(page.title) + "</title><link rel=\"stylesheet\" href=\"style.css\"/></head><body>"
-                    + nav + "<h1>" + title(page, dialect) + "</h1>" + PageBody.render(doc, page, dialect, rules, used)
+            Files.writeString(folder.resolve(page.slug() + ".html"), htmlPage(page.title, site.sidebar(page, null),
+                    nav + "<h1>" + title(page, dialect) + "</h1>" + PageBody.render(doc, page, dialect, rules, used)
                     + (page == doc.pages.get(0) && version != null
-                            ? "<footer class=\"version\">" + Xml.escape(version) + "</footer>" : "")
-                    + "</body></html>\n");
+                            ? "<footer class=\"version\">" + Xml.escape(version) + "</footer>" : "")));
             if (page.image != null) {
                 Files.write(folder.resolve("images").resolve(page.slug() + ".png"), page.image);
             }
         }
+        String home = "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
+        String aToZ = rules.texts().get("elements-a-z");
+        Files.writeString(folder.resolve(HtmlSite.A_Z), htmlPage(aToZ, site.sidebar(null, HtmlSite.A_Z),
+                home + "<h1>" + Xml.escape(aToZ) + "</h1>" + site.aToZ()));
+        String byType = rules.texts().get("elements-by-type");
+        Files.writeString(folder.resolve(HtmlSite.BY_TYPE), htmlPage(byType, site.sidebar(null, HtmlSite.BY_TYPE),
+                home + "<h1>" + Xml.escape(byType) + "</h1>" + site.byType()));
         copy(used, folder.resolve("assets"));
+    }
+
+    /** A page of the HTML export: the sidebar, then the content; the scripts only make the search work. */
+    private static String htmlPage(String title, String sidebar, String content) {
+        return "<!DOCTYPE html>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/>"
+                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>" + Xml.escape(title)
+                + "</title><link rel=\"stylesheet\" href=\"style.css\"/></head><body class=\"site\">" + sidebar
+                + "<main>" + content + "</main><script src=\"" + HtmlSite.SEARCH + "\"></script>"
+                + "<script src=\"nav.js\"></script></body></html>\n";
     }
 
     private static void copy(Set<Assets.Asset> assets, Path folder) throws IOException {

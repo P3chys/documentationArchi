@@ -60,7 +60,8 @@ the model (or the work package), and you're asked before files in it are replace
 
 ```
 <model>/
-  html/index.html, html/<view>.html, html/images/, html/assets/, html/style.css
+  html/index.html, html/<view>.html, html/elements_a-z.html, html/elements_by-type.html, html/search.js,
+  html/images/, html/assets/, html/style.css
   <model>.pdf, assets/                 (assets/ holds the files the PDF links to)
   confluence/pages/, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
 ```
@@ -99,6 +100,11 @@ grouped by type.
   the HTML pages and the PDF (not in Confluence). Elements that the export describes nowhere aren't clickable. On a
   web page such a picture is shown at its own width, and a wide one scrolls sideways instead of shrinking.
 - The PDF has bookmarks for every page.
+- Every HTML page has a sidebar with the pages under their folders (the current one highlighted, folders fold), an
+  **Elements A–Z** page and an **Elements by type** page listing every described element, and a search box that
+  finds views and elements by name, type and description as you type. It works from the disk, without a server; with
+  JavaScript off the sidebar is a plain list. The sidebar is never printed and moves above the page on narrow
+  screens.
 - Elements that sit in a group of the view (Archi's visual *Group*) come under the group's name, in the list of
   elements and among the descriptions, group after group as they are on the view; the print order applies inside
   each group. Elements in no group come first.
@@ -303,7 +309,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `generated`, `missing-asset`, `missing-reference`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `generated`, `missing-asset`, `missing-reference`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations

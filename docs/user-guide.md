@@ -210,6 +210,9 @@ online-insurance/
 │   ├── elements-not-in-any-view.html
 │   ├── work-packages.html
 │   ├── labels.html
+│   ├── elements_a-z.html         every described element by name
+│   ├── elements_by-type.html     the same by type
+│   ├── search.js, nav.js         what the search box searches, and the search itself
 │   ├── images/                   view pictures
 │   ├── assets/                   copies of the assets the pages use
 │   └── style.css
@@ -253,6 +256,21 @@ model it shows: *Generated 2026-11-10 14:03 from Online Insurance*. If the model
 cooperativeArchi (a hidden `.coarchi` folder next to the model file), the line ends with the branch and the short
 commit, *– main ＠ 0123456*. If the branch or commit cannot be read, that part is left out. The Confluence pages do not
 have this line. (The PDF shows a plain @, its font has no full-width one.)
+
+### Finding your way in the HTML pages
+
+Every HTML page has a sidebar on the left: the overview, the pages under their folders (a folder opens and closes with
+a click; the one with the page you are on is open) and the page you are on in bold. Below them are two more pages of
+the HTML export:
+
+- **Elements A–Z**: every element the export describes, by name under its first letter, with its type, each linking
+  to its description;
+- **Elements by type**: the same elements under their types, with how many there are of each.
+
+At the top of the sidebar, **Search** finds views and elements as you type: by name, type and the text of their
+description; all words you type must occur. **Esc** clears it. The search works when you open the pages straight from
+the disk, no web server needed; with JavaScript turned off the box is not shown and the sidebar is a plain list. On a
+narrow window the sidebar moves above the page, and it is never printed.
 
 ### View pages
 
@@ -688,7 +706,7 @@ export finishes, its message says how many objects the rules left out. The rule 
 The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
 `language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
 `text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
-are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 

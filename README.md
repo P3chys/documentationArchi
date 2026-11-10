@@ -99,7 +99,11 @@ grouped by type.
 - Click an element in a view's picture to go to its description, on the same page or the one that describes it, in
   the HTML pages and the PDF (not in Confluence). Elements that the export describes nowhere aren't clickable. On a
   web page such a picture is shown at its own width, and a wide one scrolls sideways instead of shrinking.
-- The PDF has bookmarks for every page.
+- The PDF has bookmarks for every page. With more than one page it starts with a cover (the model's name, the
+  "Generated" line and the start of its purpose) and a table of contents with page numbers, nested as the folders.
+  Each page has its title at the top and the model's name and "Page n of m" at the bottom, and a view with a picture
+  clearly wider than tall gets landscape pages. The rule lines `pdf cover off`, `pdf contents off` and
+  `pdf landscape off` switch these off.
 - Every HTML page has a sidebar with the pages under their folders (the current one highlighted, folders fold), an
   **Elements A–Z** page and an **Elements by type** page listing every described element, and a search box that
   finds views and elements by name, type and description as you type. It works from the disk, without a server; with
@@ -294,6 +298,7 @@ language cs                     fixed texts of the output in Czech
 text contents = Table of contents   replace one fixed text
 page description picture elements   sections of a view's page, in this order
 entry description relations     parts of an element's description, in this order
+pdf landscape off               no landscape pages in the PDF; also pdf cover off, pdf contents off
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
@@ -309,7 +314,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `generated`, `missing-asset`, `missing-reference`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `missing-reference`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations

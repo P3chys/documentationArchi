@@ -1,4 +1,22 @@
-@page { size: A4; margin: 18mm 15mm; @bottom-center { content: counter(page); font-family: "DejaVu Sans"; font-size: 9px; } }
+@page { size: A4; margin: 18mm 15mm; }
+/* the cover has no header or footer; views with a wide picture get landscape pages (see Exporter) */
+@page cover { @top-left { content: none; } @bottom-left { content: none; } @bottom-right { content: none; } }
+@page landscape { size: A4 landscape; }
+div.cover { page: cover; padding-top: 200px; }
+p.cover-title { font-size: 28px; font-weight: bold; margin: 0 0 12px; }
+p.cover-version { color: #6b778c; font-size: 9px; margin: 0 0 40px; }
+div.cover-purpose { font-size: 12px; }
+div.landscape { page: landscape; width: 267mm; } /* the body keeps the width of a portrait page */
+div.running-title { position: running(title); font-family: "DejaVu Sans"; font-size: 8px; color: #6b778c; } /* the header */
+div.toc { page-break-before: always; }
+div.toc:first-child { page-break-before: auto; }
+p.toc-title { font-size: 18px; font-weight: bold; }
+div.toc ul { list-style: none; padding-left: 14px; margin: 2px 0; }
+div.toc > ul { padding-left: 0; }
+div.toc li { margin: 3px 0; }
+div.toc li.toc-folder > span { font-weight: bold; }
+div.toc a { color: #172b4d; }
+div.toc a::after { content: leader('.') target-counter(attr(href), page); }
 body { font-family: "DejaVu Sans"; font-size: 10px; max-width: none; padding: 0; margin: 0; }
 h1 { page-break-before: always; font-size: 18px; }
 h1:first-child { page-break-before: auto; }

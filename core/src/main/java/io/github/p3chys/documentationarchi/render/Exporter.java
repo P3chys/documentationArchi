@@ -24,6 +24,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -58,6 +60,8 @@ public final class Exporter {
 
     public enum Format { HTML, PDF, CONFLUENCE }
 
+    /** How much of the purpose the cover shows: enough to say what the model is, not the whole description. */
+    private static final int COVER_PARAGRAPHS = 3;
     private static final int MAX_TITLE = 240; // Confluence allows 255, leaving room for the " (2)" of a duplicate
 
     private final Doc doc;
@@ -327,18 +331,83 @@ public final class Exporter {
     }
 
     private String singleDocument(Set<Assets.Asset> used) throws IOException {
-        HtmlDialect dialect = new HtmlDialect(doc, true);
+        boolean landscape = rules.pdf("landscape");
+        HtmlDialect dialect = new HtmlDialect(doc, true).landscape(landscape);
         StringBuilder bookmarks = new StringBuilder();
         bookmarks(doc.outline, bookmarks);
         StringBuilder body = new StringBuilder();
+        boolean cover = rules.pdf("cover") && doc.pages.size() > 1; // one page needs neither
+        if (cover) {
+            body.append(cover(dialect, used));
+        }
+        if (rules.pdf("contents") && doc.pages.size() > 1) {
+            body.append("<div class=\"toc\"><p class=\"toc-title\">").append(Xml.escape(rules.texts().get("contents")))
+                    .append("</p><ul>");
+            contents(doc.outline, body);
+            body.append("</ul></div>");
+        }
         for (DocPage page : doc.pages) {
-            String id = HtmlDialect.pageId(page);
-            body.append("<h1 id=\"").append(id).append("\">").append(title(page, dialect)).append("</h1>")
-                    .append(PageBody.render(doc, page, dialect, rules, used));
+            boolean wide = landscape && Pictures.landscape(page);
+            body.append(wide ? "<div class=\"landscape\">" : "").append("<h1 id=\"").append(HtmlDialect.pageId(page))
+                    .append("\">").append(title(page, dialect)).append("</h1>")
+                    .append("<div class=\"running-title\">").append(Xml.escape(page.title)).append("</div>")
+                    .append(PageBody.render(doc, page, dialect, rules, used)).append(wide ? "</div>" : "");
         }
         return "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>" + Xml.escape(doc.title)
-                + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css") + firstPage()
-                + "</style></head><body>" + body + "</body></html>";
+                + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css")
+                + margins() + (cover ? "" : firstPage()) + "</style></head><body>" + body + "</body></html>";
+    }
+
+    /** The first page of the PDF: the title, the version line and the start of the description (the purpose). */
+    private String cover(HtmlDialect dialect, Set<Assets.Asset> used) {
+        DocPage first = doc.pages.get(0);
+        String[] paragraphs = first.documentation == null ? new String[0] : first.documentation.strip().split("\\R\\s*\\R");
+        DocPage purpose = new DocPage(first.id, first.title);
+        purpose.documentation = String.join("\n\n", List.of(paragraphs).subList(0, Math.min(COVER_PARAGRAPHS, paragraphs.length)));
+        return "<div class=\"cover\"><p class=\"cover-title\">" + Xml.escape(doc.title) + "</p>"
+                + (version == null ? "" : "<p class=\"cover-version\">" + Xml.escape(version.replace('＠', '@')) + "</p>")
+                + "<div class=\"cover-purpose\">" + PageBody.render(doc, purpose, dialect, rules, used) + "</div></div>";
+    }
+
+    /** The table of contents: the pages under their folders, each with its page number. */
+    private static void contents(List<Doc.Node> nodes, StringBuilder to) {
+        for (Doc.Node node : nodes) {
+            if (node.page != null) {
+                to.append("<li><a href=\"#").append(HtmlDialect.pageId(node.page)).append("\">")
+                        .append(Xml.escape(node.page.title)).append("</a></li>");
+            } else {
+                to.append("<li class=\"toc-folder\"><span>").append(Xml.escape(node.folder.name)).append("</span><ul>");
+                contents(node.children, to);
+                to.append("</ul></li>");
+            }
+        }
+    }
+
+    /** The running header (the page's title) and footer (the document's and "page n of m"), but not on the cover. */
+    private String margins() {
+        String pageOf = rules.texts().get("page-of");
+        StringBuilder footer = new StringBuilder();
+        Matcher counter = Pattern.compile("\\{pages?\\}").matcher(pageOf);
+        int last = 0;
+        while (counter.find()) {
+            String text = pageOf.substring(last, counter.start());
+            footer.append(text.isEmpty() ? "" : cssString(text) + " ")
+                    .append(counter.group().equals("{pages}") ? "counter(pages) " : "counter(page) ");
+            last = counter.end();
+        }
+        footer.append(last < pageOf.length() ? cssString(pageOf.substring(last)) : "");
+        String look = " font-family: \"DejaVu Sans\"; font-size: 8px; color: #6b778c;";
+        return "@page { @top-left { content: element(title);" + look + " } @bottom-left { content: " + cssString(doc.title)
+                + ";" + look + " } @bottom-right { content: " + footer.toString().strip() + ";" + look + " } }";
+    }
+
+    /** Text as a CSS string, with what would end it escaped. */
+    private static String cssString(String text) {
+        StringBuilder s = new StringBuilder("\"");
+        text.replace('＠', '@') // the PDF font has no full-width @
+                .chars().forEach(c -> s.append(c == '"' || c == '\\' || c == '&' || c == '<' || c < 0x20
+                        ? String.format("\\%x ", c) : String.valueOf((char) c)));
+        return s.append('"').toString();
     }
 
     /** The bookmarks of the PDF, nested as the folders; a folder's leads to its first page. */
@@ -371,12 +440,7 @@ public final class Exporter {
         if (version == null) {
             return "";
         }
-        StringBuilder text = new StringBuilder();
-        version.replace('＠', '@') // the PDF font has no full-width @
-                .chars().forEach(c -> text.append(c == '"' || c == '\\' || c == '&' || c == '<' || c < 0x20
-                ? String.format("\\%x ", c)
-                : String.valueOf((char) c)));
-        return "@page :first { @bottom-left { content: \"" + text + "\"; font-family: \"DejaVu Sans\"; font-size: 8px; "
+        return "@page :first { @bottom-left { content: " + cssString(version) + "; font-family: \"DejaVu Sans\"; font-size: 8px; "
                 + "color: #6b778c; } }";
     }
 

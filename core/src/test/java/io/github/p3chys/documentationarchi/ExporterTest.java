@@ -166,11 +166,11 @@ class ExporterTest {
         try (PDDocument pdf = Loader.loadPDF(folder.resolve("zlutoucky-model.pdf").toFile())) {
             String text = new PDFTextStripper().getText(pdf);
             assertThat(text).contains("Žluťoučký model").contains("Přehled & <souhrn>").contains("Pozor na").contains("RISK");
-            assertThat(pdf.getNumberOfPages()).isEqualTo(3);
-            long links = pdf.getPage(1).getAnnotations().stream().filter(a -> a instanceof PDAnnotationLink).count();
+            assertThat(pdf.getNumberOfPages()).isEqualTo(5); // the cover and the contents first
+            long links = pdf.getPage(3).getAnnotations().stream().filter(a -> a instanceof PDAnnotationLink).count();
             assertThat(links).isGreaterThanOrEqualTo(3);
             assertThat(pdf.getDocumentCatalog().getDocumentOutline().children()).hasSize(3);
-            assertThat(pdf.getPage(1).getResources().getXObjectNames()).isNotEmpty();
+            assertThat(pdf.getPage(3).getResources().getXObjectNames()).isNotEmpty();
         }
     }
 
@@ -526,7 +526,8 @@ class ExporterTest {
         Files.writeString(folder.resolve(".coarchi/HEAD"), "ref: refs/heads/main\n");
         Files.writeString(folder.resolve(".coarchi/refs/heads/main"), "0123456789abcdef0123456789abcdef01234567\n");
         String line = "Generated 2026-11-10 14:03 from Model \"q\" & Co \u2013 main \uFF20 0123456";
-        new Exporter(doc, KeywordRules.defaults())
+        // without the cover, which has the line too (see PdfLayoutTest), the first page is the overview
+        new Exporter(doc, KeywordRules.parse("pdf cover off\npdf contents off"))
                 .version("Model \"q\" & Co", folder.resolve("m.archimate"), LocalDateTime.of(2026, 11, 10, 14, 3, 59))
                 .export(folder.resolve("out"), EnumSet.allOf(Format.class));
 

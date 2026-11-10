@@ -3,11 +3,13 @@ package io.github.p3chys.documentationarchi.text;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +30,7 @@ import java.util.regex.Pattern;
  * text contents = Table of contents   replaces one fixed text, see {@link Texts}
  * page description picture notes  the sections of a view's page to print, in this order ({@link #PAGE_SECTIONS})
  * entry description relations     the parts of an element's description to print, in this order ({@link #ENTRY_PARTS})
+ * pdf landscape off               leaves out a part of the PDF's layout ({@link #PDF_PARTS})
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -40,7 +43,9 @@ public final class KeywordRules {
     public enum Kind {
         PANEL(false), TAG(false), STYLE(false), TOKEN(false), HEADING(false), SQL(false),
         /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
-        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true);
+        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true),
+        /** The PDF's layout: {@code pdf cover|contents|landscape off}. */
+        PDF(true);
 
         public final boolean setting;
 
@@ -76,6 +81,8 @@ public final class KeywordRules {
     public static final int HEADING_LEVELS = 4;
 
     /** The sections of a view's page, in the usual order. */
+    /** The parts of the PDF's layout a {@code pdf} rule turns off or on. */
+    public static final List<String> PDF_PARTS = List.of("cover", "contents", "landscape");
     public static final List<String> PAGE_SECTIONS = List.of("description", "contents", "picture", "properties", "notes",
             "related", "elements");
 
@@ -97,6 +104,7 @@ public final class KeywordRules {
             "# text <key> = <replacement>   replaces one fixed text, e.g. text contents = Table of contents",
             "# page <section>...   the sections of a view's page to print, in this order: description contents picture properties notes related elements",
             "# entry <part>...   the parts of an element's description to print, in this order: description properties relations views workpackages other",
+            "# pdf <cover|contents|landscape> <on|off>   the PDF's cover, table of contents, landscape pages for wide views",
             "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
             "");
 
@@ -325,6 +333,17 @@ public final class KeywordRules {
                     replacement.strip());
         }
 
+        // ---- pdf layout (wave 3, structure of the output): pdf cover|contents|landscape on|off
+        /** @param part one of {@link KeywordRules#PDF_PARTS} @param on whether the PDF has it */
+        public static Rule pdf(String part, boolean on) {
+            String p = part.strip().toLowerCase(Locale.ROOT);
+            if (!PDF_PARTS.contains(p)) {
+                throw new IllegalArgumentException("unknown PDF part \"" + part + "\", use " + String.join(", ", PDF_PARTS));
+            }
+            return new Rule(Kind.PDF, p, null, null, null, null, false, on ? "on" : "off");
+        }
+        // ---- end pdf layout
+
         /** @param sections names out of {@link KeywordRules#PAGE_SECTIONS}, in the order to print them */
         public static Rule page(List<String> sections) {
             return new Rule(Kind.PAGE, names(sections, PAGE_SECTIONS, "section"), null, null, null, null, false);
@@ -360,6 +379,7 @@ public final class KeywordRules {
                 case PAGE: return "page " + keyword;
                 case ENTRY: return "entry " + keyword;
                 case LANGUAGE: return "language " + keyword;
+                case PDF: return "pdf " + keyword + " " + value;
                 case TEXT: return "text " + keyword + " = " + value;
                 case EXCLUDE_LABEL: return "exclude label " + keyword;
                 case HIDE_PROPERTY: return "hide property " + keyword;
@@ -417,6 +437,7 @@ public final class KeywordRules {
     private Texts fixedTexts = Texts.english();
     private List<String> pageSections = PAGE_SECTIONS;
     private List<String> entryParts = ENTRY_PARTS;
+    private final Set<String> pdfOff = new HashSet<>();
     private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
@@ -436,6 +457,13 @@ public final class KeywordRules {
                 case LANGUAGE: language = rule.keyword; break;
                 case PAGE: pageSections = List.of(rule.keyword.split(" ")); break;
                 case ENTRY: entryParts = List.of(rule.keyword.split(" ")); break;
+                case PDF:
+                    if (rule.value.equals("off")) {
+                        pdfOff.add(rule.keyword);
+                    } else {
+                        pdfOff.remove(rule.keyword);
+                    }
+                    break;
                 case TEXT: replaced.put(rule.keyword, rule.value); break;
                 case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
                 case TAG: tags.put(rule.keyword.toLowerCase(Locale.ROOT), rule.tag); break;
@@ -539,6 +567,13 @@ public final class KeywordRules {
                 return Rule.entry(words(rest));
             case "language":
                 return Rule.language(rest);
+            case "pdf": {
+                String[] w = rest.strip().toLowerCase(Locale.ROOT).split("\\s+");
+                if (w.length != 2 || !w[1].equals("on") && !w[1].equals("off")) {
+                    throw new IllegalArgumentException("expected: pdf <" + String.join("|", PDF_PARTS) + "> <on|off>");
+                }
+                return Rule.pdf(w[0], w[1].equals("on"));
+            }
             case "text": {
                 int equals = rest.indexOf('=');
                 if (equals < 0) {
@@ -576,7 +611,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page or entry");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page, entry or pdf");
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -729,6 +764,11 @@ public final class KeywordRules {
     /** The sections of a view's page to print, in order: all of them in the usual order unless a rule says so. */
     public List<String> pageSections() {
         return pageSections;
+    }
+
+    /** Whether the PDF has this part of its layout, one of {@link #PDF_PARTS}: unless a rule turns it off. */
+    public boolean pdf(String part) {
+        return !pdfOff.contains(part);
     }
 
     /** The parts of an element's description to print, in order. */

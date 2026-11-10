@@ -106,7 +106,9 @@ class ClickableDiagramTest {
 
     @Test
     void pdfHasLinkBoxesOverThePictureAtItsFittedSize() throws Exception {
-        new Exporter(doc, KeywordRules.defaults()).export(folder, EnumSet.of(Format.PDF));
+        // on a portrait page; the cover and contents would come first
+        new Exporter(doc, KeywordRules.parse("pdf cover off\npdf contents off\npdf landscape off"))
+                .export(folder, EnumSet.of(Format.PDF));
 
         try (PDDocument pdf = Loader.loadPDF(folder.resolve("model.pdf").toFile())) {
             List<PDRectangle> boxes = pdf.getPage(0).getAnnotations().stream().filter(PDAnnotationLink.class::isInstance)

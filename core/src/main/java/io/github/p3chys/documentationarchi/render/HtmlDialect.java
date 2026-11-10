@@ -27,6 +27,8 @@ final class HtmlDialect implements Dialect {
     private final boolean singleDocument;
     /** In the preview: where the picture of the view is; null otherwise. */
     private final String preview;
+    /** In the PDF: wide pictures are on landscape pages, see {@link Pictures#landscape}. */
+    private boolean landscape;
 
     HtmlDialect(Doc doc, boolean singleDocument) {
         this(doc, singleDocument, null);
@@ -36,6 +38,11 @@ final class HtmlDialect implements Dialect {
         this.doc = doc;
         this.singleDocument = singleDocument;
         this.preview = preview;
+    }
+
+    HtmlDialect landscape(boolean on) {
+        landscape = on;
+        return this;
     }
 
     /**
@@ -105,7 +112,9 @@ final class HtmlDialect implements Dialect {
         String src = singleDocument ? "data:image/png;base64," + Base64.getEncoder().encodeToString(page.image)
                 : preview != null ? preview : "images/" + page.slug() + ".png";
         // the PDF fits it on one page; a web page shows it at its size, readers zoom and scroll
-        int fitted = singleDocument ? Pictures.fit(page.imageWidth, page.imageHeight, Pictures.PDF_WIDTH) : 0;
+        int fitted = !singleDocument ? 0 : landscape && Pictures.landscape(page)
+                ? Pictures.fit(page.imageWidth, page.imageHeight, Pictures.LANDSCAPE_WIDTH, Pictures.LANDSCAPE_HEIGHT)
+                : Pictures.fit(page.imageWidth, page.imageHeight, Pictures.PDF_WIDTH);
         int width = fitted > 0 ? fitted : page.imageWidth;
         String alt = " alt=\"" + Xml.escape(page.title) + "\"/>";
         String image = "<img class=\"diagram\" src=\"" + src + "\" style=\"width:" + width + "px\"";

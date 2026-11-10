@@ -45,6 +45,7 @@ public final class Texts {
         add("nothing-found", "Nothing found", "Nic nenalezeno");
         add("view", "View", "Pohled");
         add("page", "Page", "Stránka");
+        add("page-of", "Page {page} of {pages}", "Strana {page} z {pages}");
         add("generated", "Generated {time} from {model}", "Vygenerováno {time} z {model}");
         add("missing-asset", "missing asset", "chybějící příloha");
         add("missing-reference", "missing reference", "chybějící odkaz");

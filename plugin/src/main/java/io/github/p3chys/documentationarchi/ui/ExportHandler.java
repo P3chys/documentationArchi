@@ -237,6 +237,13 @@ public class ExportHandler extends AbstractHandler {
     /** @param assets the folder to read assets from instead of the rules' (the command line's), null for none */
     static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
             IProgressMonitor monitor, boolean publish, ExportProfile profile, String assets) throws IOException {
+        return exportAll(selection, folder, formats, rulesFile, monitor, publish, profile, assets, false);
+    }
+
+    /** @param singleFile the HTML format writes one self-contained file per page (the command line's option) */
+    static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
+            IProgressMonitor monitor, boolean publish, ExportProfile profile, String assets, boolean singleFile)
+            throws IOException {
         if (publish && selection.model.getFile() == null) {
             throw new IllegalArgumentException("Save the model first: what is published is noted in the file "
                     + Published.FILE + " next to the model file.");
@@ -252,6 +259,9 @@ public class ExportHandler extends AbstractHandler {
         }
         if (assets != null) {
             rules = rules.withAssets(assets);
+        }
+        if (singleFile) {
+            rules = rules.withHtmlSingleFile();
         }
         Exclusion exclusion = selection.exclusion(rules);
         Doc doc = ModelReader.read(selection, (view, page) -> {

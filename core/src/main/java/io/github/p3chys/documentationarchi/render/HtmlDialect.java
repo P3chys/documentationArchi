@@ -15,6 +15,7 @@ import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 import io.github.p3chys.documentationarchi.text.KeywordRules.PanelStyle;
 import io.github.p3chys.documentationarchi.text.KeywordRules.Rule;
@@ -34,6 +35,8 @@ final class HtmlDialect implements Dialect {
     private final String preview;
     /** In the PDF: wide pictures are on landscape pages, see {@link Pictures#landscape}. */
     private boolean landscape;
+    /** Single-file HTML: pictures of views and images of assets are {@code data:} addresses inside the page. */
+    private boolean inline;
 
     HtmlDialect(Doc doc, boolean singleDocument) {
         this(doc, singleDocument, null);
@@ -43,6 +46,17 @@ final class HtmlDialect implements Dialect {
         this.doc = doc;
         this.singleDocument = singleDocument;
         this.preview = preview;
+    }
+
+    /** One HTML file per page that needs nothing next to it but the asset files it links to. */
+    HtmlDialect inline(boolean on) {
+        inline = on;
+        return this;
+    }
+
+    /** Whether {@link #asset} puts this asset's bytes in the page, so no file of it is copied next to the page. */
+    boolean inlined(Assets.Asset asset) {
+        return inline && asset.image();
     }
 
     HtmlDialect landscape(boolean on) {
@@ -156,7 +170,8 @@ final class HtmlDialect implements Dialect {
 
     @Override
     public String image(DocPage page) {
-        String src = singleDocument ? PICTURE + page.slug() : preview != null ? preview : "images/" + page.slug() + ".png";
+        String src = singleDocument ? PICTURE + page.slug() : preview != null ? preview
+                : inline ? "data:image/png;base64," + base64(page.image) : "images/" + page.slug() + ".png";
         // the PDF fits it on one page; a web page shows it at its size, readers zoom and scroll
         int fitted = !singleDocument ? 0 : landscape && Pictures.landscape(page)
                 ? Pictures.fit(page.imageWidth, page.imageHeight, Pictures.LANDSCAPE_WIDTH, Pictures.LANDSCAPE_HEIGHT)
@@ -233,14 +248,15 @@ final class HtmlDialect implements Dialect {
             return "<img class=\"asset\" src=\"data:" + asset.mimeType() + ";base64," + base64(asset) + "\"" + width(fitted)
                     + " alt=\"" + label + "\"/>";
         }
-        String href = preview != null ? asset.file.toUri().toString() : "assets/" + encode(asset.name);
+        String href = preview != null ? asset.file.toUri().toString()
+                : inlined(asset) ? "data:" + asset.mimeType() + ";base64," + base64(asset) : "assets/" + encode(asset.name);
         if (singleDocument || !asset.image()) {
             return "<a class=\"asset\" href=\"" + href + "\">" + label + "</a>";
         }
         int fitted = Pictures.fit(asset.width(), asset.height(), Integer.MAX_VALUE);
         String image = "<img class=\"asset\" src=\"" + href + "\"" + width(fitted) + " alt=\"" + label + "\"/>";
         // a picture shown smaller opens at its full size
-        return fitted > 0 ? "<a href=\"" + href + "\">" + image + "</a>" : image;
+        return fitted > 0 && !inlined(asset) ? "<a href=\"" + href + "\">" + image + "</a>" : image;
     }
 
     /**
@@ -267,6 +283,14 @@ final class HtmlDialect implements Dialect {
     private static String base64(Assets.Asset asset) {
         try {
             return Base64.getEncoder().encodeToString(asset.bytes());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String base64(Picture picture) {
+        try {
+            return Base64.getEncoder().encodeToString(picture.bytes());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

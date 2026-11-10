@@ -836,6 +836,11 @@ unknown or repeated name is an error, reported with its line. Without the lines 
 landscape pages for views with wide pictures (they are then on upright pages, the picture made smaller). `on` instead
 of `off` turns one back on, for instance in `documentation.rules` when the preferences turned it off.
 
+### Single-file HTML
+
+`html single-file` makes the HTML format write one self-contained file per page: style sheet inside, views and image
+assets as `data:` pictures, no sidebar, search or script. See Command line and automation.
+
 ---
 
 ## 12. Assets: pictures and files
@@ -930,31 +935,38 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 
 | Option | Meaning |
 |--------|---------|
-| `--documentation.folder` | export the whole model's documentation to this folder |
+| `--documentation.folder` | export the whole model's documentation to this folder; default: `output=` of the profile, else the environment variable `HAF_OUT_DIR`, else the temporary folder (the log says which) |
 | `--documentation.formats` | comma separated `html`, `pdf`, `confluence`; default: all three |
 | `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.elements a,b` | only these elements: names or ids; they go on the "Selected elements" page |
+| `--documentation.single-file` | HTML as one self-contained file per page (rule: `html single-file`) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
 | `--documentation.profile name` | export as this profile of the rules says (see Export profiles); `--documentation.folder` is then optional, and options given here override the profile |
 | `--documentation.check` | list what is missing or wrong in the documentation (see Check Documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 
-Without `--documentation.workPackages`, `--documentation.views` and `--documentation.folders` the command line exports
-the whole model. Views and folders can be combined (`--documentation.views Overview --documentation.folders Views/Sales`);
-work packages cannot be mixed with them, run the export twice instead. Names are matched exactly; a work package by its
+Without `--documentation.workPackages`, `--documentation.views`, `--documentation.folders` and `--documentation.elements`
+the command line exports the whole model. Views, folders and elements can be combined (`--documentation.views Overview
+--documentation.folders Views/Sales`); work packages cannot be mixed with them, run the export twice instead. Names are matched exactly; a work package by its
 name or by the ticket key its name starts with, a folder by its path from the top folder (the folder names Archi shows,
 `Views` for example). A name that matches nothing, or a view name shared by several views, stops the run with an error
 that lists every name not found.
 
-**Failing a build.** Archi's command line providers signal failure by throwing an error, and Archi ends with a
-non-zero exit code only when you also pass its own `--abortOnException`. For CI use both:
+**Failing a build.** A failing run (unknown name, empty work package, unusable rules, an output folder without what the
+formats promise: `html/index.html`, the PDF, `confluence/manifest.json`) prints its message and exits with code 1,
+without an error dialog, with or without Archi's `--abortOnException`:
 
 ```bash
-Archi -application com.archimatetool.commandline.app -consoleLog -nosplash --abortOnException \
+Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
   --loadModel model.archimate --documentation.folder out --documentation.strict
 ```
+
+**Single-file HTML.** `--documentation.single-file`, or `html single-file` in the rules, makes the HTML format write
+one self-contained file per page (same names): style sheet inside, views and image assets as `data:` pictures, no
+sidebar, search or script; each page links to the first page and the two indexes. Other assets stay in `html/assets/`.
 
 An invalid rules file (the project file or the one given with `--documentation.rules`) always fails the run and names
 the file and line. The command line exports the whole model by default and uses the project rules file of the model if there is one, else the formatting settings of the Archi installation it runs in.

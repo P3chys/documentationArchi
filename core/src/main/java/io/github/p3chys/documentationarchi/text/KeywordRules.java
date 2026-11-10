@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
  * page description picture notes  the sections of a view's page to print, in this order ({@link #PAGE_SECTIONS})
  * entry description relations     the parts of an element's description to print, in this order ({@link #ENTRY_PARTS})
  * pdf landscape off               leaves out a part of the PDF's layout ({@link #PDF_PARTS})
+ * html single-file                the HTML format writes one self-contained file per page, see {@link #htmlSingleFile()}
  * defaults off                    a rules file without the built-in rules, see {@link #parseFile}
  * jira https://jira.example.com/browse/   work packages named like a ticket (ABC-123) link to it there
  * </pre>
@@ -55,6 +56,8 @@ public final class KeywordRules {
         JIRA(true),
         /** The PDF's layout: {@code pdf cover|contents|landscape off}. */
         PDF(true),
+        /** The HTML format's layout: {@code html single-file [on|off]}. */
+        HTML(true),
         /** {@code defaults off}: a rules file that does not start from the built-in rules, see {@link #parseFile}. */
         DEFAULTS(true);
 
@@ -117,6 +120,7 @@ public final class KeywordRules {
             "# page <section>...   the sections of a view's page to print, in this order: description contents picture properties notes related elements",
             "# entry <part>...   the parts of an element's description to print, in this order: description properties relations views workpackages other",
             "# pdf <cover|contents|landscape> <on|off>   the PDF's cover, table of contents, landscape pages for wide views",
+            "# html single-file [on|off]   the HTML format writes one self-contained file per page: style and pictures inside, no sidebar or search",
             "# profile <name> <setting>...   a named export set-up: folders= views= workpackages= formats= exclude= hide= language= output= publish",
             "# catalog \"<title>\" type=<element type>[|<type>] [folder=<path>] columns=name,<property>,description   a table page of the elements of a type",
             "# index <tables|variables|constants>   a page listing every [table], {variable} or 'constant' of the descriptions, with where it is used",
@@ -386,6 +390,11 @@ public final class KeywordRules {
         }
         // ---- end pdf layout
 
+        /** @param on whether the HTML format writes one self-contained file per page, see {@link KeywordRules#htmlSingleFile()} */
+        public static Rule htmlSingleFile(boolean on) {
+            return new Rule(Kind.HTML, "single-file", null, null, null, null, false, on ? "on" : "off");
+        }
+
         /** @param token the kind of token to list; the rule is written {@code index tables}, {@code variables} or {@code constants} */
         public static Rule index(Token token) {
             return new Rule(Kind.INDEX, lower(token) + "s", null, null, null, null, false);
@@ -445,6 +454,7 @@ public final class KeywordRules {
                 case ASSETS: return "assets " + (keyword.matches(".*\\s.*") ? "\"" + keyword + "\"" : keyword);
                 case LANGUAGE: return "language " + keyword;
                 case PDF: return "pdf " + keyword + " " + value;
+                case HTML: return "html " + keyword + (value.equals("on") ? "" : " off");
                 case DEFAULTS: return "defaults " + value;
                 case PROFILE: return "profile " + profile.text();
                 case CATALOG: return "catalog " + catalog.text();
@@ -512,6 +522,7 @@ public final class KeywordRules {
     private List<String> pageSections = PAGE_SECTIONS;
     private List<String> entryParts = ENTRY_PARTS;
     private final Set<String> pdfOff = new HashSet<>();
+    private boolean htmlSingleFile;
     private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
@@ -541,6 +552,7 @@ public final class KeywordRules {
                         pdfOff.remove(rule.keyword);
                     }
                     break;
+                case HTML: htmlSingleFile = rule.value.equals("on"); break;
                 case TEXT: replaced.put(rule.keyword, rule.value); break;
                 case DEFAULTS: break; // only says how a rules file is read
                 case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
@@ -704,6 +716,13 @@ public final class KeywordRules {
                 }
                 return Rule.pdf(w[0], w[1].equals("on"));
             }
+            case "html": {
+                String[] w = rest.strip().toLowerCase(Locale.ROOT).split("\\s+");
+                if (!w[0].equals("single-file") || w.length > 2 || w.length == 2 && !w[1].equals("on") && !w[1].equals("off")) {
+                    throw new IllegalArgumentException("expected: html single-file [on|off]");
+                }
+                return Rule.htmlSingleFile(w.length == 1 || w[1].equals("on"));
+            }
             case "defaults": {
                 String w = rest.strip().toLowerCase(Locale.ROOT);
                 if (!w.equals("on") && !w.equals("off")) {
@@ -766,7 +785,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, assets, text, page, entry, pdf, profile, catalog, index, jira or defaults");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, assets, text, page, entry, pdf, html, profile, catalog, index, jira or defaults");
     }
 
     /** Whether a folder as written stays inside the folder it is relative to: not absolute, no way up out of it. */
@@ -945,6 +964,18 @@ public final class KeywordRules {
     /** Whether the PDF has this part of its layout, one of {@link #PDF_PARTS}: unless a rule turns it off. */
     public boolean pdf(String part) {
         return !pdfOff.contains(part);
+    }
+
+    /** Whether the HTML format writes one self-contained file per page: {@code html single-file}. */
+    public boolean htmlSingleFile() {
+        return htmlSingleFile;
+    }
+
+    /** These rules with the HTML format writing single files, e.g. what the command line says. */
+    public KeywordRules withHtmlSingleFile() {
+        List<Rule> all = new ArrayList<>(rules);
+        all.add(Rule.htmlSingleFile(true));
+        return of(all);
     }
 
     /** The parts of an element's description to print, in order. */

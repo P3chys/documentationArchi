@@ -357,6 +357,7 @@ text contents = Table of contents   replace one fixed text
 page description picture elements   sections of a view's page, in this order
 entry description relations     parts of an element's description, in this order
 pdf landscape off               no landscape pages in the PDF; also pdf cover off, pdf contents off
+html single-file                one self-contained HTML file per page, see "Single-file HTML"
 assets Files                    the folder assets are read from (default: Assets)
 defaults off                    in documentation.rules: without the built-in panels, labels and bold texts
 jira https://jira.example.com/browse/   work packages named like a ticket link to it
@@ -545,6 +546,8 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.elements a,b` | only these elements (names or ids), on the "Selected elements" page; combinable with views and folders |
+| `--documentation.single-file` | HTML as one self-contained file per page, see [Single-file HTML](#single-file-html) (rule: `html single-file`) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
 | `--documentation.profile name` | export as this profile of the rules says, see [Export profiles](#export-profiles); `--documentation.folder` is then optional, explicit options win |
 | `--documentation.check` | print what is missing or wrong in the documentation, see [Check Documentation](#check-documentation); with `--documentation.strict`, findings fail the run |
@@ -552,10 +555,20 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 
-Views and folders can be combined; work packages are a run of their own. A name that matches nothing (or a view name
-that matches several) is an error that lists what was not found. A run fails the way Archi's command line providers
-fail: it throws, and with Archi's own `--abortOnException` the process exits with a non-zero code. Add that option to
-CI runs. The model's `documentation.rules` file is used automatically; an invalid one fails the run.
+Views, folders and elements can be combined; work packages are a run of their own. A name that matches nothing (or a
+view or element name that matches several) is an error that lists what was not found. Without `--documentation.folder`
+(and no `output=` in the profile) the export goes to the environment variable `HAF_OUT_DIR`, else the temporary folder;
+the log says which. A failing run prints its message and exits with code 1 without any error dialog, with or without
+Archi's `--abortOnException`; so does a run whose output folder lacks what the formats promise (`html/index.html`, the
+PDF, `confluence/manifest.json`). The model's `documentation.rules` file is used automatically; an invalid one fails
+the run.
+
+### Single-file HTML
+
+With `html single-file` in the rules (or `--documentation.single-file`) the HTML format writes one self-contained file
+per page, with the same names: the style sheet is inside, views and image assets are `data:` pictures, and there is no
+sidebar, search or script (each page links to the first page and the two indexes instead). Other assets stay files in
+`html/assets/`, so keep that folder next to the pages. Links between pages stay relative.
 
 ## For developers
 

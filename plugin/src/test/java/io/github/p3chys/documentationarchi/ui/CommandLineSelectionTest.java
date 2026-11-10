@@ -116,6 +116,46 @@ class CommandLineSelectionTest {
         assertThatThrownBy(() -> select("RBWDP-1", "Overview", null)).hasMessageContaining("separate runs");
     }
 
+    private ModelReader.Selection selectElements(String views, String elements) {
+        return CommandLineSelection.select(model, List.of(), CommandLineSelection.names(views), List.of(),
+                CommandLineSelection.names(elements));
+    }
+
+    @Test
+    void elementsByNameAndId() {
+        IArchimateElement portal = (IArchimateElement) model.getFolder(FolderType.APPLICATION).getElements().get(0);
+        IArchimateElement billing = F.createApplicationComponent();
+        billing.setName("Billing");
+        model.getFolder(FolderType.APPLICATION).getElements().add(billing);
+        ModelReader.Selection selection = selectElements(null, "Portal, " + billing.getId());
+        assertThat(selection.wholeModel).isFalse();
+        assertThat(selection.elements).containsExactlyInAnyOrder(portal, billing);
+        assertThat(selection.views).isEmpty();
+    }
+
+    @Test
+    void elementsCombineWithViews() {
+        ModelReader.Selection selection = selectElements("Overview", "Portal");
+        assertThat(selection.views).containsExactly(overview);
+        assertThat(selection.elements).extracting(IArchimateElement::getName).contains("Portal");
+    }
+
+    @Test
+    void unknownAndAmbiguousElementsAreErrors() {
+        IArchimateElement twin = F.createApplicationComponent();
+        twin.setName("Portal");
+        model.getFolder(FolderType.APPLICATION).getElements().add(twin);
+        assertThatThrownBy(() -> selectElements(null, "Nope,Portal")).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("element \"Nope\"").hasMessageContaining("element \"Portal\" is ambiguous")
+                .hasMessageContaining(twin.getId());
+    }
+
+    @Test
+    void workPackagesDoNotMixWithElements() {
+        assertThatThrownBy(() -> CommandLineSelection.select(model, List.of("RBWDP-1"), List.of(), List.of(),
+                List.of("Portal"))).hasMessageContaining("separate runs");
+    }
+
     @Test
     void aWorkPackageThatChangesNothingCannotBeExported() {
         assertThat(unused).isNotNull();

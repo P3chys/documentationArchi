@@ -210,7 +210,7 @@ Tick **Publish** in the export dialog when an export is the documentation your r
 what that export shows in a file `documentation.published` next to the model file, and two things follow:
 
 - **Marks for the whole team.** An object counts as exported if your own exports show it as it is, or the published
-  documentation does. Share the file with the model (cooperativeArchi does it for you from the version after 1.6.0; otherwise copy
+  documentation does. Share the file with the model (cooperativeArchi 1.6.1 and later does it for you; otherwise copy
   it) and a colleague who never exported anything sees the same marks as you: only what the readers don't have yet.
 - **A page "Changes since ...".** Every later export of the whole model starts with a page listing the views and
   elements added, changed and removed since the documentation was published, with each changed name, description,

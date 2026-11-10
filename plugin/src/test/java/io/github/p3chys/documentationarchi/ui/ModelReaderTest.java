@@ -286,10 +286,30 @@ class ModelReaderTest {
         IArchimateDiagramModel view = view("Again");
         add(view, actor);
         add(view, portal);
+        add(view, order);
 
         Doc doc = read(first, view);
 
         assertThat(doc.pages.get(2).contents).extracting(l -> l.label).containsExactly("Portal", "Client");
+    }
+
+    @Test
+    void printOrderOfAnotherViewDoesNotSortThisOne() {
+        IArchimateDiagramModel ordered = view("Ordered");
+        IArchimateDiagramModel plain = view("Plain");
+        IArchimateElement a = element(F.createNode(), "A", FolderType.TECHNOLOGY);
+        IArchimateElement b = element(F.createNode(), "B", FolderType.TECHNOLOGY);
+        IArchimateElement order = printOrder();
+        for (IArchimateElement e : List.of(a, b, order)) {
+            add(ordered, e);
+        }
+        add(plain, a);
+        add(plain, b);
+        position(a, order, "2");
+        position(b, order, "1");
+
+        assertThat(read(ordered).pages.get(0).entries).extracting(e -> e.name).containsExactly("B", "A");
+        assertThat(read(plain).pages.get(0).entries).extracting(e -> e.name).containsExactly("A", "B");
     }
 
     @Test
@@ -488,6 +508,7 @@ class ModelReaderTest {
         view.getChildren().add(zone1);
         add(view, actor);
         IArchimateElement order = printOrder();
+        add(view, order);
         position(d, order, "1");
         position(b, order, "2");
 

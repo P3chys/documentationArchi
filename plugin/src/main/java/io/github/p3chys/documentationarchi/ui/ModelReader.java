@@ -781,7 +781,7 @@ final class ModelReader {
 
     /** The elements to describe, in print order. @param view the view they are listed for, null for none */
     private static List<IArchimateElement> ordered(Iterable<IArchimateElement> elements, IDiagramModel view) {
-        Set<IArchimateElement> onView = view == null ? Set.of() : elementsOn(view);
+        Set<IArchimateElement> onView = view == null ? null : elementsOn(view);
         Map<IArchimateElement, String> positions = new HashMap<>();
         List<IArchimateElement> list = new ArrayList<>();
         for (IArchimateElement element : elements) {
@@ -796,7 +796,10 @@ final class ModelReader {
         return list;
     }
 
-    /** The name of the element's relationship to PrintOrder, preferring a PrintOrder shown on the view. */
+    /**
+     * The name of the element's relationship to a PrintOrder shown on the view, null for none: a PrintOrder of another
+     * view says nothing about this one. For a list that belongs to no view ({@code onView} null), any PrintOrder.
+     */
     private static String position(IArchimateElement element, Set<IArchimateElement> onView) {
         String position = null;
         List<IArchimateRelationship> relationships = new ArrayList<>(element.getSourceRelationships());
@@ -804,10 +807,10 @@ final class ModelReader {
         for (IArchimateRelationship r : relationships) {
             IArchimateConcept other = r.getSource() == element ? r.getTarget() : r.getSource();
             if (isPrintOrder(other) && r.getName() != null && !r.getName().isBlank()) {
-                if (onView.contains(other)) {
+                if (onView != null && onView.contains(other)) {
                     return r.getName();
                 }
-                position = position == null ? r.getName() : position;
+                position = position == null && onView == null ? r.getName() : position;
             }
         }
         return position;

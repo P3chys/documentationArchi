@@ -43,6 +43,8 @@ public final class DocPage {
         }
     }
     public final List<String> notes = new ArrayList<>();
+    /** Tables of a generated page (catalog, index), printed after its description. */
+    public final List<DocTable> tables = new ArrayList<>();
     /** On a sketch or canvas view: the texts of its stickies, actors, blocks and groups, listed with the notes. */
     public final List<ObjectText> texts = new ArrayList<>();
     /** Views this view refers to with a diagram reference. */

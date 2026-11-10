@@ -181,6 +181,20 @@ In every export, an element's description ends with the work packages that chang
 instead of listing the links among its relationships. A whole-model export has a *Work packages* page describing each
 ticket with the elements it changes.
 
+**Kind of change:** in **Link to Work Package...** choose the **Kind of change** (*new*, *change*, *remove*). It
+becomes the name of the link, so you can also write it on a link you draw yourself, and the documentation shows it
+next to the ticket and the element: *Work packages: RBWDP-20025 (new)*. *(not said)* leaves the links as they are.
+
+**Closing a ticket:** when a ticket is done, select it in **Work Packages...** and press **Close**. The work package
+stays in the model with its links, but the dialogs, the *Work packages* page and the elements' descriptions no
+longer list it; exporting it directly still gives its specification. Tick **Show closed work packages** to see them
+and **Reopen** one. Closing sets the property `doc:closed` on the work package, and **Undo** takes it back.
+
+**What changed without a ticket:** **Changed Since Publish...** in **Work Packages...** finds the elements that the
+documentation shows differently from what was published (see *Publishing*) and that no open work package changes
+yet, and opens **Link to Work Package...** on them, with the kind of change it found: *new* for an element added
+since, *change* for one that says something else.
+
 ## Check Documentation
 
 Right-click anything in a model and choose **Check Documentation...** to list problems without exporting:
@@ -316,7 +330,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `missing-reference`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
@@ -388,6 +402,72 @@ CONFLUENCE_TOKEN=<personal access token> python <model>/confluence/upload_to_con
 - The pictures of views are plain pictures there: clicking an element in them leads nowhere (it does in the HTML
   pages and the PDF).
 
+## Export profiles
+
+An export is set up by hand: what to select, which formats, which folder. A **profile** is a named set-up kept with
+the model, so everyone and the command line export the same. It is a rule line in `documentation.rules`:
+
+```text
+profile developers folders=Views/Sales,Views/Claims formats=html,pdf exclude=#internal hide=cost* language=en output=docs/dev publish
+profile "Sales team" views="Order flow",Overview output=docs/sales
+```
+
+| Setting | Meaning |
+|---------|---------|
+| `folders=` `views=` `workpackages=` | what to export, comma separated, as on the command line; none: the whole model. Work packages cannot be combined with folders or views |
+| `formats=` | `html`, `pdf`, `confluence` |
+| `exclude=` | more labels to leave out, on top of the `exclude label` lines |
+| `hide=` | more property keys never to print (`*` at the end matches any ending) |
+| `language=` | `en` or `cs` |
+| `output=` | the export folder; relative to the folder of the model file unless absolute. The export goes straight into it, without a subfolder |
+| `publish` | the export is published, see [Publishing](#publishing-what-the-readers-have) |
+
+Names and values with spaces are quoted. A mistake is reported with the file and line, like the other rule lines, and so
+is a folder or view that does not exist, when the export runs.
+
+In Archi, the export dialog has a **Profile** list ("(none)" first). Choosing one fills in and locks what the profile
+sets. The context menu of the model has **Export Profile**, with one entry per profile; it runs the profile without
+the dialog (what the profile does not set comes from the last export dialog), and replaces the files in the folder.
+On the command line: `--documentation.profile <name>`; `--documentation.folder` is then optional when the profile has
+`output=`, and any option given explicitly overrides the profile's setting.
+
+## Catalogs
+
+A catalog is a page with a table of the elements of one type. A rule line adds it to exports of the whole model:
+
+```text
+catalog "Applications" type=Application Component|Application Service folder=Application/Core columns=name,Owner,description
+```
+
+| Setting | Meaning |
+|---------|---------|
+| the title (quoted) | the title of the page |
+| `type=` | the element types as the export prints them (`Application Component`); `*` at the end matches any ending (`Application*`); several are separated by `|` |
+| `folder=` | optional: only elements in this model folder and below, a path like `Application/Core` |
+| `columns=` | `name` (links to the element's description), `description` (its first paragraph), or a property key |
+
+There is one row per described element, sorted by name. The page is listed on the overview page. A catalog without
+any row is left out, and the message at the end of the export says so. Catalogs are not part of exports of selected
+views, folders or work packages.
+
+## Data usage index
+
+Descriptions mark database tables as `[ORDERS]`, variables as `{client_id}` and constants as `'ACTIVE'` (see
+[Formatting descriptions](#formatting-descriptions)). A rule line adds a page to exports of the whole model that lists
+every one of them:
+
+```text
+index tables
+index variables
+index constants
+```
+
+The page lists each token once, sorted by name, with links to where it is used: the descriptions, notes and property
+values of the views, elements and relationships. Upper and lower case count as the same token. The tokens are found
+the way the text is coloured, so the index never disagrees with the pages. In an SQL block only a table written as
+`[ORDERS]` counts. An index that finds nothing is left out, and the message at the end of the export says so. Without
+the lines nothing changes.
+
 ## Command line
 
 For CI and scheduled documentation builds, through Archi's command line:
@@ -403,6 +483,7 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.profile name` | export as this profile of the rules says, see [Export profiles](#export-profiles); `--documentation.folder` is then optional, explicit options win |
 | `--documentation.check` | print what is missing or wrong in the documentation, see [Check Documentation](#check-documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |

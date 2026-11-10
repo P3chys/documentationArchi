@@ -90,6 +90,11 @@
          </command>
       </menuContribution>
       <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
+         <dynamic id="io.github.p3chys.documentationarchi.exportProfiles" class="io.github.p3chys.documentationarchi.ui.ExportProfileMenu">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </dynamic>
+      </menuContribution>
+      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
          <command commandId="io.github.p3chys.documentationarchi.addAsset">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
          </command>

@@ -16,19 +16,38 @@ import io.github.p3chys.documentationarchi.text.KeywordRules.Rule;
 import io.github.p3chys.documentationarchi.text.KeywordRules.TagColour;
 import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
 
-/** Plain XHTML: one file per page, or all pages in one document for the PDF. */
+/**
+ * Plain XHTML: one file per page, all pages in one document for the PDF, or one page in the Documentation Preview.
+ */
 final class HtmlDialect implements Dialect {
 
     private final boolean singleDocument;
+    /** In the preview: where the picture of the view is; null otherwise. */
+    private final String preview;
 
     HtmlDialect(boolean singleDocument) {
+        this(singleDocument, null);
+    }
+
+    private HtmlDialect(boolean singleDocument, String preview) {
         this.singleDocument = singleDocument;
+        this.preview = preview;
+    }
+
+    /**
+     * The preview's: links to views and elements are {@link Preview#REF} and an id, which the preview shows instead of
+     * following; assets are the files in the model's Assets folder, the picture is at {@code pictureUrl}.
+     */
+    static HtmlDialect preview(String pictureUrl) {
+        return new HtmlDialect(false, pictureUrl == null ? "" : pictureUrl);
     }
 
     @Override
     public String link(Doc.Location to, DocPage from, String label) {
         String href;
-        if (singleDocument) {
+        if (preview != null) {
+            href = Preview.REF + (to.anchor != null ? to.anchor.substring(Preview.ENTRY.length()) : to.page.id);
+        } else if (singleDocument) {
             href = "#" + (to.anchor != null ? to.anchor : pageId(to.page));
         } else {
             href = (to.page == from ? "" : to.page.slug() + ".html") + (to.anchor != null ? "#" + to.anchor : "");
@@ -76,7 +95,7 @@ final class HtmlDialect implements Dialect {
     @Override
     public String image(DocPage page) {
         String src = singleDocument ? "data:image/png;base64," + Base64.getEncoder().encodeToString(page.image)
-                : "images/" + page.slug() + ".png";
+                : preview != null ? preview : "images/" + page.slug() + ".png";
         // the PDF fits it on one page; a web page shows it at its size, readers zoom and scroll
         int fitted = singleDocument ? Pictures.fit(page.imageWidth, page.imageHeight, Pictures.PDF_WIDTH) : 0;
         return "<img class=\"diagram\" src=\"" + src + "\" style=\"width:" + (fitted > 0 ? fitted : page.imageWidth)
@@ -95,7 +114,7 @@ final class HtmlDialect implements Dialect {
             return "<img class=\"asset\" src=\"data:" + asset.mimeType() + ";base64," + base64(asset) + "\"" + width(fitted)
                     + " alt=\"" + label + "\"/>";
         }
-        String href = "assets/" + encode(asset.name);
+        String href = preview != null ? asset.file.toUri().toString() : "assets/" + encode(asset.name);
         if (singleDocument || !asset.image()) {
             return "<a class=\"asset\" href=\"" + href + "\">" + label + "</a>";
         }

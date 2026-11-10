@@ -12,6 +12,7 @@ function, with screenshots.
 - [Install](#install)
 - [Export documentation](#export-documentation)
 - [What a page contains](#what-a-page-contains)
+- [Documentation Preview](#documentation-preview)
 - [Print order](#print-order)
 - [Work packages (Jira tickets)](#work-packages-jira-tickets)
 - [What changed since the last export](#what-changed-since-the-last-export)
@@ -103,6 +104,23 @@ grouped by type.
 - Junctions are never described or listed. A relationship to a junction is followed through it (and through
   junctions after it) to the elements on the other side, and shown as one relationship to all of them: *→ Triggering:
   Check claim or Reject claim* for an Or junction, *and* for an And junction.
+
+## Documentation Preview
+
+See how a description comes out without exporting: **Window > Documentation Preview** opens a view that shows the
+selected element, relationship or view as the HTML export shows it, using the same formatting rules (including the
+model's `documentation.rules`) and the same pictures and assets. Right-click anything in the **Models** tree or in a
+view and choose **Show in Documentation Preview** to open it on that object.
+
+- A view shows its whole page, with its picture; an element its description, saying which page it is on; a
+  relationship the descriptions of the elements at both ends; the model its overview page.
+- It follows the selection in the Models tree and in the views, and shows a change (a description typed in the
+  Properties view, a property, a rename) half a second after you stop typing. The picture of a view is only drawn
+  again when that view changes.
+- A link to another element or view shows that one in the preview. Web links open in your browser, assets with
+  their program. Scripts never run.
+- Missing assets show in red, as in the export. Previewing never changes the model and never counts as an export
+  for the marks in the Models tree.
 
 ## Print order
 
@@ -327,7 +345,7 @@ bytecode and travels inside the plugin in `lib/`.
 | Path | Content |
 |------|---------|
 | `core/` | Pure Java engine, no Eclipse: document model and assets (`doc`), keyword formatting (`text`), HTML / PDF / Confluence rendering (`render`) |
-| `plugin/` | Archi/Eclipse plugin: menus, export dialog, print order, work packages, model tree marks, add asset, preferences, command line provider |
+| `plugin/` | Archi/Eclipse plugin: menus, export dialog, documentation preview, print order, work packages, model tree marks, add asset, preferences, command line provider |
 | `sample/` | A sample model to try the export on, with its `Assets` folder and a work package |
 
 ```bash

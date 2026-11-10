@@ -140,7 +140,9 @@ selection fits.
 | Work Packages... | ✓ | ✓ | – | anything in a model is selected |
 | Describe Here | – | ✓ | – | the selection holds elements |
 | Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
+| Show in Documentation Preview | ✓ | ✓ | ✓ | anything in a model is selected |
 | Documentation Formatting... | **Tools** menu | | | always |
+| Documentation Preview | **Window** menu | | | always |
 
 ---
 
@@ -297,6 +299,32 @@ The PDF holds the same pages, with bookmarks for every page and page numbers. La
 page.
 
 <p align="center"><img src="images/output-pdf.png" width="960" alt="Three pages of the exported PDF"></p>
+
+### Documentation Preview
+
+To see how a description comes out without running an export, open **Window > Documentation Preview**, or right-click
+anything in the Models tree or in a view and choose **Show in Documentation Preview**. The view shows the selected
+object as the HTML export shows it – the same reading of the model, the same formatting rules (the model's
+`documentation.rules` if it has one, otherwise your preferences) and the same pictures and assets:
+
+| Selected | The preview shows |
+|----------|-------------------|
+| a view (or a note or group on it) | its whole page, with its picture |
+| an element | its description, with the page it is on (*Described on Sales*) |
+| a relationship | the descriptions of the elements at both ends, where its own description is |
+| the model | the overview page |
+| a junction, PrintOrder or a folder | a line saying why there is nothing to show |
+
+- It follows the selection in the Models tree and in the views. Changes show half a second after you stop – type a
+  description in the Properties view and watch it formatted. The focus stays where you type.
+- The picture of a view is drawn again only when something on that view changes (or an element on it is renamed).
+- Click a link to another element or view to show that one. Web links open in your browser, and links to assets
+  open the file with its program; other links do nothing. Scripts are off.
+- A missing asset shows in red, as in the export. An invalid `documentation.rules` file shows its error instead.
+- The preview only reads: it never changes the model, and it does not count as an export for the
+  [change marks](#9-change-marks-in-the-models-tree).
+- Each element is described where a whole-model export describes it, so an element on several views is described on
+  the first page that shows it (or its **Describe Here** view).
 
 ---
 

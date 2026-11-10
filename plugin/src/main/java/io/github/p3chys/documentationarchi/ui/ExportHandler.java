@@ -36,7 +36,10 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.archimatetool.model.IArchimateModel;
 
+import io.github.p3chys.documentationarchi.doc.Catalogs;
 import io.github.p3chys.documentationarchi.doc.Doc;
+import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Generated;
 import io.github.p3chys.documentationarchi.doc.Published;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
@@ -100,6 +103,10 @@ public class ExportHandler extends AbstractHandler {
             folder = output != null ? output : Path.of(Prefs.folder()).resolve(Doc.slug(selection.title()));
         } catch (IllegalArgumentException e) {
             MessageDialog.openError(shell, "Export Documentation", e.getMessage());
+            return;
+        }
+        if (notEmpty(folder) && !MessageDialog.openQuestion(shell, "Export Documentation",
+                "Profile " + profile.name + " exports to " + folder + ", which already exists. Replace the files in it?")) {
             return;
         }
         start(Display.getCurrent(), selection, folder, Profiles.formats(profile, Prefs.formats()), profile.publish,
@@ -195,14 +202,16 @@ public class ExportHandler extends AbstractHandler {
         return exportAll(selection, folder, formats, rulesFile, monitor, false).problems;
     }
 
-    /** What an export found: assets without a file, and how many objects the rules left out. */
+    /** What an export found: assets without a file, how many objects the rules left out, and notes on generated pages. */
     static final class Result {
         final List<String> problems;
         final int excluded;
+        final List<String> notes;
 
-        Result(List<String> problems, int excluded) {
+        Result(List<String> problems, int excluded, List<String> notes) {
             this.problems = problems;
             this.excluded = excluded;
+            this.notes = notes;
         }
     }
 
@@ -247,7 +256,17 @@ public class ExportHandler extends AbstractHandler {
         Doc shownDoc = selection.wholeModel && before.lastTime() > 0 ? Published.with(doc, Published.page(
                 before.changesTo(doc, true), DATE.format(Instant.ofEpochMilli(before.lastTime()).atZone(ZoneId.systemDefault()))))
                 : doc;
-        Exporter exporter = new Exporter(shownDoc, rules).version(selection.model.getName(),
+        List<String> notes = new ArrayList<>();
+        Doc generatedDoc = shownDoc;
+        if (selection.wholeModel) { // catalogs and indexes describe the whole model
+            List<DocPage> generated = new ArrayList<>();
+            Catalogs.Result catalogs = Catalogs.build(doc, rules.catalogs(), rules.texts(),
+                    path -> Profiles.folderElementIds(selection.model, path));
+            generated.addAll(catalogs.pages);
+            notes.addAll(catalogs.notes);
+            generatedDoc = Generated.with(shownDoc, generated);
+        }
+        Exporter exporter = new Exporter(generatedDoc, rules).version(selection.model.getName(),
                 selection.model.getFile() == null ? null : selection.model.getFile().toPath(), LocalDateTime.now());
         exporter.export(folder, formats, new Exporter.Progress() {
             @Override
@@ -271,7 +290,7 @@ public class ExportHandler extends AbstractHandler {
             ExportState.get().publish(selection.model, doc, fingerprints, time, selection.wholeModel);
             ExportMarks.refresh();
         }
-        return new Result(exporter.problems(), exclusion.count());
+        return new Result(exporter.problems(), exclusion.count(), notes);
     }
 
     /** What was published of the model; nothing if that cannot be told, which must not stop an export. */
@@ -298,6 +317,9 @@ public class ExportHandler extends AbstractHandler {
                 + " next to the model file. Share that file with the model so your colleagues' marks follow." : "");
         if (result.excluded > 0) {
             message += "\n" + result.excluded + " object(s) were left out by the exclusion rules.";
+        }
+        for (String note : result.notes) {
+            message += "\n" + note;
         }
         if (!problems.isEmpty()) {
             message += "\n\nThese assets are missing from the export (shown in red on their pages):\n"

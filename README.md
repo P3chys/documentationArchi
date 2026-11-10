@@ -400,6 +400,25 @@ the dialog (what the profile does not set comes from the last export dialog), an
 On the command line: `--documentation.profile <name>`; `--documentation.folder` is then optional when the profile has
 `output=`, and any option given explicitly overrides the profile's setting.
 
+## Catalogs
+
+A catalog is a page with a table of the elements of one type. A rule line adds it to exports of the whole model:
+
+```text
+catalog "Applications" type=Application Component|Application Service folder=Application/Core columns=name,Owner,description
+```
+
+| Setting | Meaning |
+|---------|---------|
+| the title (quoted) | the title of the page |
+| `type=` | the element types as the export prints them (`Application Component`); `*` at the end matches any ending (`Application*`); several are separated by `|` |
+| `folder=` | optional: only elements in this model folder and below, a path like `Application/Core` |
+| `columns=` | `name` (links to the element's description), `description` (its first paragraph), or a property key |
+
+There is one row per described element, sorted by name. The page is listed on the overview page. A catalog without
+any row is left out, and the message at the end of the export says so. Catalogs are not part of exports of selected
+views, folders or work packages.
+
 ## Command line
 
 For CI and scheduled documentation builds, through Archi's command line:

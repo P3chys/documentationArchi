@@ -93,7 +93,7 @@ final class CommandLineSelection {
         return workPackage.equals(wanted) || key.equalsIgnoreCase(wanted);
     }
 
-    private static IFolder folder(IArchimateModel model, String path) {
+    static IFolder folder(IArchimateModel model, String path) {
         List<IFolder> level = model.getFolders();
         IFolder folder = null;
         for (String segment : path.split("/")) {

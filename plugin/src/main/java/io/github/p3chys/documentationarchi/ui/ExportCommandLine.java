@@ -76,6 +76,7 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
         }
         List<String> problems = result.problems;
         problems.forEach(this::logError);
+        result.notes.forEach(this::logMessage);
         logMessage("Exported documentation to " + folder
                 + (result.excluded > 0 ? ", " + result.excluded + " object(s) left out by the exclusion rules" : ""));
         if (line.hasOption(STRICT) && !problems.isEmpty()) {

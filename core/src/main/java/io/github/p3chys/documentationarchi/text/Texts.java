@@ -31,6 +31,7 @@ public final class Texts {
         add("relationship", "Relationship", "Vztah");
         add("element", "Element", "Prvek");
         add("description", "Description", "Popis");
+        add("name", "Name", "Název");
         add("views", "Views", "Pohledy");
         add("part-of", "Part of", "Součást");
         add("contains", "Contains", "Obsahuje");

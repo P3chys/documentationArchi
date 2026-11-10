@@ -10,6 +10,7 @@ import java.util.Set;
 import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.DocTable;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
 import io.github.p3chys.documentationarchi.doc.ObjectText;
@@ -46,7 +47,10 @@ final class PageBody {
     private void page() {
         for (String name : rules.pageSections()) {
             switch (name) {
-                case "description": section(() -> description(page.documentation)); break;
+                case "description": section(() -> {
+                    description(page.documentation);
+                    page.tables.forEach(this::table);
+                }); break;
                 case "contents": section(() -> contents()); break;
                 case "picture": section(() -> {
                     if (page.image != null) {
@@ -83,6 +87,29 @@ final class PageBody {
                 default: // the rules check the names
             }
         }
+    }
+
+    /** A table of a generated page: links, descriptions or property values per cell. */
+    private void table(DocTable table) {
+        out.append("<table><tbody><tr>");
+        table.header.forEach(h -> out.append("<th>").append(Xml.escape(h)).append("</th>"));
+        out.append("</tr>");
+        for (List<DocTable.Cell> row : table.rows) {
+            out.append("<tr>");
+            for (DocTable.Cell cell : row) {
+                out.append("<td>");
+                if (!cell.links.isEmpty()) {
+                    out.append(cell.links.stream().map(this::link).collect(java.util.stream.Collectors.joining(", ")));
+                } else if (cell.description) {
+                    description(cell.text);
+                } else {
+                    out.append(inlines(RichText.inlines(cell.text, rules)));
+                }
+                out.append("</td>");
+            }
+            out.append("</tr>");
+        }
+        out.append("</tbody></table>");
     }
 
     private void notes() {

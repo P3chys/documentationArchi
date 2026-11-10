@@ -7,7 +7,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.archimatetool.model.IArchimateElement;
 import com.archimatetool.model.IArchimateModel;
+import com.archimatetool.model.IFolder;
 
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
 import io.github.p3chys.documentationarchi.text.ExportProfile;
@@ -87,6 +89,21 @@ final class Profiles {
         Set<Format> formats = EnumSet.noneOf(Format.class);
         profile.formats.forEach(f -> formats.add(Format.valueOf(f.toUpperCase(Locale.ROOT))));
         return formats;
+    }
+
+    /** The ids of the elements in a folder of the model, and in the folders below it. */
+    static Set<String> folderElementIds(IArchimateModel model, String path) {
+        IFolder folder = CommandLineSelection.folder(model, path);
+        if (folder == null) {
+            throw new IllegalArgumentException("folder \"" + path + "\" not found in \"" + model.getName() + "\"");
+        }
+        Set<String> ids = new java.util.LinkedHashSet<>();
+        folder.eAllContents().forEachRemaining(o -> {
+            if (o instanceof IArchimateElement) {
+                ids.add(((IArchimateElement) o).getId());
+            }
+        });
+        return ids;
     }
 
     /** {@code Profile "name" (file, line 3)}. */

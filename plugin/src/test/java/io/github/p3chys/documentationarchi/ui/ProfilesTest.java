@@ -85,6 +85,23 @@ class ProfilesTest {
     }
 
     @Test
+    void elementsOfAFolderAreFoundForCatalogsIncludingSubfolders() {
+        IArchimateFactory f = IArchimateFactory.eINSTANCE;
+        IFolder app = model.getFolder(FolderType.APPLICATION);
+        IFolder sub = f.createFolder();
+        sub.setName("Core");
+        app.getFolders().add(sub);
+        com.archimatetool.model.IArchimateElement a = f.createApplicationComponent();
+        app.getElements().add(a);
+        com.archimatetool.model.IArchimateElement b = f.createApplicationComponent();
+        sub.getElements().add(b);
+
+        assertThat(Profiles.folderElementIds(model, "Application")).containsExactlyInAnyOrder(a.getId(), b.getId());
+        assertThat(Profiles.folderElementIds(model, "Application/Core")).containsExactly(b.getId());
+        assertThatThrownBy(() -> Profiles.folderElementIds(model, "Nope")).hasMessageContaining("folder \"Nope\"");
+    }
+
+    @Test
     void anUnknownProfileListsTheKnownOnes() {
         assertThatThrownBy(() -> Profiles.find(model, null, "nope"))
                 .hasMessageContaining("Known profiles: dev, whole, broken");

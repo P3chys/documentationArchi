@@ -288,6 +288,8 @@ public final class Published {
         pages.get(0).contents.add(0, new Link(changes.id, changes.title));
         Doc result = new Doc(doc.title, pages, doc.assets);
         result.names.putAll(doc.names);
+        result.external.putAll(doc.external);
+        result.notes.addAll(doc.notes);
         return result;
     }
 

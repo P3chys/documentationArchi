@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
  * entry description relations     the parts of an element's description to print, in this order ({@link #ENTRY_PARTS})
  * pdf landscape off               leaves out a part of the PDF's layout ({@link #PDF_PARTS})
  * defaults off                    a rules file without the built-in rules, see {@link #parseFile}
+ * jira https://jira.example.com/browse/   work packages named like a ticket (ABC-123) link to it there
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -49,6 +50,8 @@ public final class KeywordRules {
         /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
         EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true),
         PROFILE(true), CATALOG(true), INDEX(true),
+        /** {@code jira <url>}: where a work package named after a ticket ({@code ABC-123}) links to. */
+        JIRA(true),
         /** The PDF's layout: {@code pdf cover|contents|landscape off}. */
         PDF(true),
         /** {@code defaults off}: a rules file that does not start from the built-in rules, see {@link #parseFile}. */
@@ -389,6 +392,15 @@ public final class KeywordRules {
             return new Rule(Kind.PROFILE, profile.name, null, null, null, null, false, null, profile);
         }
 
+        /** @param url the start of a ticket's address, the ticket key goes after it */
+        public static Rule jira(String url) {
+            String u = url.strip();
+            if (!u.matches("(?i)https?://\\S+")) {
+                throw new IllegalArgumentException("expected: jira <http(s) address the ticket key is added to>");
+            }
+            return new Rule(Kind.JIRA, u, null, null, null, null, false);
+        }
+
         /** @param sections names out of {@link KeywordRules#PAGE_SECTIONS}, in the order to print them */
         public static Rule page(List<String> sections) {
             return new Rule(Kind.PAGE, names(sections, PAGE_SECTIONS, "section"), null, null, null, null, false);
@@ -429,6 +441,7 @@ public final class KeywordRules {
                 case PROFILE: return "profile " + profile.text();
                 case CATALOG: return "catalog " + catalog.text();
                 case INDEX: return "index " + keyword;
+                case JIRA: return "jira " + keyword;
                 case TEXT: return "text " + keyword + " = " + value;
                 case EXCLUDE_LABEL: return "exclude label " + keyword;
                 case HIDE_PROPERTY: return "hide property " + keyword;
@@ -456,7 +469,8 @@ public final class KeywordRules {
         }
 
         String key() {
-            if (kind == Kind.LANGUAGE || kind == Kind.PAGE || kind == Kind.ENTRY || kind == Kind.DEFAULTS) {
+            if (kind == Kind.LANGUAGE || kind == Kind.PAGE || kind == Kind.ENTRY || kind == Kind.DEFAULTS
+                    || kind == Kind.JIRA) {
                 return kind.name(); // one language
             }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
@@ -494,6 +508,7 @@ public final class KeywordRules {
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
     private Rule sql;
+    private String jira;
     private Pattern styled;
 
     private KeywordRules(List<Rule> rules) {
@@ -523,6 +538,7 @@ public final class KeywordRules {
                 case TOKEN: tokens.put(Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT)), rule.style); break;
                 case HEADING: headings[Integer.parseInt(rule.keyword)] = rule.style; break;
                 case SQL: sql = rule; break;
+                case JIRA: jira = rule.keyword; break;
                 case EXCLUDE_LABEL: excludedLabels.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 case HIDE_PROPERTY: hiddenProperties.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 case PROFILE: profiles.put(rule.keyword.toLowerCase(Locale.ROOT), rule.profile); break;
@@ -699,6 +715,8 @@ public final class KeywordRules {
             }
             case "catalog":
                 return Rule.catalog(Catalog.parse(rest));
+            case "jira":
+                return Rule.jira(rest);
             case "profile":
                 return Rule.profile(ExportProfile.parse(rest));
             case "hide": {
@@ -724,7 +742,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page, entry, pdf, profile, catalog, index or defaults");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page, entry, pdf, profile, catalog, index, jira or defaults");
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -847,6 +865,11 @@ public final class KeywordRules {
     /** How headings of a level look, null for unchanged. */
     public TextStyle heading(int level) {
         return level >= 1 && level <= HEADING_LEVELS ? headings[level] : null;
+    }
+
+    /** Where tickets are, a work package's key goes after it; null when no rule says. */
+    public String jira() {
+        return jira;
     }
 
     /** How SQL blocks look, null for unchanged. */

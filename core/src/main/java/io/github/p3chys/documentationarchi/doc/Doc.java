@@ -54,6 +54,13 @@ public final class Doc {
      * whatever else the reader adds, so a reference to something not exported still shows its name.
      */
     public final Map<String, String> names = new HashMap<>();
+    /**
+     * Elements documented elsewhere, by id: their Confluence page or Jira ticket. Links to them go there rather than to
+     * this export's own description.
+     */
+    public final Map<String, String> external = new HashMap<>();
+    /** Things worth saying at the end of the export that are no error, each once. */
+    public final List<String> notes = new ArrayList<>();
     private final Map<String, Location> locations = new HashMap<>();
 
     public Doc(String title, List<DocPage> pages) {

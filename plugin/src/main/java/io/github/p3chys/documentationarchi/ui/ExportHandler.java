@@ -295,6 +295,7 @@ public class ExportHandler extends AbstractHandler {
             ExportState.get().publish(selection.model, doc, fingerprints, time, selection.wholeModel);
             ExportMarks.refresh();
         }
+        notes.addAll(doc.notes);
         return new Result(exporter.problems(), exclusion.count(), notes);
     }
 

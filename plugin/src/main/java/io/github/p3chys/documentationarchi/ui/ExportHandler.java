@@ -119,8 +119,8 @@ public class ExportHandler extends AbstractHandler {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    List<String> problems = export(selection, folder, formats, null, monitor, publish);
-                    display.asyncExec(() -> finished(display, folder, problems, publish));
+                    Result result = exportAll(selection, folder, formats, null, monitor, publish);
+                    display.asyncExec(() -> finished(display, folder, result, publish));
                     return Status.OK_STATUS;
                 } catch (CancellationException | OperationCanceledException e) { // the previous export is as it was
                     return Status.CANCEL_STATUS;
@@ -157,15 +157,28 @@ public class ExportHandler extends AbstractHandler {
      */
     static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
             IProgressMonitor monitor) throws IOException {
-        return export(selection, folder, formats, rulesFile, monitor, false);
+        return exportAll(selection, folder, formats, rulesFile, monitor, false).problems;
+    }
+
+    /** What an export found: assets without a file, and how many objects the rules left out. */
+    static final class Result {
+        final List<String> problems;
+        final int excluded;
+
+        Result(List<String> problems, int excluded) {
+            this.problems = problems;
+            this.excluded = excluded;
+        }
     }
 
     /**
+     * Like {@link #export(ModelReader.Selection, Path, Set, Path, IProgressMonitor)}, with more to report.
+     *
      * @param publish this export is the documentation the readers get: it is noted in the file
      *        {@link Published#FILE} next to the model, for the team's model tree marks and for the "Changes since"
      *        page of later exports. An export of the whole model always has that page once something was published.
      */
-    static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
+    static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
             IProgressMonitor monitor, boolean publish) throws IOException {
         if (publish && selection.model.getFile() == null) {
             throw new IllegalArgumentException("Save the model first: what is published is noted in the file "
@@ -177,12 +190,13 @@ public class ExportHandler extends AbstractHandler {
         System.setProperty("java.awt.headless", "true");
         List<EObject> shown = new ArrayList<>();
         KeywordRules rules = ProjectRules.resolve(selection.model, rulesFile, Prefs::rules); // fails before any work
+        Exclusion exclusion = selection.exclusion(rules);
         Doc doc = ModelReader.read(selection, (view, page) -> {
             check(progress);
             progress.subTask("Drawing " + view.getName());
             ViewImages.render(view, page);
             progress.worked(1);
-        }, shown);
+        }, shown, rules, exclusion);
         Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile
         long time = System.currentTimeMillis();
         Published before = published(selection);
@@ -213,7 +227,7 @@ public class ExportHandler extends AbstractHandler {
             ExportState.get().publish(selection.model, doc, fingerprints, time, selection.wholeModel);
             ExportMarks.refresh();
         }
-        return exporter.problems();
+        return new Result(exporter.problems(), exclusion.count());
     }
 
     /** What was published of the model; nothing if that cannot be told, which must not stop an export. */
@@ -234,9 +248,13 @@ public class ExportHandler extends AbstractHandler {
         }
     }
 
-    private static void finished(Display display, Path folder, List<String> problems, boolean published) {
+    private static void finished(Display display, Path folder, Result result, boolean published) {
+        List<String> problems = result.problems;
         String message = "Exported to " + folder + (published ? "\n\nNoted as published in " + Published.FILE
                 + " next to the model file. Share that file with the model so your colleagues' marks follow." : "");
+        if (result.excluded > 0) {
+            message += "\n" + result.excluded + " object(s) were left out by the exclusion rules.";
+        }
         if (!problems.isEmpty()) {
             message += "\n\nThese assets are missing from the export (shown in red on their pages):\n"
                     + problems.stream().limit(MAX_PROBLEMS).map(p -> "- " + p).collect(Collectors.joining("\n"))

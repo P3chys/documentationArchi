@@ -76,8 +76,9 @@ public final class Exporter {
      * @param modelFile the .archimate file, null if the model was never saved
      */
     public Exporter version(String modelName, Path modelFile, LocalDateTime time) {
-        version = "Generated " + time.truncatedTo(ChronoUnit.MINUTES).toString().replace('T', ' ') + " from "
-                + modelName + GitHead.describe(modelFile);
+        version = rules.texts().get("generated").replace("{time}",
+                time.truncatedTo(ChronoUnit.MINUTES).toString().replace('T', ' ')).replace("{model}", modelName)
+                + GitHead.describe(modelFile);
         return this;
     }
 

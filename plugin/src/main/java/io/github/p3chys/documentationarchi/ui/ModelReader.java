@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -89,6 +90,8 @@ final class ModelReader {
         final Set<IArchimateElement> elements = new LinkedHashSet<>();
         /** Work packages to export; then {@link #elements} are the elements they change, and views are not set. */
         final Set<IWorkPackage> workPackages = new LinkedHashSet<>();
+        /** What the user selected themselves: exported even if the rules leave it out, see {@link Exclusion}. */
+        final Set<Object> exempt = new LinkedHashSet<>();
 
         private Selection(IArchimateModel model, boolean wholeModel) {
             this.model = model;
@@ -105,10 +108,31 @@ final class ModelReader {
                     : String.join(", ", names.subList(0, 3)) + " and " + (names.size() - 3) + " more";
         }
 
+        /** What the rules leave out of this export. */
+        Exclusion exclusion(KeywordRules rules) {
+            return new Exclusion(rules, exempt);
+        }
+
+        private void exempt(Object o) {
+            if (o instanceof IArchimateModel) {
+                return;
+            }
+            exempt.add(o);
+            if (o instanceof IDiagramModelArchimateComponent) {
+                exempt.add(((IDiagramModelArchimateComponent) o).getArchimateConcept());
+            } else if (o instanceof IDiagramModelComponent) {
+                exempt.add(((IDiagramModelComponent) o).getDiagramModel());
+            } else if (o instanceof IArchimateRelationship) {
+                exempt.add(((IArchimateRelationship) o).getSource());
+                exempt.add(((IArchimateRelationship) o).getTarget());
+            }
+        }
+
         /** A selection of work packages only: they are exported with the elements they change. */
         static Selection ofWorkPackages(IArchimateModel model, Collection<IWorkPackage> workPackages) {
             Selection selection = new Selection(model, false);
             selection.workPackages.addAll(workPackages);
+            selection.exempt.addAll(workPackages);
             workPackages.forEach(wp -> selection.elements.addAll(WorkPackages.elements(wp)));
             if (selection.elements.isEmpty()) {
                 throw new IllegalArgumentException((workPackages.size() == 1 ? "The work package " + selection.title()
@@ -136,6 +160,7 @@ final class ModelReader {
                         .collect(Collectors.toCollection(LinkedHashSet::new)));
             }
             Selection selection = new Selection(model, objects.contains(model));
+            objects.forEach(selection::exempt);
             if (selection.wholeModel) {
                 selection.views.addAll(model.getDiagramModels());
                 model.eAllContents().forEachRemaining(o -> {
@@ -180,14 +205,41 @@ final class ModelReader {
     /** The views that get a page, with the elements they show. */
     private final Map<String, Set<IArchimateElement>> viewPages = new HashMap<>();
     private final Collection<EObject> exported;
-    /** For the Labels page: which labels there are. */
+    /** For the Labels page: which labels there are; for hiding properties. */
     private final KeywordRules rules;
+    private final Exclusion exclusion;
+    /** The views and elements to export: those of the selection that the rules do not leave out. */
+    private final Set<IDiagramModel> views;
+    private final Set<IArchimateElement> elements;
 
-    private ModelReader(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported) {
+    private ModelReader(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported,
+            KeywordRules rules, Exclusion exclusion) {
         this.selection = selection;
         this.images = images;
         this.exported = exported;
-        this.rules = rules();
+        this.rules = rules;
+        this.exclusion = exclusion;
+        this.views = visible(selection.views, new LinkedHashSet<>());
+        this.elements = visible(selection.elements, new LinkedHashSet<>());
+    }
+
+    private String t(String key) {
+        return rules.texts().get(key);
+    }
+
+    private <T extends EObject, C extends Collection<T>> C visible(Collection<T> objects, C to) {
+        objects.stream().filter(o -> !exclusion.excluded(o)).forEach(to::add);
+        return to;
+    }
+
+    /** The elements the rules leave in, in the order given. */
+    private List<IArchimateElement> visible(Collection<IArchimateElement> elements) {
+        return visible(elements, new ArrayList<>());
+    }
+
+    /** The elements the view shows that the rules leave in. */
+    private Set<IArchimateElement> shown(IDiagramModel view) {
+        return visible(elementsOn(view), new LinkedHashSet<>());
     }
 
     /** The formatting the export uses; outside Archi (in tests, where there is no plugin) the built-in one. */
@@ -204,32 +256,50 @@ final class ModelReader {
      * @param exported gets the model, views, elements and relationships the document shows, for {@link ExportState}
      */
     static Doc read(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported) {
-        ModelReader reader = new ModelReader(selection, images, exported);
-        return selection.workPackages.isEmpty() ? reader.read() : reader.readWorkPackages();
+        KeywordRules rules = rules();
+        return read(selection, images, exported, rules, selection.exclusion(rules));
+    }
+
+    /**
+     * @param rules the rules of the export: project file, preferences or defaults
+     * @param exclusion told what the rules left out; also hides it from the pictures drawn meanwhile
+     */
+    static Doc read(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported,
+            KeywordRules rules, Exclusion exclusion) {
+        Exclusion.current(exclusion);
+        try {
+            ModelReader reader = new ModelReader(selection, images, exported, rules, exclusion);
+            return selection.workPackages.isEmpty() ? reader.read() : reader.readWorkPackages();
+        } finally {
+            Exclusion.current(null);
+        }
     }
 
     private Doc read() {
         IArchimateModel model = selection.model;
         for (IDiagramModel view : model.getDiagramModels()) {
-            for (IArchimateElement element : elementsOn(view)) {
+            if (exclusion.excluded(view)) {
+                continue;
+            }
+            for (IArchimateElement element : shown(view)) {
                 viewsOf.computeIfAbsent(element.getId(), k -> new ArrayList<>()).add(view);
             }
         }
 
         List<DocPage> pages = new ArrayList<>();
-        selection.views.forEach(view -> viewPages.put(view.getId(), elementsOn(view)));
-        selection.views.forEach(view -> pages.add(viewPage(view, null)));
+        views.forEach(view -> viewPages.put(view.getId(), shown(view)));
+        views.forEach(view -> pages.add(viewPage(view, null)));
 
-        List<IArchimateElement> rest = ordered(selection.elements, null).stream()
+        List<IArchimateElement> rest = ordered(elements, null).stream()
                 .filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
         // of the whole model, the work packages get a page of their own: the overview of the Jira tickets
         List<IArchimateElement> workPackages = selection.wholeModel
                 ? rest.stream().filter(IWorkPackage.class::isInstance).collect(Collectors.toList()) : List.of();
         rest.removeAll(workPackages);
-        elementsPage(rest, selection.wholeModel ? "Elements not in any view" : "Selected elements", pages);
+        elementsPage(rest, selection.wholeModel ? t("elements-not-in-any-view") : t("selected-elements"), pages);
         if (!workPackages.isEmpty()) {
             workPackages.sort(Comparator.comparing(ModelReader::label, ModelReader::compareNatural));
-            DocPage page = new DocPage("work-packages", "Work packages");
+            DocPage page = new DocPage("work-packages", t("work-packages"));
             workPackages.forEach(e -> page.contents.add(link(e)));
             describe(workPackages, workPackages, page);
             pages.add(page);
@@ -256,11 +326,11 @@ final class ModelReader {
      */
     private Doc readWorkPackages() {
         IArchimateModel model = selection.model;
-        Set<IArchimateElement> changed = selection.elements;
+        Set<IArchimateElement> changed = elements;
         List<DocPage> pages = new ArrayList<>();
         List<IDiagramModel> showing = new ArrayList<>();
         for (IDiagramModel view : model.getDiagramModels()) {
-            Set<IArchimateElement> on = elementsOn(view);
+            Set<IArchimateElement> on = exclusion.excluded(view) ? Set.of() : shown(view);
             if (on.stream().anyMatch(changed::contains)) {
                 showing.add(view);
                 viewPages.put(view.getId(), on);
@@ -269,7 +339,7 @@ final class ModelReader {
         showing.forEach(view -> pages.add(viewPage(view, changed)));
         List<DocPage> views = new ArrayList<>(pages);
         elementsPage(ordered(changed, null).stream().filter(e -> !described.contains(e.getId()))
-                .collect(Collectors.toList()), "Elements not in any view", pages);
+                .collect(Collectors.toList()), t("elements-not-in-any-view"), pages);
 
         List<IWorkPackage> workPackages = new ArrayList<>(selection.workPackages);
         DocPage first;
@@ -315,7 +385,7 @@ final class ModelReader {
             EObject o = i.next();
             if (o instanceof IArchimateRelationship) {
                 IArchimateRelationship r = (IArchimateRelationship) o;
-                if (isPrintOrder(r.getSource()) || isPrintOrder(r.getTarget())) {
+                if (isPrintOrder(r.getSource()) || isPrintOrder(r.getTarget()) || exclusion.excludedWithEnds(r)) {
                     continue;
                 }
                 List<String> texts = new ArrayList<>(List.of(r.getDocumentation()));
@@ -326,7 +396,7 @@ final class ModelReader {
                 labelled(texts, new Link(at.getId(), ends, typeName(r)), found);
             }
         }
-        DocPage page = new DocPage("labels", "Labels");
+        DocPage page = new DocPage("labels", t("labels"));
         for (String label : rules.labels()) {
             if (found.containsKey(label)) {
                 page.labels.put(label, found.get(label));
@@ -349,6 +419,10 @@ final class ModelReader {
      */
     private Doc doc(String title, List<DocPage> pages) {
         IArchimateModel model = selection.model;
+        if (pages.isEmpty()) {
+            throw new IllegalArgumentException("The rules leave out everything selected (" + exclusion.count()
+                    + " object(s) with " + Exclusion.PROPERTY + " or an excluded label).");
+        }
         Doc doc = new Doc(title, pages,
                 Assets.in(model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().getParent()));
         model.eAllContents().forEachRemaining(o -> {
@@ -392,7 +466,7 @@ final class ModelReader {
                 }
             }
         }
-        List<IArchimateElement> shown = grouped(ordered(elementsOn(view), view), view, page);
+        List<IArchimateElement> shown = grouped(ordered(shown(view), view), view, page);
         List<IArchimateElement> listed = only == null ? shown
                 : shown.stream().filter(only::contains).collect(Collectors.toList());
         List<IArchimateElement> fresh = listed.stream().filter(e -> !described.contains(e.getId()) && describedOn(e, view))
@@ -469,9 +543,12 @@ final class ModelReader {
         if (element instanceof IWorkPackage) {
             Map<IArchimateElement, List<IArchimateRelationship>> links = WorkPackages.links((IWorkPackage) element);
             links.values().forEach(exported::addAll);
-            ordered(links.keySet(), null).forEach(e -> changes.add(link(e)));
+            ordered(visible(links.keySet()), null).forEach(e -> changes.add(link(e)));
         } else {
             for (IWorkPackage wp : WorkPackages.of(element)) {
+                if (exclusion.excluded(wp)) {
+                    continue;
+                }
                 workPackages.add(new Link(wp.getId(), label(wp)));
                 exported.addAll(WorkPackages.links(wp).getOrDefault(element, List.of()));
             }
@@ -486,7 +563,7 @@ final class ModelReader {
      * The elements in the view's groups after the others, a group's together, the groups in their order on the
      * view; print order stays inside each. An element shown more than once counts where it is shown first.
      */
-    private static List<IArchimateElement> grouped(List<IArchimateElement> elements, IDiagramModel view, DocPage page) {
+    private List<IArchimateElement> grouped(List<IArchimateElement> elements, IDiagramModel view, DocPage page) {
         Map<IArchimateElement, IDiagramModelGroup> groupOf = new HashMap<>();
         List<IDiagramModelGroup> groups = new ArrayList<>();
         for (TreeIterator<EObject> i = view.eAllContents(); i.hasNext();) {
@@ -505,7 +582,7 @@ final class ModelReader {
         for (IArchimateElement e : list) {
             IDiagramModelGroup group = groupOf.get(e);
             if (group != null) {
-                page.groups.put(e.getId(), group.getName() == null || group.getName().isBlank() ? "Group"
+                page.groups.put(e.getId(), group.getName() == null || group.getName().isBlank() ? t("group")
                         : group.getName().strip());
             }
         }
@@ -523,7 +600,7 @@ final class ModelReader {
     }
 
     /** Elements drawn inside one another on any view, where no relationship says how they belong together. */
-    private static void nesting(IArchimateElement element, Entry entry) {
+    private void nesting(IArchimateElement element, Entry entry) {
         for (IDiagramModelArchimateComponent c : element.getReferencingDiagramComponents()) {
             if (!(c instanceof IDiagramModelArchimateObject)) {
                 continue;
@@ -541,8 +618,8 @@ final class ModelReader {
         }
     }
 
-    private static void nested(IArchimateElement element, IArchimateElement other, List<Link> to) {
-        if (other == element || other instanceof IJunction || isPrintOrder(other)
+    private void nested(IArchimateElement element, IArchimateElement other, List<Link> to) {
+        if (other == element || other instanceof IJunction || isPrintOrder(other) || exclusion.excluded(other)
                 || to.stream().anyMatch(l -> l.id.equals(other.getId()))) {
             return;
         }
@@ -561,6 +638,9 @@ final class ModelReader {
 
     /** Adds the relationship as seen from one end; one through a junction that leads to no element is left out. */
     private void relation(IArchimateRelationship r, boolean outgoing, Set<IArchimateConcept> inside, List<Relation> to) {
+        if (exclusion.excludedWithEnds(r)) {
+            return;
+        }
         IArchimateConcept end = outgoing ? r.getTarget() : r.getSource();
         List<IArchimateConcept> others = new ArrayList<>();
         String junction = null;
@@ -587,6 +667,9 @@ final class ModelReader {
         exported.add(junction);
         for (IArchimateRelationship r : outgoing ? junction.getSourceRelationships() : junction.getTargetRelationships()) {
             IArchimateConcept next = outgoing ? r.getTarget() : r.getSource();
+            if (exclusion.excludedWithEnds(r)) {
+                continue;
+            }
             if (next instanceof IJunction) {
                 exported.add(r);
                 beyond((IJunction) next, outgoing, ends, seen);
@@ -672,8 +755,10 @@ final class ModelReader {
         return Integer.compare(a.length(), b.length());
     }
 
-    private static List<Property> properties(EList<IProperty> properties) {
-        return properties.stream().filter(p -> !HOME.equals(p.getKey()))
+    /** The properties to print: not the {@code doc:} ones, which are settings, and not those a rule hides. */
+    private List<Property> properties(EList<IProperty> properties) {
+        return properties.stream().filter(p -> p.getKey() == null
+                        || !p.getKey().strip().toLowerCase(Locale.ROOT).startsWith("doc:") && !rules.hidesProperty(p.getKey()))
                 .map(p -> new Property(p.getKey(), p.getValue())).collect(Collectors.toList());
     }
 

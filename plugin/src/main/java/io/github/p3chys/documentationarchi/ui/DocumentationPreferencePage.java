@@ -56,6 +56,8 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     static final String ID = "io.github.p3chys.documentationarchi.prefs";
 
     private final List<Rule> keywords = new ArrayList<>();
+    /** Rules about the export rather than looks (exclusions...): not listed, but kept; "Edit as Text..." shows them. */
+    private final List<Rule> settings = new ArrayList<>();
     private final Map<PageElement, Rule> elementRules = new LinkedHashMap<>();
     private TableViewer table;
     private LocalResourceManager resources;
@@ -243,8 +245,13 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
 
     private void load(KeywordRules loaded) {
         keywords.clear();
+        settings.clear();
         elementRules.clear();
         for (Rule rule : loaded.rules()) {
+            if (rule.kind.setting) {
+                settings.add(rule);
+                continue;
+            }
             PageElement element = PageElement.ALL.stream().filter(e -> e.matches(rule)).findFirst().orElse(null);
             if (element != null) {
                 elementRules.put(element, rule);
@@ -260,6 +267,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         List<Rule> all = new ArrayList<>();
         PageElement.ALL.stream().map(elementRules::get).filter(Objects::nonNull).forEach(all::add);
         all.addAll(keywords);
+        all.addAll(settings);
         return KeywordRules.of(all);
     }
 

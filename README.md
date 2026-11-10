@@ -14,6 +14,7 @@ function, with screenshots.
 - [What a page contains](#what-a-page-contains)
 - [Documentation Preview](#documentation-preview)
 - [Print order](#print-order)
+- [Check Documentation](#check-documentation)
 - [Work packages (Jira tickets)](#work-packages-jira-tickets)
 - [What changed since the last export](#what-changed-since-the-last-export)
 - [Formatting descriptions](#formatting-descriptions)
@@ -165,6 +166,23 @@ In every export, an element's description ends with the work packages that chang
 instead of listing the links among its relationships. A whole-model export has a *Work packages* page describing each
 ticket with the elements it changes.
 
+## Check Documentation
+
+Right-click anything in a model and choose **Check Documentation...** to list problems without exporting:
+
+- elements and views without a description,
+- elements that are on no view (work packages are not expected on one),
+- views (ArchiMate) without elements,
+- `[[asset:...]]` references whose file is missing or ambiguous (several files have that name),
+- `[[ref:...]]` references to objects that no longer exist,
+- `#words` that look like a label but are not a configured one: they differ from one by one or two characters
+  (`#rsik` for `#risk`),
+- work packages that change no element.
+
+Objects the rules leave out of the export are not checked.
+
+The dialog groups the findings by kind with counts, and **Show in Model Tree** selects the objects of the chosen ones.
+
 ## What changed since the last export
 
 The Models tree shows what no documentation export reflects yet, with a small mark after the name:
@@ -261,12 +279,33 @@ style color=#bf2600 background=#ffebe6 size=120% bold italic Deadline
 token variable color=#6554c0 italic   how {variable} looks; also table and constant
 heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
 sql background=#f4f5f7 theme=midnight linenumbers
+exclude label draft             leave out what carries #draft
+hide property internal*         never print these properties
+language cs                     fixed texts of the output in Czech
+text contents = Table of contents   replace one fixed text
+page description picture elements   sections of a view's page, in this order
+entry description relations     parts of an element's description, in this order
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
 export of that model uses it instead of the preferences, on every computer and in CI (order: project file, then
 preferences, then the built-in defaults). **Save as Project Rules...** writes the current list there for an open, saved
 model. An invalid file fails the export and names the file and line; it never falls back to other rules.
+
+**Leaving things out:** a property `doc:exclude` (any value but `false`) on a view, element, relationship or folder
+leaves it out of every export (a folder: everything in it), pictures included; links to it become plain text. The rule
+line `exclude label draft` does the same for everything whose description carries `#draft`, and `hide property key`
+(repeatable, case-insensitive, `*` at the end matches any ending) never prints properties with that key. The `doc:`
+properties are never printed. What you select directly is still exported, and the final message says how many objects
+the rules left out.
+
+**Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`).
+
+**Page template:** `page description contents picture properties notes related elements` gives the sections of a
+view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
+views workpackages other` does the same for the parts of an element's description. Without the lines the order is as
+shown. Unknown names are errors.
 
 Confluence keeps text colour, bold, italic, underline, strikethrough and smaller text. It doesn't keep every
 background or larger size in every version, and the style editors say so where it matters.
@@ -347,6 +386,7 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.check` | print what is missing or wrong in the documentation, see [Check Documentation](#check-documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 

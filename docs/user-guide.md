@@ -138,6 +138,7 @@ selection fits.
 | Print Order... | ✓ | ✓ | – | one view (tree), or objects of the view (editor) |
 | Link to Work Package... | ✓ | ✓ | – | the selection holds elements |
 | Work Packages... | ✓ | ✓ | – | anything in a model is selected |
+| Check Documentation... | ✓ | ✓ | – | anything in a model is selected |
 | Describe Here | – | ✓ | – | the selection holds elements |
 | Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
 | Show in Documentation Preview | ✓ | ✓ | ✓ | anything in a model is selected |
@@ -478,6 +479,27 @@ goes. The file is text and is written in the same order each time; it is not mea
 
 ---
 
+## Check Documentation
+
+Problems in the documentation are otherwise found only by reading the output. Right-click anything in a model and
+choose **Check Documentation...**: it lists what it finds, grouped by kind with counts, and exports nothing.
+
+- elements and views without a description,
+- elements that are on no view (work packages are not expected on one),
+- views (ArchiMate) without elements,
+- `[[asset:...]]` references whose file is missing or ambiguous (several files have that name),
+- `[[ref:...]]` references to objects that no longer exist,
+- `#words` that look like a label but are not a configured one: they differ from one by one or two characters
+  (`#rsik` for `#risk`),
+- work packages that change no element.
+
+Objects the rules leave out of the export are not checked.
+
+Select findings (or a whole kind) and choose **Show in Model Tree** to select their objects there. On the command line,
+`--documentation.check` prints the same list; with `--documentation.strict` the run fails when there are findings.
+
+---
+
 ## 10. Formatting descriptions
 
 Write these markers in any description (of the model, a view, an element or a relationship), in notes and in
@@ -636,6 +658,49 @@ from the open, saved ones. Below the list, a line names the open models that use
 says so for the model it exports. If the file has an invalid line, the export stops and tells you the file and the
 line; it does not quietly use other rules.
 
+### Leaving things out
+
+Everything in a model is exported unless you leave it out:
+
+- **A property `doc:exclude`** on a view, element, relationship or folder (any value but `false`) leaves it out of every
+  export; for a folder, everything in it. The element is gone from the pictures of views as well, and so are the
+  relationships to it. A link to it in a description (`[[ref:...]]`) shows its plain name.
+- **`exclude label draft`** (a rule line) leaves out every view, element and relationship whose description carries
+  `#draft` or `[[draft]]`.
+- **`hide property internal*`** (a rule line, as many as you like) never prints properties with that key. Case does
+  not matter, and a `*` at the end matches any ending. The `doc:` properties (`doc:exclude`, `doc:home`) are never
+  printed.
+
+What you select yourself is still exported: right-click an excluded view and export it, and you get it. When the
+export finishes, its message says how many objects the rules left out. The rule lines work in the preferences, in
+`documentation.rules` and on the command line alike.
+
+### Language and fixed texts
+
+The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
+`language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
+`text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
+Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
+`documentation.rules` and on the command line. A wrong language or key is reported with its line.
+
+### Page template
+
+The order of the parts of a page is fixed, unless you say otherwise with two rule lines:
+
+```text
+page description contents picture properties notes related elements
+entry description properties relations views workpackages other
+```
+
+`page` lists the sections of a view's page to print, in this order: the view's description, the list of its elements
+(`contents`), the picture, the view's properties, the texts of the notes, the related views (`related`; on the Labels
+page, its labels) and the described elements (`elements`). `entry` does the same for one element's description: its
+description, properties, `relations` (part of, contains, the elements a work package changes, and the table of
+relationships), the views it is on, its work packages and the relationships to elements outside the view (`other`).
+A section or part you leave out is not printed (leave out `elements` and the links to the elements lead nowhere). An
+unknown or repeated name is an error, reported with its line. Without the lines the output is as it always was.
+
 ---
 
 ## 12. Assets: pictures and files
@@ -733,6 +798,7 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.check` | list what is missing or wrong in the documentation (see Check Documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 

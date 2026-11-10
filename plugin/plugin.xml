@@ -16,6 +16,8 @@
             description="How the documentation export formats headings, tokens, SQL and keywords"/>
       <command id="io.github.p3chys.documentationarchi.describeHere" name="Describe Here"
             description="Describe the selected elements on this view's page of the documentation export"/>
+      <command id="io.github.p3chys.documentationarchi.insertReference" name="Insert Reference..."
+            description="Refer to another element or view in the description, by its current name"/>
    </extension>
 
    <extension point="org.eclipse.ui.handlers">
@@ -26,6 +28,7 @@
       <handler commandId="io.github.p3chys.documentationarchi.workPackages" class="io.github.p3chys.documentationarchi.ui.WorkPackagesHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.keywordStyles" class="io.github.p3chys.documentationarchi.ui.KeywordStylesHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.describeHere" class="io.github.p3chys.documentationarchi.ui.DescribeHereHandler"/>
+      <handler commandId="io.github.p3chys.documentationarchi.insertReference" class="io.github.p3chys.documentationarchi.ui.InsertReferenceHandler"/>
    </extension>
 
    <extension point="org.eclipse.core.expressions.definitions">
@@ -137,6 +140,26 @@
          </command>
          <command commandId="io.github.p3chys.documentationarchi.export">
             <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
+         <command commandId="io.github.p3chys.documentationarchi.insertReference">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.insertReference">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:SketchEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.insertReference">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+         </command>
+      </menuContribution>
+      <menuContribution locationURI="popup:CanvasEditorContextMenuProvider?after=group_export">
+         <command commandId="io.github.p3chys.documentationarchi.insertReference">
+            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
          </command>
       </menuContribution>
    </extension>

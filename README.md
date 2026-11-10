@@ -60,7 +60,8 @@ the model (or the work package), and you're asked before files in it are replace
 
 ```
 <model>/
-  html/index.html, html/<view>.html, html/images/, html/assets/, html/style.css
+  html/index.html, html/<view>.html, html/elements_a-z.html, html/elements_by-type.html, html/search.js,
+  html/images/, html/assets/, html/style.css
   <model>.pdf, assets/                 (assets/ holds the files the PDF links to)
   confluence/pages/, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
 ```
@@ -70,6 +71,8 @@ format being written, and **Cancel** there stops it. A re-export replaces the fo
 `confluence/` and the PDF, each only if that format is exported now), so files of renamed or deleted views do not
 stay behind. The new files are written next to the old ones and swapped in at the end: a cancelled or failed export
 leaves the previous one as it was, and the model tree marks do not change. Nothing else in the folder is touched.
+While it runs, the pictures of the views wait in temporary files instead of memory; they are deleted when the export
+ends, however it ends.
 
 ## What a page contains
 
@@ -91,11 +94,23 @@ grouped by type.
   usual). **Describe Here** on elements already described there takes it back, and **Undo** does too. It is kept in
   the model as a `doc:home` property of the element (the view's id), which the export never shows.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
+  An export of the whole model or of a folder lists the views under their folders (below *Views*) as headings, with
+  each folder's description, sorted by name as the Models tree shows them; the PDF bookmarks nest the same way, and
+  in Confluence each folder becomes a page that holds its views. A model without such folders is listed as before.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
 - Click an element in a view's picture to go to its description, on the same page or the one that describes it, in
   the HTML pages and the PDF (not in Confluence). Elements that the export describes nowhere aren't clickable. On a
   web page such a picture is shown at its own width, and a wide one scrolls sideways instead of shrinking.
-- The PDF has bookmarks for every page.
+- The PDF has bookmarks for every page. With more than one page it starts with a cover (the model's name, the
+  "Generated" line and the start of its purpose) and a table of contents with page numbers, nested as the folders.
+  Each page has its title at the top and the model's name and "Page n of m" at the bottom, and a view with a picture
+  clearly wider than tall gets landscape pages. The rule lines `pdf cover off`, `pdf contents off` and
+  `pdf landscape off` switch these off.
+- Every HTML page has a sidebar with the pages under their folders (the current one highlighted, folders fold), an
+  **Elements A–Z** page and an **Elements by type** page listing every described element, and a search box that
+  finds views and elements by name, type and description as you type. It works from the disk, without a server; with
+  JavaScript off the sidebar is a plain list. The sidebar is never printed and moves above the page on narrow
+  screens.
 - Elements that sit in a group of the view (Archi's visual *Group*) come under the group's name, in the list of
   elements and among the descriptions, group after group as they are on the view; the print order applies inside
   each group. Elements in no group come first.
@@ -299,6 +314,7 @@ language cs                     fixed texts of the output in Czech
 text contents = Table of contents   replace one fixed text
 page description picture elements   sections of a view's page, in this order
 entry description relations     parts of an element's description, in this order
+pdf landscape off               no landscape pages in the PDF; also pdf cover off, pdf contents off
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
@@ -314,8 +330,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`).
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`, and for the page of changes `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
@@ -380,6 +395,7 @@ CONFLUENCE_TOKEN=<personal access token> python <model>/confluence/upload_to_con
 
 - `--parent "Existing page"` puts the pages under an existing page.
 - Without a token, it uses `CONFLUENCE_USER` and `CONFLUENCE_PASSWORD`.
+- Views in folders go under a page per folder, as in the Models tree.
 - Pages are matched by title. Existing ones get a new version, so you can upload the same export again after
   changes.
 - Page titles start with the model name, because Confluence titles must be unique in a space.

@@ -243,11 +243,12 @@ public final class PreviewView extends ViewPart {
 
     /** Writes the picture under a name of its own, so the browser never shows one it kept from before. */
     private String picture(DocPage p) throws IOException {
-        String name = "picture-" + Integer.toHexString(Arrays.hashCode(p.image)) + ".png";
+        byte[] png = p.image.bytes();
+        String name = "picture-" + Integer.toHexString(Arrays.hashCode(png)) + ".png";
         Path file = folder().resolve(name);
         if (!Files.exists(file)) {
             deleteFiles("picture-");
-            Files.write(file, p.image);
+            Files.write(file, png);
         }
         return name;
     }

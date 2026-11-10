@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
 import io.github.p3chys.documentationarchi.doc.Property;
@@ -30,7 +31,7 @@ class PublishedTest {
         DocPage overview = new DocPage("model-1", "Model");
         overview.documentation = "What the model is for.";
         DocPage view = new DocPage("view-1", "Sales");
-        view.image = new byte[] { 1 };
+        view.image = Picture.of(new byte[] { 1 });
         view.documentation = "How we sell.";
         for (String e : elements) {
             String[] p = e.split("\\|", -1);

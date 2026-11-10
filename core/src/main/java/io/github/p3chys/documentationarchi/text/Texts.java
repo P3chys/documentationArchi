@@ -44,6 +44,14 @@ public final class Texts {
         add("group", "Group", "Skupina");
         add("elements-not-in-any-view", "Elements not in any view", "Prvky mimo pohledy");
         add("selected-elements", "Selected elements", "Vybrané prvky");
+        add("other-pages", "Other pages", "Další stránky");
+        add("elements-a-z", "Elements A–Z", "Prvky A–Z");
+        add("elements-by-type", "Elements by type", "Prvky podle typu");
+        add("search", "Search", "Hledat");
+        add("nothing-found", "Nothing found", "Nic nenalezeno");
+        add("view", "View", "Pohled");
+        add("page", "Page", "Stránka");
+        add("page-of", "Page {page} of {pages}", "Strana {page} z {pages}");
         add("generated", "Generated {time} from {model}", "Vygenerováno {time} z {model}");
         add("missing-asset", "missing asset", "chybějící příloha");
         add("missing-reference", "missing reference", "chybějící odkaz");

@@ -131,6 +131,10 @@ final class PageBody {
             return;
         }
         out.append(heading(2, t("contents")));
+        if (page == doc.pages.get(0) && doc.nested()) { // the overview: the views under their folders
+            outline(doc.outline, 3);
+            return;
+        }
         String group = null;
         for (int i = 0; i < page.contents.size(); i++) {
             Link l = page.contents.get(i);
@@ -142,6 +146,42 @@ final class PageBody {
             out.append("<li>").append(link(l)).append("</li>");
         }
         out.append("</ul>");
+    }
+
+    /**
+     * The listed pages of the outline, a folder as a heading with its description. A folder's own pages come before
+     * its folders; pages after the folders at the top go under a heading of their own, never under the last folder.
+     */
+    private void outline(List<Doc.Node> nodes, int level) {
+        boolean list = false;
+        boolean afterFolder = false;
+        for (Doc.Node node : nodes) {
+            if (!listed(node)) {
+                continue;
+            }
+            if (node.page != null) {
+                if (afterFolder && level == 3) {
+                    out.append(heading(level, t("other-pages")));
+                    afterFolder = false;
+                }
+                out.append(list ? "" : "<ul>").append("<li>").append(link(new Link(node.page.id, node.page.title)))
+                        .append("</li>");
+                list = true;
+                continue;
+            }
+            out.append(list ? "</ul>" : "").append(heading(Math.min(level, 6), node.folder.name));
+            list = false;
+            afterFolder = true;
+            description(node.folder.documentation);
+            outline(node.children, level + 1);
+        }
+        out.append(list ? "</ul>" : "");
+    }
+
+    /** Whether the overview lists the page, or a page of the folder. */
+    private boolean listed(Doc.Node node) {
+        return node.page != null ? node.page != page && page.contents.stream().anyMatch(l -> l.id.equals(node.page.id))
+                : node.children.stream().anyMatch(this::listed);
     }
 
     private String t(String key) {

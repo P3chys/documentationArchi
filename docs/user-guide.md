@@ -200,6 +200,10 @@ The Progress view shows which view's picture is being drawn and which format is 
 the export; the previous export in the folder is then exactly as it was, and the change marks in the Models tree
 stay as they were. The same holds if an export fails.
 
+While it runs, the pictures of the views wait in temporary files (in a folder of their own in the system's temp
+folder, `documentationArchi-pictures-...`) rather than in memory, so large models with many views export without running out of
+memory. The files are deleted when the export ends, also when it fails or is cancelled.
+
 ### The export folder
 
 ```
@@ -210,6 +214,9 @@ online-insurance/
 │   ├── elements-not-in-any-view.html
 │   ├── work-packages.html
 │   ├── labels.html
+│   ├── elements_a-z.html         every described element by name
+│   ├── elements_by-type.html     the same by type
+│   ├── search.js, nav.js         what the search box searches, and the search itself
 │   ├── images/                   view pictures
 │   ├── assets/                   copies of the assets the pages use
 │   └── style.css
@@ -239,6 +246,13 @@ those folders.
 With more than one page, the export starts with an overview: the model's purpose (its description), its properties
 and the list of pages.
 
+When the views are in folders in the Models tree (below *Views*), an export of the whole model or of a folder lists
+them under their folders: each folder is a heading, with its description under it if it has one, and folders inside it
+are headings one level lower. Folders and the views in a folder are sorted by name, as the Models tree shows them; a
+folder's own views come before the folders inside it, and the pages come in that order in the PDF too. Views directly
+in *Views* stay at the top, and the pages after the folders (elements in no view, work packages, labels) come under
+*Other pages*. A model without folders below *Views* is listed as before, in the order of the model.
+
 <p align="center"><img src="images/output-html-overview.png" width="760" alt="Exported overview page"></p>
 
 At the bottom of the overview page (and as the last line of the first page of the PDF) one line says which state of the
@@ -246,6 +260,21 @@ model it shows: *Generated 2026-11-10 14:03 from Online Insurance*. If the model
 cooperativeArchi (a hidden `.coarchi` folder next to the model file), the line ends with the branch and the short
 commit, *– main ＠ 0123456*. If the branch or commit cannot be read, that part is left out. The Confluence pages do not
 have this line. (The PDF shows a plain @, its font has no full-width one.)
+
+### Finding your way in the HTML pages
+
+Every HTML page has a sidebar on the left: the overview, the pages under their folders (a folder opens and closes with
+a click; the one with the page you are on is open) and the page you are on in bold. Below them are two more pages of
+the HTML export:
+
+- **Elements A–Z**: every element the export describes, by name under its first letter, with its type, each linking
+  to its description;
+- **Elements by type**: the same elements under their types, with how many there are of each.
+
+At the top of the sidebar, **Search** finds views and elements as you type: by name, type and the text of their
+description; all words you type must occur. **Esc** clears it. The search works when you open the pages straight from
+the disk, no web server needed; with JavaScript turned off the box is not shown and the sidebar is a plain list. On a
+narrow window the sidebar moves above the page, and it is never printed.
 
 ### View pages
 
@@ -303,7 +332,19 @@ relationships to elements outside the view, grouped by type.
 
 ### The PDF
 
-The PDF holds the same pages, with bookmarks for every page and page numbers. Large pictures are scaled to fit the
+The PDF holds the same pages, with bookmarks for every page. The bookmarks nest as the folders of the views do on the
+overview page; a folder's bookmark opens its first page. With more than one page it starts with:
+
+- a **cover**: the model's name, the line saying which state of the model it shows (see above) and the first
+  paragraphs of the model's purpose;
+- a **table of contents**: every page with its page number, under the folders as on the overview page; click a line
+  to go there.
+
+Every page after the cover has the title of its page at the top, and the model's name and *Page 4 of 17* at the
+bottom. A view whose picture is clearly wider than tall (and too wide for an upright page) gets landscape pages, with
+the picture as large as such a page allows. The rule lines `pdf cover off`, `pdf contents off` and `pdf landscape off`
+switch each of these off (see [Edit as Text](#edit-as-text)); without the cover, the line with the model's state is
+the last line of the first page, as before. Large pictures are scaled to fit the
 page, and their elements stay clickable at that size.
 
 <p align="center"><img src="images/output-pdf.png" width="960" alt="Three pages of the exported PDF"></p>
@@ -696,7 +737,7 @@ export finishes, its message says how many objects the rules left out. The rule 
 The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
 `language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
 `text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
-are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`, `page-of` (the PDF footer) `{page}` and `{pages}`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`. The names of element and relationship types stay as
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 
@@ -782,6 +823,12 @@ relationships), the views it is on, its work packages and the relationships to e
 A section or part you leave out is not printed (leave out `elements` and the links to the elements lead nowhere). An
 unknown or repeated name is an error, reported with its line. Without the lines the output is as it always was.
 
+### PDF layout
+
+`pdf cover off`, `pdf contents off` and `pdf landscape off` leave out the PDF's cover, its table of contents, and the
+landscape pages for views with wide pictures (they are then on upright pages, the picture made smaller). `on` instead
+of `off` turns one back on, for instance in `documentation.rules` when the preferences turned it off.
+
 ---
 
 ## 12. Assets: pictures and files
@@ -839,7 +886,9 @@ pictures and assets as attachments – plus a script that uploads them to **Conf
 **What it takes:** Python 3.8+, the Confluence URL, a space key and a personal access token (or user name and
 password).
 
-**What it gives:** one Confluence page per exported page, with its attachments.
+**What it gives:** one Confluence page per exported page, with its attachments. When the overview lists the views
+under their folders, each folder gets a page too, with its description and links to what is in it, and the pages go
+under it, so the uploaded pages form the same tree as the folders.
 
 ```bash
 CONFLUENCE_TOKEN=<personal access token> python online-insurance/confluence/upload_to_confluence.py \

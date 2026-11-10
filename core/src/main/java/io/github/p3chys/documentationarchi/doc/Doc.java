@@ -1,6 +1,7 @@
 package io.github.p3chys.documentationarchi.doc;
 
 import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -22,8 +23,30 @@ public final class Doc {
         }
     }
 
+    /** A folder with what is in it, or a page, in the {@link #outline}. */
+    public static final class Node {
+        /** Null for a page. */
+        public final DocFolder folder;
+        /** Null for a folder. */
+        public final DocPage page;
+        /** What the folder holds, in the order of the pages. */
+        public final List<Node> children = new ArrayList<>();
+
+        Node(DocFolder folder, DocPage page) {
+            this.folder = folder;
+            this.page = page;
+        }
+    }
+
     public final String title;
     public final List<DocPage> pages;
+    /**
+     * The pages under their folders: each page in the folder it is in, a folder where its first page is. Without
+     * folders, the pages as they are.
+     */
+    public final List<Node> outline = new ArrayList<>();
+    /** The folders of {@link #outline}, each before those in it; empty when the pages are not in folders. */
+    public final List<DocFolder> folders = new ArrayList<>();
     /** Files that descriptions refer to with [[asset:name]]. */
     public final Assets assets;
     /**
@@ -56,6 +79,35 @@ public final class Doc {
                 names.put(entry.id, entry.name);
             }
         }
+        Map<DocFolder, Node> nodes = new HashMap<>();
+        for (DocPage page : pages) { // the entry page is never in a folder: it holds them
+            node(page == pages.get(0) ? null : page.folder, nodes).add(new Node(null, page));
+        }
+        for (DocFolder folder : folders) {
+            folder.slug = unique(slug(folder.name), slugs);
+            slugs.add(folder.slug);
+        }
+    }
+
+    /** Where a page in this folder goes: the folder's children, made on its first page; the top for none. */
+    private List<Node> node(DocFolder folder, Map<DocFolder, Node> nodes) {
+        if (folder == null) {
+            return outline;
+        }
+        Node node = nodes.get(folder);
+        if (node == null) {
+            List<Node> in = node(folder.parent, nodes);
+            node = new Node(folder, null);
+            nodes.put(folder, node);
+            folders.add(folder);
+            in.add(node);
+        }
+        return node.children;
+    }
+
+    /** Whether the pages are in folders, see {@link #outline}. */
+    public boolean nested() {
+        return !folders.isEmpty();
     }
 
     /** Where this view or element is documented, null if it is not part of the export. */

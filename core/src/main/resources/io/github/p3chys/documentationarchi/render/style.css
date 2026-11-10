@@ -5,6 +5,27 @@ body { font-family: "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; l
 h1 { font-size: 24px; } h2 { font-size: 20px; margin-top: 28px; } h3 { font-size: 16px; margin: 24px 0 4px; }
 a { color: #0052cc; text-decoration: none; }
 nav { margin-bottom: 8px; font-size: 12px; }
+/* The HTML export: the sidebar beside the content; above it on narrow screens; never printed */
+body.site { max-width: 1400px; display: flex; align-items: flex-start; gap: 24px; }
+body.site main { flex: 1; min-width: 0; }
+aside.sidebar { flex: 0 0 250px; position: sticky; top: 0; max-height: 100vh; overflow-y: auto; box-sizing: border-box;
+                padding: 8px 8px 16px 0; border-right: 1px solid #dfe1e6; font-size: 13px; line-height: 1.35; }
+aside.sidebar ul { list-style: none; margin: 0; padding: 0 0 0 12px; }
+aside.sidebar .tree > ul, aside.sidebar #search-results { padding-left: 0; }
+aside.sidebar li { margin: 3px 0; }
+aside.sidebar li.current > a { font-weight: bold; color: #172b4d; background: #deebff; border-radius: 3px; padding: 0 3px; }
+aside.sidebar summary { cursor: pointer; color: #42526e; font-weight: 600; }
+aside.sidebar ul.indexes { margin-top: 12px; padding: 8px 0 0; border-top: 1px solid #dfe1e6; }
+aside.sidebar input { width: 100%; box-sizing: border-box; padding: 4px 6px; margin-bottom: 8px; font: inherit;
+                      border: 1px solid #c1c7d0; border-radius: 3px; }
+aside.sidebar #search-results small { color: #6b778c; }
+aside.sidebar #search-results li.none { color: #6b778c; }
+p.letters a { margin-right: 6px; font-weight: bold; }
+@media (max-width: 800px) {
+  body.site { display: block; }
+  aside.sidebar { position: static; max-height: 40vh; border-right: 0; border-bottom: 1px solid #dfe1e6; margin-bottom: 12px; }
+}
+@media print { aside.sidebar { display: none; } body.site { display: block; } }
 footer.version { margin-top: 32px; font-size: 85%; color: #6b778c; }
 table { border-collapse: collapse; margin: 8px 0; width: 100%; }
 th, td { border: 1px solid #c1c7d0; padding: 6px 8px; text-align: left; vertical-align: top; }

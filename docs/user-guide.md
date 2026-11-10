@@ -138,6 +138,7 @@ selection fits.
 | Print Order... | ✓ | ✓ | – | one view (tree), or objects of the view (editor) |
 | Link to Work Package... | ✓ | ✓ | – | the selection holds elements |
 | Work Packages... | ✓ | ✓ | – | anything in a model is selected |
+| Check Documentation... | ✓ | ✓ | – | anything in a model is selected |
 | Describe Here | – | ✓ | – | the selection holds elements |
 | Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
 | Documentation Formatting... | **Tools** menu | | | always |
@@ -422,6 +423,27 @@ from content until the next export.
 - PrintOrder elements and their links never get a mark.
 - To hide the marks, untick **Mark in the model tree what no export shows yet** in
   [Preferences > Documentation Export](#11-documentation-formatting-changing-the-look).
+
+---
+
+## Check Documentation
+
+Problems in the documentation are otherwise found only by reading the output. Right-click anything in a model and
+choose **Check Documentation...**: it lists what it finds, grouped by kind with counts, and exports nothing.
+
+- elements and views without a description,
+- elements that are on no view (work packages are not expected on one),
+- views (ArchiMate) without elements,
+- `[[asset:...]]` references whose file is missing or ambiguous (several files have that name),
+- `[[ref:...]]` references to objects that no longer exist,
+- `#words` that look like a label but are not a configured one: they differ from one by one or two characters
+  (`#rsik` for `#risk`),
+- work packages that change no element.
+
+Objects the rules leave out of the export are not checked.
+
+Select findings (or a whole kind) and choose **Show in Model Tree** to select their objects there. On the command line,
+`--documentation.check` prints the same list; with `--documentation.strict` the run fails when there are findings.
 
 ---
 
@@ -720,6 +742,7 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 | `--documentation.views a,b` | only these views: names or ids |
 | `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.check` | list what is missing or wrong in the documentation (see Check Documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 
 Without `--documentation.workPackages`, `--documentation.views` and `--documentation.folders` the command line exports

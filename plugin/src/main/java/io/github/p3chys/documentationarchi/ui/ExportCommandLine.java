@@ -28,11 +28,15 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
     private static final String WORK_PACKAGES = "documentation.workPackages";
     private static final String VIEWS = "documentation.views";
     private static final String FOLDERS = "documentation.folders";
+    private static final String CHECK = "documentation.check";
     private static final String RULES = "documentation.rules";
     private static final String STRICT = "documentation.strict";
 
     @Override
     public void run(CommandLine line) throws Exception {
+        if (line.hasOption(CHECK)) {
+            check(line);
+        }
         if (!line.hasOption(FOLDER)) {
             return;
         }
@@ -59,6 +63,26 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                 + (result.excluded > 0 ? ", " + result.excluded + " object(s) left out by the exclusion rules" : ""));
         if (line.hasOption(STRICT) && !problems.isEmpty()) {
             throw new IllegalStateException(problems.size() + " asset reference(s) have no file, see the errors above");
+        }
+    }
+
+    /** Lists what is missing or wrong in the documentation; with --documentation.strict, findings fail the run. */
+    private void check(CommandLine line) {
+        IArchimateModel model = CommandLineState.getModel();
+        if (model == null) {
+            throw failure("No model loaded. Use --loadModel first.");
+        }
+        List<DocCheck.Finding> findings;
+        try {
+            findings = DocCheck.check(model, ProjectRules.resolve(model,
+                    line.hasOption(RULES) ? Path.of(line.getOptionValue(RULES)) : null, Prefs::rules));
+        } catch (IllegalArgumentException e) { // unusable rules
+            throw failure(e.getMessage());
+        }
+        logMessage(findings.isEmpty() ? "Check documentation: no findings" : "Check documentation: " + findings.size()
+                + " finding(s)\n" + DocCheck.format(findings));
+        if (line.hasOption(STRICT) && !findings.isEmpty()) {
+            throw failure(findings.size() + " documentation finding(s), see the list above");
         }
     }
 
@@ -91,6 +115,10 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                 .desc("Export only these views: names or ids, comma separated").build());
         options.addOption(Option.builder().longOpt(FOLDERS).hasArg().argName("list")
                 .desc("Export only these folders: paths like Views/Sales, comma separated").build());
+        options.addOption(Option.builder().longOpt(CHECK)
+                .desc("List what is missing or wrong in the documentation, without exporting; with "
+                        + "--documentation.strict, findings fail the run")
+                .build());
         options.addOption(Option.builder().longOpt(RULES).hasArg().argName("file")
                 .desc("Formatting rules to use instead of documentation.rules next to the model").build());
         options.addOption(Option.builder().longOpt(STRICT)

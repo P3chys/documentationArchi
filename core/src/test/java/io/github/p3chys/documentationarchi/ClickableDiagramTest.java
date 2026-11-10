@@ -23,6 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
@@ -40,7 +41,7 @@ class ClickableDiagramTest {
     @BeforeEach
     void doc() throws Exception {
         sales = new DocPage("v1", "Sales");
-        sales.image = png(2000, 1000);
+        sales.image = Picture.of(png(2000, 1000));
         sales.imageWidth = 1000; // drawn at twice the size
         sales.imageHeight = 500;
         sales.areas.add(new DocPage.Area("e1", "Client & co", 10, 10, 200, 100));

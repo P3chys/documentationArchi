@@ -71,6 +71,8 @@ format being written, and **Cancel** there stops it. A re-export replaces the fo
 `confluence/` and the PDF, each only if that format is exported now), so files of renamed or deleted views do not
 stay behind. The new files are written next to the old ones and swapped in at the end: a cancelled or failed export
 leaves the previous one as it was, and the model tree marks do not change. Nothing else in the folder is touched.
+While it runs, the pictures of the views wait in temporary files instead of memory; they are deleted when the export
+ends, however it ends.
 
 ## What a page contains
 

@@ -194,7 +194,7 @@ public class ExportHandler extends AbstractHandler {
         Doc doc = ModelReader.read(selection, (view, page) -> {
             check(progress);
             progress.subTask("Drawing " + view.getName());
-            ViewImages.render(view, page);
+            ViewImages.renderToFile(view, page); // deleted when the export ends (structure-nav-pdf: pictures on disk)
             progress.worked(1);
         }, shown, rules, exclusion);
         Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile

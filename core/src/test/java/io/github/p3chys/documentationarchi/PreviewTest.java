@@ -15,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
 import io.github.p3chys.documentationarchi.doc.Relation;
@@ -41,7 +42,7 @@ class PreviewTest {
                 List.of());
         Entry portal = new Entry("e2", "Portal", "Application Component", "", List.of(), List.of(), List.of());
         view = new DocPage("v1", "Sales");
-        view.image = new byte[] { 1, 2, 3 };
+        view.image = Picture.of(new byte[] { 1, 2, 3 });
         view.imageWidth = 300;
         view.entries.add(client);
         view.groups.put("e1", "Front office");

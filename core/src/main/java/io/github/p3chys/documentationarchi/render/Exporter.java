@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +36,7 @@ import org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode;
 import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
 import org.apache.pdfbox.pdmodel.common.filespecification.PDEmbeddedFile;
 
+import com.openhtmltopdf.extend.FSStream;
 import com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle;
 import com.openhtmltopdf.outputdevice.helper.ExternalResourceControlPriority;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
@@ -153,6 +155,11 @@ public final class Exporter {
             swap(targets);
         } finally {
             targets.forEach(t -> deleteAll(staged(t)));
+            doc.pages.forEach(p -> {
+                if (p.image != null) {
+                    p.image.delete(); // a temporary file is the export's; one in memory stays
+                }
+            });
         }
     }
 
@@ -238,7 +245,7 @@ public final class Exporter {
                     + (page == doc.pages.get(0) && version != null
                             ? "<footer class=\"version\">" + Xml.escape(version) + "</footer>" : "")));
             if (page.image != null) {
-                Files.write(folder.resolve("images").resolve(page.slug() + ".png"), page.image);
+                page.image.copyTo(folder.resolve("images").resolve(page.slug() + ".png"));
             }
         }
         String home = "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
@@ -281,9 +288,12 @@ public final class Exporter {
         PdfRendererBuilder builder = new PdfRendererBuilder();
         builder.useFastMode();
         builder.withHtmlContent(html, null);
-        // pictures are in the document as data; nothing else is ever loaded
+        // the pictures of views are read from their files one at a time, assets are in the document as data;
+        // nothing else is ever loaded
+        builder.useProtocolsStreamImplementation(this::picture, HtmlDialect.PICTURE.substring(0, HtmlDialect.PICTURE.length() - 1));
         for (ExternalResourceControlPriority priority : ExternalResourceControlPriority.values()) {
-            builder.useExternalResourceAccessControl((uri, type) -> uri.startsWith("data:"), priority);
+            builder.useExternalResourceAccessControl((uri, type) -> uri.startsWith("data:")
+                    || uri.startsWith(HtmlDialect.PICTURE), priority);
         }
         font(builder, "DejaVuSans.ttf", 400, FontStyle.NORMAL);
         font(builder, "DejaVuSans-Bold.ttf", 700, FontStyle.NORMAL);
@@ -299,6 +309,27 @@ public final class Exporter {
             attach(pdf, used);
             pdf.save(file.toFile());
         }
+    }
+
+    /** The picture of a view for the PDF library, by the address {@link HtmlDialect#image} gave it. */
+    private FSStream picture(String uri) {
+        DocPage page = doc.pages.stream().filter(p -> p.image != null && uri.equals(HtmlDialect.PICTURE + p.slug()))
+                .findFirst().orElse(null);
+        return new FSStream() {
+            @Override
+            public InputStream getStream() {
+                try {
+                    return page == null ? null : page.image.open();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            public Reader getReader() {
+                return null;
+            }
+        };
     }
 
     private static void attach(PDDocument pdf, Set<Assets.Asset> assets) throws IOException {
@@ -467,7 +498,7 @@ public final class Exporter {
             List<String> files = new ArrayList<>();
             if (page.image != null) {
                 files.add(json(page.slug() + ".png"));
-                Files.write(attachments.resolve(page.slug() + ".png"), page.image);
+                page.image.copyTo(attachments.resolve(page.slug() + ".png"));
             }
             String parent = page == doc.pages.get(0) ? null
                     : page.folder != null ? folders.get(page.folder) : titles.get(doc.pages.get(0));

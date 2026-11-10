@@ -40,6 +40,7 @@ import org.xml.sax.InputSource;
 import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
 import io.github.p3chys.documentationarchi.doc.Property;
@@ -73,7 +74,7 @@ class ExporterTest {
         Entry portal = new Entry("e2", "Portal", "Application Component", "", List.of(), List.of(), List.of());
 
         DocPage view1 = new DocPage("view1", "Přehled & <souhrn>");
-        view1.image = png();
+        view1.image = Picture.of(png());
         view1.imageWidth = 300;
         view1.entries.add(client);
         view1.notes.add("A note on the view");
@@ -206,7 +207,7 @@ class ExporterTest {
     void viewStartsWithDescriptionThenContentsAndLinesDivideSections() throws Exception {
         DocPage page = new DocPage("v", "View");
         page.documentation = "About the view";
-        page.image = png();
+        page.image = Picture.of(png());
         page.imageWidth = 300;
         page.contents.add(new Link("a", "A", "Node"));
         page.contents.add(new Link("b", "B", "Node"));
@@ -266,7 +267,7 @@ class ExporterTest {
         Files.write(assets.resolve("b/logo.png"), png());
         Files.write(assets.resolve("index.png"), png()); // the name of the first page's view picture
         DocPage page = new DocPage("v", "View");
-        page.image = png();
+        page.image = Picture.of(png());
         page.imageWidth = 300;
         page.documentation = "Flow: [[asset:FLOW.png|Process flow]]\nContract: [[asset:docs\\SLA smlouva.pdf]]\n"
                 + "Gone: asset:nothere.png\nAmbiguous: asset:logo.png, but asset:b/logo.png\nClash: asset:index.png";
@@ -320,8 +321,8 @@ class ExporterTest {
             Map<String, PDComplexFileSpecification> attached = pdf.getDocumentCatalog().getNames().getEmbeddedFiles().getNames();
             assertThat(attached).containsOnlyKeys("SLA smlouva.pdf");
             assertThat(attached.get("SLA smlouva.pdf").getEmbeddedFile().toByteArray()).isEqualTo(contract);
-            // the view's picture and flow.png (the other pictures are the same image as the view's)
-            assertThat(pdf.getPage(0).getResources().getXObjectNames()).hasSize(2);
+            // the view's picture (read from its file), flow.png and logo.png (index.png is the same data as logo.png)
+            assertThat(pdf.getPage(0).getResources().getXObjectNames()).hasSize(3);
         }
     }
 
@@ -349,7 +350,7 @@ class ExporterTest {
         Files.write(assets.resolve("wide.png"), png(2000, 500));
         Files.write(assets.resolve("small.png"), png(400, 100));
         DocPage page = new DocPage("v", "View");
-        page.image = png(600, 6000);
+        page.image = Picture.of(png(600, 6000));
         page.imageWidth = 300;
         page.imageHeight = 3000;
         page.documentation = "asset:tall.png\n\nasset:wide.png\n\nasset:small.png";
@@ -440,7 +441,7 @@ class ExporterTest {
 
         DocPage root = doc.pages.get(0);
         DocPage renamed = new DocPage("view1", "Nový název");
-        renamed.image = png();
+        renamed.image = Picture.of(png());
         doc = new Doc(doc.title, List.of(root, renamed));
         export(Format.HTML);
         export(Format.CONFLUENCE);

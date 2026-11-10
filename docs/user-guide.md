@@ -200,6 +200,10 @@ The Progress view shows which view's picture is being drawn and which format is 
 the export; the previous export in the folder is then exactly as it was, and the change marks in the Models tree
 stay as they were. The same holds if an export fails.
 
+While it runs, the pictures of the views wait in temporary files (in the system's temp folder, under
+`documentationArchi-pictures`) rather than in memory, so large models with many views export without running out of
+memory. The files are deleted when the export ends, also when it fails or is cancelled.
+
 ### The export folder
 
 ```

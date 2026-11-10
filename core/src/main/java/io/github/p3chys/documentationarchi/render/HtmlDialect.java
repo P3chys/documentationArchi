@@ -70,6 +70,9 @@ final class HtmlDialect implements Dialect {
         return href.isEmpty() ? "#" : href;
     }
 
+    /** In the PDF's document: the picture of the page with that slug, which the PDF library reads from its file. */
+    static final String PICTURE = "docpicture:";
+
     static String pageId(DocPage page) {
         return "page-" + page.slug();
     }
@@ -109,8 +112,7 @@ final class HtmlDialect implements Dialect {
 
     @Override
     public String image(DocPage page) {
-        String src = singleDocument ? "data:image/png;base64," + Base64.getEncoder().encodeToString(page.image)
-                : preview != null ? preview : "images/" + page.slug() + ".png";
+        String src = singleDocument ? PICTURE + page.slug() : preview != null ? preview : "images/" + page.slug() + ".png";
         // the PDF fits it on one page; a web page shows it at its size, readers zoom and scroll
         int fitted = !singleDocument ? 0 : landscape && Pictures.landscape(page)
                 ? Pictures.fit(page.imageWidth, page.imageHeight, Pictures.LANDSCAPE_WIDTH, Pictures.LANDSCAPE_HEIGHT)

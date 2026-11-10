@@ -23,6 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocFolder;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.doc.Link;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
@@ -57,7 +58,7 @@ class PdfLayoutTest {
     private static void picture(DocPage page, int width, int height) throws Exception {
         ByteArrayOutputStream png = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB), "png", png);
-        page.image = png.toByteArray();
+        page.image = Picture.of(png.toByteArray());
         page.imageWidth = width;
         page.imageHeight = height;
     }

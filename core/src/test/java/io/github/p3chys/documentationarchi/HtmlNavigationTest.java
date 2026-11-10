@@ -19,6 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocFolder;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.doc.Entry;
 import io.github.p3chys.documentationarchi.doc.Link;
 import io.github.p3chys.documentationarchi.render.Exporter;
@@ -42,7 +43,7 @@ class HtmlNavigationTest {
         pages.add(overview);
         DocPage pricing = new DocPage("v1", "Pricing");
         pricing.folder = sales;
-        pricing.image = new byte[] {1};
+        pricing.image = Picture.of(new byte[] {1});
         pricing.documentation = "How prices are made\nfor <customers>";
         pricing.entries.add(new Entry("e1", "Žluťák", "Business Actor", "Buys \"things\"", List.of(), List.of(), List.of()));
         pricing.entries.add(new Entry("e2", "Abacus", "Application Component", "", List.of(), List.of(), List.of()));

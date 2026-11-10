@@ -275,9 +275,21 @@ final class ModelReader {
     static Doc read(Selection selection, BiConsumer<IDiagramModel, DocPage> images, Collection<EObject> exported,
             KeywordRules rules, Exclusion exclusion) {
         Exclusion.current(exclusion);
+        List<DocPage> drawn = new ArrayList<>();
         try {
-            ModelReader reader = new ModelReader(selection, images, exported, rules, exclusion);
+            ModelReader reader = new ModelReader(selection, (view, page) -> {
+                drawn.add(page);
+                images.accept(view, page);
+            }, exported, rules, exclusion);
             return selection.workPackages.isEmpty() ? reader.read() : reader.readWorkPackages();
+        } catch (RuntimeException | Error e) {
+            // no export follows to delete the pictures drawn into temporary files
+            drawn.forEach(p -> {
+                if (p.image != null) {
+                    p.image.delete();
+                }
+            });
+            throw e;
         } finally {
             Exclusion.current(null);
         }

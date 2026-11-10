@@ -1,7 +1,9 @@
 package io.github.p3chys.documentationarchi.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,6 +18,7 @@ import com.archimatetool.model.IFolder;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 
 /** The pages of views under their folders, as the model tree has them. */
 class FolderStructureTest {
@@ -107,6 +110,24 @@ class FolderStructureTest {
 
         assertThat(titles(doc)).containsExactly("Shop", "Order flow", "Pricing");
         assertThat(doc.nested()).isFalse();
+    }
+
+    @Test
+    void picturesInTemporaryFilesAreDeletedWhenReadingFails() {
+        List<Picture> drawn = new ArrayList<>();
+        assertThatThrownBy(() -> ModelReader.read(ModelReader.Selection.of(List.of(model)), (view, page) -> {
+            if (drawn.size() == 2) {
+                throw new IllegalStateException("cannot draw");
+            }
+            try {
+                page.image = Picture.temporary(new byte[] { 1 });
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+            drawn.add(page.image);
+        })).hasMessage("cannot draw");
+
+        assertThat(drawn).hasSize(2).allSatisfy(p -> assertThatThrownBy(p::bytes).isInstanceOf(java.io.IOException.class));
     }
 
     @Test

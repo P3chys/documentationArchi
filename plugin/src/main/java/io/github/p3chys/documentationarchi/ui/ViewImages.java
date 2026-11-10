@@ -1,6 +1,8 @@
 package io.github.p3chys.documentationarchi.ui;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,6 +27,7 @@ import com.archimatetool.model.IDiagramModelArchimateConnection;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 
 /**
  * Pictures of views, and where on them each element is drawn, so the pages can link the picture to the descriptions.
@@ -38,7 +41,7 @@ final class ViewImages {
     private ViewImages() {
     }
 
-    /** Figures can only be drawn on the UI thread, wherever the export runs. */
+    /** Figures can only be drawn on the UI thread, wherever the export runs. The picture is kept in memory. */
     static void render(IDiagramModel view, DocPage page) {
         Exclusion hidden = Exclusion.current(); // of the export running on this thread
         Display display = Display.getCurrent();
@@ -46,6 +49,19 @@ final class ViewImages {
             draw(view, page, hidden);
         } else {
             Display.getDefault().syncExec(() -> draw(view, page, hidden));
+        }
+    }
+
+    /**
+     * For an export: the picture goes to a temporary file, which the export deletes when it ends ({@link Picture}),
+     * so a model with many large views never holds all their pictures in memory.
+     */
+    static void renderToFile(IDiagramModel view, DocPage page) {
+        render(view, page);
+        try {
+            page.image = Picture.temporary(page.image.bytes());
+        } catch (IOException e) {
+            throw new UncheckedIOException("The picture of " + page.title + " could not be written to a temporary file", e);
         }
     }
 
@@ -67,7 +83,7 @@ final class ViewImages {
                 loader.data = new ImageData[] { data };
                 ByteArrayOutputStream png = new ByteArrayOutputStream();
                 loader.save(png, SWT.IMAGE_PNG);
-                page.image = png.toByteArray();
+                page.image = Picture.of(png.toByteArray());
                 page.imageWidth = data.width / SCALE;
                 page.imageHeight = data.height / SCALE;
             } finally {

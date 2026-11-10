@@ -30,6 +30,7 @@ import com.archimatetool.model.IJunction;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
+import io.github.p3chys.documentationarchi.doc.Picture;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 
 class PreviewTargetTest {
@@ -74,7 +75,7 @@ class PreviewTargetTest {
 
     private String html(Object selected) {
         Doc doc = ModelReader.read(ModelReader.Selection.of(List.of(model)), (v, page) -> {
-            page.image = new byte[] { 1 };
+            page.image = Picture.of(new byte[] { 1 });
             page.imageWidth = 100;
         });
         return PreviewTarget.html(PreviewTarget.of(selected), doc, KeywordRules.defaults(), p -> "picture-" + p.title + ".png", new HashSet<>());
@@ -151,10 +152,10 @@ class PreviewTargetTest {
     }
 
     @Test
-    void pictureIsDrawnAgainOnlyWhenItsViewChanges() {
+    void pictureIsDrawnAgainOnlyWhenItsViewChanges() throws Exception {
         int[] drawn = { 0 };
         PictureCache cache = new PictureCache((v, page) -> {
-            page.image = new byte[] { (byte) ++drawn[0] };
+            page.image = Picture.of(new byte[] { (byte) ++drawn[0] });
             page.imageWidth = 50;
         });
         DocPage page = new DocPage(view.getId(), "Sales");
@@ -164,7 +165,7 @@ class PreviewTargetTest {
         portal.setDocumentation("not on the view");
         cache.fill(view, page);
         assertThat(drawn[0]).isEqualTo(1);
-        assertThat(page.image).containsExactly(1);
+        assertThat(page.image.bytes()).containsExactly(1);
         assertThat(page.imageWidth).isEqualTo(50);
 
         actor.setName("Customer"); // its name is in the picture
@@ -173,7 +174,7 @@ class PreviewTargetTest {
         actorFigure.setBounds(F.createBounds(10, 10, 120, 55)); // moved
         cache.fill(view, page);
         assertThat(drawn[0]).isEqualTo(3);
-        assertThat(page.image).containsExactly(3);
+        assertThat(page.image.bytes()).containsExactly(3);
     }
 
     @ParameterizedTest

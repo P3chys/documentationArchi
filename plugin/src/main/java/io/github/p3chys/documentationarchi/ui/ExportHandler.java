@@ -3,7 +3,10 @@ package io.github.p3chys.documentationarchi.ui;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +35,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.handlers.HandlerUtil;
 
 import io.github.p3chys.documentationarchi.doc.Doc;
+import io.github.p3chys.documentationarchi.doc.Published;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
@@ -58,7 +62,8 @@ public class ExportHandler extends AbstractHandler {
     /** Asks where to and in which formats, then exports in the background. */
     static void run(Shell shell, ModelReader.Selection selection) {
         ExportDialog dialog = new ExportDialog(shell, describe(selection) + (ProjectRules.exists(selection.model)
-                ? "\nFormatting from " + ProjectRules.file(selection.model) + " (project rules)" : ""));
+                ? "\nFormatting from " + ProjectRules.file(selection.model) + " (project rules)" : ""),
+                selection.model.getFile() != null);
         if (dialog.open() != ExportDialog.OK) {
             return;
         }
@@ -67,7 +72,7 @@ public class ExportHandler extends AbstractHandler {
                 folder + " already exists. Replace the files in it?")) {
             return;
         }
-        start(Display.getCurrent(), selection, folder, dialog.formats());
+        start(Display.getCurrent(), selection, folder, dialog.formats(), dialog.publish());
     }
 
     /** The selected objects of the model tree or a view (the model objects of what a view shows). */
@@ -108,13 +113,14 @@ public class ExportHandler extends AbstractHandler {
         }
     }
 
-    private static void start(Display display, ModelReader.Selection selection, Path folder, Set<Format> formats) {
+    private static void start(Display display, ModelReader.Selection selection, Path folder, Set<Format> formats,
+            boolean publish) {
         Job job = new Job("Exporting documentation") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    List<String> problems = export(selection, folder, formats, null, monitor);
-                    display.asyncExec(() -> finished(display, folder, problems));
+                    List<String> problems = export(selection, folder, formats, null, monitor, publish);
+                    display.asyncExec(() -> finished(display, folder, problems, publish));
                     return Status.OK_STATUS;
                 } catch (CancellationException | OperationCanceledException e) { // the previous export is as it was
                     return Status.CANCEL_STATUS;
@@ -151,6 +157,20 @@ public class ExportHandler extends AbstractHandler {
      */
     static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
             IProgressMonitor monitor) throws IOException {
+        return export(selection, folder, formats, rulesFile, monitor, false);
+    }
+
+    /**
+     * @param publish this export is the documentation the readers get: it is noted in the file
+     *        {@link Published#FILE} next to the model, for the team's model tree marks and for the "Changes since"
+     *        page of later exports. An export of the whole model always has that page once something was published.
+     */
+    static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
+            IProgressMonitor monitor, boolean publish) throws IOException {
+        if (publish && selection.model.getFile() == null) {
+            throw new IllegalArgumentException("Save the model first: what is published is noted in the file "
+                    + Published.FILE + " next to the model file.");
+        }
         SubMonitor progress = SubMonitor.convert(monitor, "Exporting documentation",
                 selection.views.size() + formats.size() + 1);
         // the PDF library uses AWT classes, which must not start a GUI next to SWT (it would hang on macOS)
@@ -165,7 +185,11 @@ public class ExportHandler extends AbstractHandler {
         }, shown);
         Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile
         long time = System.currentTimeMillis();
-        Exporter exporter = new Exporter(doc, rules).version(selection.model.getName(),
+        Published before = published(selection);
+        Doc shownDoc = selection.wholeModel && before.lastTime() > 0 ? Published.with(doc, Published.page(
+                before.changesTo(doc, true), DATE.format(Instant.ofEpochMilli(before.lastTime()).atZone(ZoneId.systemDefault()))))
+                : doc;
+        Exporter exporter = new Exporter(shownDoc, rules).version(selection.model.getName(),
                 selection.model.getFile() == null ? null : selection.model.getFile().toPath(), LocalDateTime.now());
         exporter.export(folder, formats, new Exporter.Progress() {
             @Override
@@ -185,8 +209,24 @@ public class ExportHandler extends AbstractHandler {
         } catch (IOException | RuntimeException e) {
             Activator.log("The export worked, but what it showed could not be noted for the model tree marks", e);
         }
+        if (publish) { // after the export worked; a failure here fails the run, since publishing was asked for
+            ExportState.get().publish(selection.model, doc, fingerprints, time, selection.wholeModel);
+            ExportMarks.refresh();
+        }
         return exporter.problems();
     }
+
+    /** What was published of the model; nothing if that cannot be told, which must not stop an export. */
+    private static Published published(ModelReader.Selection selection) {
+        try {
+            return ExportState.get().published(selection.model);
+        } catch (RuntimeException e) {
+            Activator.log("What was published could not be read, so the export has no page of changes", e);
+            return new Published();
+        }
+    }
+
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private static void check(IProgressMonitor monitor) {
         if (monitor.isCanceled()) {
@@ -194,8 +234,9 @@ public class ExportHandler extends AbstractHandler {
         }
     }
 
-    private static void finished(Display display, Path folder, List<String> problems) {
-        String message = "Exported to " + folder;
+    private static void finished(Display display, Path folder, List<String> problems, boolean published) {
+        String message = "Exported to " + folder + (published ? "\n\nNoted as published in " + Published.FILE
+                + " next to the model file. Share that file with the model so your colleagues' marks follow." : "");
         if (!problems.isEmpty()) {
             message += "\n\nThese assets are missing from the export (shown in red on their pages):\n"
                     + problems.stream().limit(MAX_PROBLEMS).map(p -> "- " + p).collect(Collectors.joining("\n"))

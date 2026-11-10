@@ -380,6 +380,14 @@ what to export before you hand documentation over.
 | orange dot | the element, relationship or view changed since the last export that showed it |
 | blue dot | no export has shown it yet (new, or never exported) |
 | orange / blue ring | a folder (or the model) holding such objects, so you find them with the tree collapsed |
+| light orange dot / ring | only the layout changed since the last export (a box moved or resized, bend points, fonts, colours) |
+
+**Layout-only changes.** Moving a box does not change what the documentation says, so it gets the lighter mark with
+its own tooltip. Names, descriptions, properties, which objects are on a view and the texts on it are content: a
+change there gets the normal orange mark. Tick **Ignore layout-only changes** in the preferences (default off) to
+hide the light marks. The view's picture in an export is redrawn either way; the mark only tells you whether a new
+export is needed for the text. Marks from exports made by an older version stay as they were and cannot tell layout
+from content until the next export.
 
 - Hover over a mark to see what it means and when the object was last exported.
 - **Any** export counts: exporting a work package brings its elements up to date.

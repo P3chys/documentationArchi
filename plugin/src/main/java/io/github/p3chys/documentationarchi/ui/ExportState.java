@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EReference;
@@ -27,6 +28,7 @@ import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IArchimateModelObject;
 import com.archimatetool.model.IArchimateRelationship;
 import com.archimatetool.model.IDiagramModel;
+import com.archimatetool.model.IDiagramModelComponent;
 import com.archimatetool.model.IDiagramModelArchimateComponent;
 import com.archimatetool.model.IIdentifier;
 import com.archimatetool.model.IProperty;
@@ -48,6 +50,8 @@ final class ExportState {
         CURRENT,
         /** Changed since the last export that showed it. */
         CHANGED,
+        /** Only its layout (positions, sizes, fonts, colours) changed since; what it says is as exported. */
+        LAYOUT,
         /** No export showed it yet. */
         NEW
     }
@@ -101,18 +105,35 @@ final class ExportState {
      * element are objects of their own; of the model only what its overview page shows counts.
      */
     static String fingerprint(EObject o) {
-        StringBuilder s = new StringBuilder();
+        Print print = print(o);
+        return hash(print.content) + "," + hash(print.layout);
+    }
+
+    /** What versions before the content/layout split kept: one hash of everything. */
+    static String legacyFingerprint(EObject o) {
+        return hash(print(o).all);
+    }
+
+    private static Print print(EObject o) {
+        Print print = new Print();
         if (o instanceof IArchimateModel) {
             IArchimateModel model = (IArchimateModel) o;
+            StringBuilder s = new StringBuilder();
             s.append(model.getName()).append('\0').append(model.getPurpose()).append('\0');
             for (IProperty p : model.getProperties()) {
                 s.append(p.getKey()).append('=').append(p.getValue()).append('\0');
             }
+            print.all.append(s);
+            print.content.append(s);
         } else {
-            write(o, s);
+            write(o, print, false);
         }
+        return print;
+    }
+
+    private static String hash(CharSequence text) {
         try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(s.toString().getBytes(StandardCharsets.UTF_8));
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(text.toString().getBytes(StandardCharsets.UTF_8));
             StringBuilder hex = new StringBuilder();
             for (int i = 0; i < 12; i++) {
                 hex.append(String.format("%02x", hash[i]));
@@ -123,35 +144,68 @@ final class ExportState {
         }
     }
 
+    /** What is said (names, texts, properties, what is on a view) apart from how it is drawn; all is both, as before. */
+    private static final class Print {
+        final StringBuilder all = new StringBuilder();
+        final StringBuilder content = new StringBuilder();
+        final StringBuilder layout = new StringBuilder();
+
+        /** Structure: in both, unless inside a part that is layout only. */
+        void frame(boolean inLayout, String text) {
+            all.append(text);
+            layout.append(text);
+            if (!inLayout) {
+                content.append(text);
+            }
+        }
+
+        void value(boolean inLayout, String text) {
+            all.append(text);
+            (inLayout ? layout : content).append(text);
+        }
+    }
+
+    /** Features that only draw: position, size, bend points, fonts, colours, line and text looks, pictures. */
+    private static final Set<String> LAYOUT = Set.of("bounds", "bendpoints", "font", "fontColor", "fillColor",
+            "lineColor", "lineWidth", "lineStyle", "alpha", "lineAlpha", "gradient", "iconColor", "iconVisibleState",
+            "textAlignment", "textPosition", "deriveElementLineColor", "borderColor", "imagePath", "imagePosition",
+            "connectionRouterType", "background", "relativePosition", "nameVisible");
+
+    private static boolean isLayout(EObject o, EStructuralFeature f) {
+        // "type" of a diagram object or connection is its figure or line style; of a folder, what it holds
+        return LAYOUT.contains(f.getName()) || "type".equals(f.getName()) && o instanceof IDiagramModelComponent;
+    }
+
     /** All stored features, children in full and other objects by id; what the model works out itself is left out. */
-    private static void write(EObject o, StringBuilder s) {
-        s.append(o.eClass().getName()).append('{');
+    private static void write(EObject o, Print s, boolean layout) {
+        s.frame(layout, o.eClass().getName() + "{");
         if (o instanceof IDiagramModelArchimateComponent) {
             // what it shows, by a feature the model doesn't store as such; its name is in the picture
             IArchimateConcept concept = ((IDiagramModelArchimateComponent) o).getArchimateConcept();
             if (concept != null) {
-                s.append(concept.getId()).append('"').append(concept.getName()).append('"');
+                s.value(layout, concept.getId() + "\"" + concept.getName() + "\"");
             }
         }
         for (EStructuralFeature f : o.eClass().getEAllStructuralFeatures()) {
             if (f.isTransient() || f.isDerived() || f.isVolatile() || !o.eIsSet(f)) {
                 continue;
             }
-            s.append(f.getName()).append('=');
+            boolean inLayout = layout || isLayout(o, f);
+            s.value(inLayout, f.getName() + "=");
             Object value = o.eGet(f);
             for (Object v : f.isMany() ? (List<?>) value : Collections.singletonList(value)) {
                 if (f instanceof EReference && ((EReference) f).isContainment()) {
-                    write((EObject) v, s);
+                    write((EObject) v, s, inLayout);
                 } else if (f instanceof EReference) {
-                    s.append(v instanceof IIdentifier ? ((IIdentifier) v).getId() : String.valueOf(v));
+                    s.value(inLayout, v instanceof IIdentifier ? ((IIdentifier) v).getId() : String.valueOf(v));
                 } else {
-                    s.append(v);
+                    s.value(inLayout, String.valueOf(v));
                 }
-                s.append('\u001f');
+                s.value(inLayout, "\u001f");
             }
-            s.append('\u001e');
+            s.value(inLayout, "\u001e");
         }
-        s.append('}');
+        s.frame(layout, "}");
     }
 
     /** The fingerprints of the objects, by id, for {@link #record}. Of objects that aren't tracked, none. */
@@ -177,13 +231,26 @@ final class ExportState {
         }
         int space = stored.indexOf(' ');
         String fingerprint = space < 0 ? stored : stored.substring(0, space);
+        boolean legacy = fingerprint.indexOf(',') < 0; // one hash of everything: layout cannot be told apart
         long time = 0;
         try {
             time = space < 0 ? 0 : Long.parseLong(stored.substring(space + 1));
         } catch (NumberFormatException e) {
             // an edited file: the fingerprint still counts
         }
-        return new Mark(fingerprint.equals(fingerprint(o)) ? Status.CURRENT : Status.CHANGED, time);
+        return new Mark(status(fingerprint, legacy, o), time);
+    }
+
+    private static Status status(String stored, boolean legacy, EObject o) {
+        if (legacy) {
+            return stored.equals(legacyFingerprint(o)) ? Status.CURRENT : Status.CHANGED;
+        }
+        String[] now = fingerprint(o).split(",");
+        String[] then = stored.split(",");
+        if (!then[0].equals(now[0])) {
+            return Status.CHANGED;
+        }
+        return then.length > 1 && then[1].equals(now[1]) ? Status.CURRENT : Status.LAYOUT;
     }
 
     /** Notes that an export at this time showed the objects as they were then. */

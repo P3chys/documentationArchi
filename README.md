@@ -137,6 +137,9 @@ The Models tree shows what no documentation export reflects yet, with a small ma
 | orange dot | the element, relationship or view changed since the last export that showed it |
 | blue dot | no export showed it yet (a new element, or one never exported) |
 | orange / blue ring | a folder (or the model) holding such objects, so you find them with the tree collapsed |
+| light orange dot / ring | only the layout of a view changed since (a box moved or resized, bend points, fonts, colours); what it says is as exported |
+
+Tick **Ignore layout-only changes** in the preferences (default off) to hide the light orange marks.
 
 Hover over a mark to see what it means and when the object was last exported. Any export counts: export a work
 package and its elements are up to date again. A view counts as changed when anything on it moves or changes, or an

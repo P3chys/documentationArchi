@@ -64,6 +64,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     private Button up;
     private Button down;
     private Button marks;
+    private Button ignoreLayout;
     private Label projectLine;
     /** False until the list is changed: saved rules that could not be loaded are not overwritten by an empty list. */
     private boolean changed;
@@ -119,6 +120,11 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         marks.setText("&Mark in the model tree what no export shows yet (orange: changed since, blue: never exported)");
         marks.setSelection(Prefs.marks());
         GridDataFactory.fillDefaults().span(2, 1).indent(0, 8).applyTo(marks);
+
+        ignoreLayout = new Button(c, SWT.CHECK);
+        ignoreLayout.setText("&Ignore layout-only changes (moved boxes, bend points, sizes, fonts, colours)");
+        ignoreLayout.setSelection(Prefs.ignoreLayout());
+        GridDataFactory.fillDefaults().span(2, 1).indent(16, 0).applyTo(ignoreLayout);
 
         try {
             load(KeywordRules.parse(Prefs.keywords()));
@@ -398,6 +404,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     protected void performDefaults() {
         load(KeywordRules.parse(Prefs.defaultKeywords()));
         marks.setSelection(true);
+        ignoreLayout.setSelection(false);
         setErrorMessage(null);
         super.performDefaults();
     }
@@ -407,8 +414,9 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         if (changed) {
             Prefs.keywords(all().format());
         }
-        if (marks.getSelection() != Prefs.marks()) {
+        if (marks.getSelection() != Prefs.marks() || ignoreLayout.getSelection() != Prefs.ignoreLayout()) {
             Prefs.marks(marks.getSelection());
+            Prefs.ignoreLayout(ignoreLayout.getSelection());
             ExportMarks.refresh();
         }
         return true;

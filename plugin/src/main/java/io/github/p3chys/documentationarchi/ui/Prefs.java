@@ -16,6 +16,7 @@ final class Prefs {
     private static final String FOLDER = "folder";
     private static final String FORMAT = "format.";
     private static final String MARKS = "marks";
+    private static final String IGNORE_LAYOUT = "marks.ignoreLayout";
 
     private Prefs() {
     }
@@ -62,6 +63,15 @@ final class Prefs {
 
     static void marks(boolean show) {
         store().setValue(MARKS, show);
+    }
+
+    /** Whether the model tree leaves out objects of which only the layout changed since their export. */
+    static boolean ignoreLayout() {
+        return store().getBoolean(IGNORE_LAYOUT);
+    }
+
+    static void ignoreLayout(boolean ignore) {
+        store().setValue(IGNORE_LAYOUT, ignore);
     }
 
     static Set<Format> formats() {

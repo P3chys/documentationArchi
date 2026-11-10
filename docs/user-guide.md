@@ -549,6 +549,9 @@ choose **Check Documentation...**: it lists what it finds, grouped by kind with 
 - `[[ref:...]]` references to objects that no longer exist,
 - `#words` that look like a label but are not a configured one: they differ from one by one or two characters
   (`#rsik` for `#risk`),
+- `˝˝NAME˝˝` and `˝NAME˝` tokens in an element's description that match no relationship of the element (a relationship
+  named exactly like the token),
+- malformed tokens: an odd number of `˝`, or a `¨` typed for one,
 - work packages that change no element.
 
 Objects the rules leave out of the export are not checked.

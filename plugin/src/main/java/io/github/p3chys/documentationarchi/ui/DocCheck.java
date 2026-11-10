@@ -47,6 +47,8 @@ final class DocCheck {
         ASSET("Assets that are missing or ambiguous"),
         REFERENCE("References to objects that no longer exist"),
         LABEL("Words that look like a label but are not one"),
+        UNRESOLVED_TOKEN("˝tokens˝ that match no relationship"),
+        MALFORMED_TOKEN("Malformed ˝tokens˝"),
         WORK_PACKAGE("Work packages that change no element");
 
         final String title;
@@ -81,6 +83,8 @@ final class DocCheck {
     }
 
     private static final Pattern HASH = Pattern.compile("(?<![\\p{L}\\p{N}_#&])#([\\p{L}\\p{N}_-]{3,})");
+    /** A HaF abbreviation token: {@code ˝˝NAME˝˝} or {@code ˝NAME˝}. */
+    private static final Pattern TOKEN = Pattern.compile("˝˝([^˝]+)˝˝|˝([^˝]+)˝");
     private static final Pattern CODE = Pattern.compile("(?s)<sql>.*?</sql>|<code[^>]*>.*?</code>|```.*?```");
 
     private final IArchimateModel model;
@@ -170,7 +174,45 @@ final class DocCheck {
             findings.add(new Finding(Kind.NO_DESCRIPTION, element, typeName(element)));
         }
         texts(element, element.getDocumentation());
+        tokens(element);
         properties(element, element.getProperties());
+    }
+
+    /**
+     * The HaF tokens of the element's description: each must be the name of one of its relationships (the double form
+     * first), and the ˝ must come in pairs with no ¨ typed for one.
+     */
+    private void tokens(IArchimateElement element) {
+        String text = element.getDocumentation();
+        if (blank(text)) {
+            return;
+        }
+        long marks = text.chars().filter(c -> c == '˝').count();
+        if (marks % 2 != 0 || text.indexOf('¨') >= 0) {
+            findings.add(new Finding(Kind.MALFORMED_TOKEN, element,
+                    marks % 2 != 0 ? "odd number of ˝" : "¨ where ˝ was meant"));
+        }
+        Set<String> names = new HashSet<>();
+        List<IArchimateRelationship> all = new ArrayList<>(element.getSourceRelationships());
+        all.addAll(element.getTargetRelationships());
+        for (IArchimateRelationship r : all) {
+            if (!(r.getSource() instanceof IJunction) && !(r.getTarget() instanceof IJunction)
+                    && !ModelReader.isPrintOrder(r.getSource()) && !ModelReader.isPrintOrder(r.getTarget())
+                    && WorkPackages.changed(r) == null && r.getName() != null) {
+                names.add(r.getName().strip());
+            }
+        }
+        Set<String> seen = new HashSet<>();
+        Matcher m = TOKEN.matcher(text);
+        while (m.find()) {
+            boolean twice = m.group(1) != null;
+            String inner = twice ? m.group(1) : m.group(2);
+            String written = twice ? "˝˝" + inner + "˝˝" : "˝" + inner + "˝";
+            boolean found = names.contains("˝˝" + inner + "˝˝") || names.contains("˝" + inner + "˝");
+            if (!found && seen.add(written)) {
+                findings.add(new Finding(Kind.UNRESOLVED_TOKEN, element, written));
+            }
+        }
     }
 
     private void relationship(IArchimateRelationship r) {

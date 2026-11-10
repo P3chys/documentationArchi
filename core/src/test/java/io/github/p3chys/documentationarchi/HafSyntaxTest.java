@@ -359,4 +359,56 @@ class HafSyntaxTest {
     void otherQuotedTextIsNoConstant(String text) {
         assertThat(kinds(RichText.inlines("state " + text + " ok", rules))).doesNotContain(InlineKind.CONSTANT);
     }
+
+    // ---- <tbl> rows without a leading |
+
+    private static String flat(List<Inline> cell) {
+        return cell.stream().map(i -> i.kind == InlineKind.BREAK ? "/" : i.text).collect(Collectors.joining());
+    }
+
+    private List<List<String>> rows(String description) {
+        Block table = RichText.parse(description, rules).stream().filter(b -> b.rows != null).findFirst().orElseThrow();
+        return table.rows.stream().map(r -> r.stream().map(HafSyntaxTest::flat).collect(Collectors.toList()))
+                .collect(Collectors.toList());
+    }
+
+    @Test
+    void hafRowsNeedNoLeadingPipeAndALineWithoutAClosingPipeGoesOnInTheCell() {
+        assertThat(rows("<tbl>\nField | Validation |\nstatus | Must be 'READY'\nor 'RETRY' |\n</tbl>")).containsExactly(
+                List.of("Field", "Validation"), List.of("status", "Must be 'READY'/or 'RETRY'"));
+    }
+
+    @Test
+    void hafContinuationCanStartTheNextCellsAndTheLastLineNeedsNoClosingPipe() {
+        assertThat(rows("<tbl>\na | b | c |\n1 | two\nlines | 3\n</tbl>")).containsExactly(
+                List.of("a", "b", "c"), List.of("1", "two/lines", "3"));
+        assertThat(rows("<tbl>\na | b |\n1 | 2\n</tbl>")).containsExactly(List.of("a", "b"), List.of("1", "2"));
+    }
+
+    @Test
+    void hafTableWorksWithWindowsLineEndings() {
+        assertThat(rows("<tbl>\r\nField | Validation |\r\nstatus | Must be 'READY'\r\nor 'RETRY' |\r\n</tbl>"))
+                .containsExactly(List.of("Field", "Validation"), List.of("status", "Must be 'READY'/or 'RETRY'"));
+    }
+
+    @Test
+    void theLeadingPipeFormIsChosenByTheFirstLine() {
+        assertThat(rows("<tbl>\n\n| a | b |\n|---|---|\n| 1 | 2 |\n</tbl>")).containsExactly(
+                List.of("a", "b"), List.of("1", "2"));
+        Block table = RichText.parse("<tbl>\n| a | b |\n</tbl>", rules).get(0);
+        assertThat(table.rows).hasSize(1);
+    }
+
+    @Test
+    void hafTableKeepsTokensAndEscapedPipes() {
+        List<Block> blocks = RichText.parse("<tbl>\n[orders] | a \\| b |\n</tbl>", rules);
+        assertThat(blocks.get(0).rows.get(0).get(0).get(0).kind).isEqualTo(InlineKind.TABLE);
+        assertThat(rows("<tbl>\n[orders] | a \\| b |\n</tbl>").get(0).get(1)).isEqualTo("a | b");
+    }
+
+    @Test
+    void hafTableWorksInsideANote() {
+        Block note = RichText.parse("<#>\n<tbl>\na | b |\n1 | 2 |\n</tbl>\n</#>", rules).get(0);
+        assertThat(note.children).anyMatch(b -> b.rows != null && b.rows.size() == 2);
+    }
 }

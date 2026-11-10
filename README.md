@@ -245,6 +245,9 @@ Right-click anything in a model and choose **Check Documentation...** to list pr
 - `[[ref:...]]` references to objects that no longer exist,
 - `#words` that look like a label but are not a configured one: they differ from one by one or two characters
   (`#rsik` for `#risk`),
+- `˝˝NAME˝˝` and `˝NAME˝` tokens in an element's description that match no relationship of the element (a relationship
+  named exactly like the token),
+- malformed tokens: an odd number of `˝`, or a `¨` typed for one,
 - work packages that change no element.
 
 Objects the rules leave out of the export are not checked.
@@ -306,7 +309,7 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 | `<sql>select ...</sql>` | an SQL code block; in HTML and PDF keywords at the start of a line (`SELECT`, `FROM`, `WHERE`, `LEFT JOIN`...) are bold and `'CONSTANT'`, `{variable}`, `[object]` coloured (in Confluence: the code macro with SQL highlighting) |
 | `https://...` | a link |
 | `[[asset:file.png]]`, `<ass>file.png</ass>` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
-| `<tbl>` ... `</tbl>` | a table of the lines starting with `\|`, the first its header; no line of dashes needed; a line without `\|` goes on in the last cell |
+| `<tbl>` ... `</tbl>` | a table of the lines starting with `\|`, the first its header; no line of dashes needed; a line without `\|` goes on in the last cell. HaF form: rows `a \| b \|` with no leading `\|`; a line not ending in `\|` goes on in the last cell on the next line |
 | a line of only `<name>` ... `</name>` | indents the lines in between by 20px per level; the tag lines are printed; `<section end>` ends all levels |
 | `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
 | `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |

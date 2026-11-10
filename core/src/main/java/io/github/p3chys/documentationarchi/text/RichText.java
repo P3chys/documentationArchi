@@ -20,6 +20,7 @@ import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
  * &lt;#&gt;a remark&lt;/#&gt;       note panel (without the closing tag: up to the next blank line); with &lt;#&gt; and &lt;/#&gt;
  *                      on lines of their own the note holds everything between them, blank lines, SQL and tables too
  * &lt;tbl&gt;|a|b|, |1|2|&lt;/tbl&gt;   a table of lines starting with |, the first its header; other lines go on with the last cell
+ *                      HaF form: &lt;tbl&gt;a | b |, 1 | 2 |&lt;/tbl&gt; one row per line, a line not ending in | goes on in the last cell
  * &lt;loop&gt; ... &lt;/loop&gt;   a line that is only a tag indents the lines after it by 20px; &lt;section end&gt; ends all indents
  * &lt;ass&gt;docs/SLA.pdf&lt;/ass&gt;   like [[asset:docs/SLA.pdf]]; a web address is a link, or a picture when it ends in .png, .jpg...
  * WARNING: ...         panel, see {@link KeywordRules}
@@ -267,8 +268,24 @@ public final class RichText {
         indent(blocks, from, nesting.level);
     }
 
-    /** A {@code <tbl>}: rows are the lines starting with |, any other line goes on with the last cell. */
+    /**
+     * A {@code <tbl>}. When the first line starts with | rows are the lines starting with |, any other line goes on with
+     * the last cell. Otherwise it is the HaF form, see {@link #hafRows}.
+     */
     private static void table(String text, KeywordRules rules, List<Block> blocks) {
+        String first = text.lines().map(String::strip).filter(l -> !l.isEmpty()).findFirst().orElse("");
+        if (!first.startsWith("|")) {
+            List<List<List<Inline>>> table = new ArrayList<>();
+            for (List<String> row : hafRows(text)) {
+                List<List<Inline>> cells = new ArrayList<>();
+                row.forEach(cell -> cells.add(inlines(cell, rules)));
+                table.add(cells);
+            }
+            if (!table.isEmpty()) {
+                blocks.add(Block.table(table));
+            }
+            return;
+        }
         List<List<String>> rows = new ArrayList<>();
         List<String> before = new ArrayList<>();
         for (String line : text.split("\n")) {
@@ -298,6 +315,35 @@ public final class RichText {
             }
             blocks.add(Block.table(table));
         }
+    }
+
+    /**
+     * The rows of a HaF table: {@code cell | cell |} with no | at the start. A line not ending in | goes on with its
+     * last cell on the next line, joined with a line break; after the break the text up to the next | still belongs to
+     * that cell and the parts after it are further cells of the row. The last line is closed without a |.
+     */
+    private static List<List<String>> hafRows(String text) {
+        List<List<String>> rows = new ArrayList<>();
+        boolean open = false;
+        for (String line : text.split("\\R")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            List<String> parts = splitCells(line.strip());
+            boolean closed = parts.size() > 1 && parts.get(parts.size() - 1).isEmpty();
+            if (closed) {
+                parts.remove(parts.size() - 1);
+            }
+            if (open) {
+                List<String> last = rows.get(rows.size() - 1);
+                last.set(last.size() - 1, (last.get(last.size() - 1) + "\n" + parts.get(0)).strip());
+                last.addAll(parts.subList(1, parts.size()));
+            } else {
+                rows.add(parts);
+            }
+            open = !closed;
+        }
+        return rows;
     }
 
     private static void sql(String text, List<Block> blocks) {
@@ -402,6 +448,11 @@ public final class RichText {
         String row = line.strip();
         row = row.startsWith("|") ? row.substring(1) : row;
         row = row.endsWith("|") && !row.endsWith("\\|") ? row.substring(0, row.length() - 1) : row;
+        return splitCells(row);
+    }
+
+    /** Every part of the line between |, stripped; a | ending the line gives a last empty part. */
+    private static List<String> splitCells(String row) {
         List<String> cells = new ArrayList<>();
         StringBuilder cell = new StringBuilder();
         int depth = 0;

@@ -3,10 +3,12 @@ package io.github.p3chys.documentationarchi.ui;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -14,7 +16,10 @@ import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.core.runtime.SubMonitor;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.gef.EditPart;
@@ -29,6 +34,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.render.Exporter;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
+import io.github.p3chys.documentationarchi.text.KeywordRules;
 
 /** The right-click "Export Documentation..." of the model tree and the diagram editors. */
 public class ExportHandler extends AbstractHandler {
@@ -51,7 +57,8 @@ public class ExportHandler extends AbstractHandler {
 
     /** Asks where to and in which formats, then exports in the background. */
     static void run(Shell shell, ModelReader.Selection selection) {
-        ExportDialog dialog = new ExportDialog(shell, describe(selection));
+        ExportDialog dialog = new ExportDialog(shell, describe(selection) + (ProjectRules.exists(selection.model)
+                ? "\nFormatting from " + ProjectRules.file(selection.model) + " (project rules)" : ""));
         if (dialog.open() != ExportDialog.OK) {
             return;
         }
@@ -106,9 +113,15 @@ public class ExportHandler extends AbstractHandler {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    List<String> problems = export(selection, folder, formats);
+                    List<String> problems = export(selection, folder, formats, null, monitor);
                     display.asyncExec(() -> finished(display, folder, problems));
                     return Status.OK_STATUS;
+                } catch (CancellationException | OperationCanceledException e) { // the previous export is as it was
+                    return Status.CANCEL_STATUS;
+                } catch (IllegalArgumentException e) { // unusable formatting rules: the message says which file and line
+                    display.asyncExec(() -> MessageDialog.openError(display.getActiveShell(), "Export Documentation",
+                            "The export failed. " + e.getMessage()));
+                    return Status.CANCEL_STATUS;
                 } catch (IOException | RuntimeException e) {
                     Activator.log("Export failed", e);
                     display.asyncExec(() -> MessageDialog.openError(display.getActiveShell(), "Export Documentation",
@@ -127,14 +140,45 @@ public class ExportHandler extends AbstractHandler {
      * @return references to assets that found no file
      */
     static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats) throws IOException {
+        return export(selection, folder, formats, null, new NullProgressMonitor());
+    }
+
+    /**
+     * @param rulesFile formatting rules to use instead of the project file and the preferences, or null
+     * @param monitor told the progress per view drawn and per format written; cancelling it stops the export before
+     *        anything of the previous one is replaced, and nothing is noted for the model tree marks
+     * @throws CancellationException if the monitor was cancelled
+     */
+    static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
+            IProgressMonitor monitor) throws IOException {
+        SubMonitor progress = SubMonitor.convert(monitor, "Exporting documentation",
+                selection.views.size() + formats.size() + 1);
         // the PDF library uses AWT classes, which must not start a GUI next to SWT (it would hang on macOS)
         System.setProperty("java.awt.headless", "true");
         List<EObject> shown = new ArrayList<>();
-        Doc doc = ModelReader.read(selection, ViewImages::render, shown);
+        KeywordRules rules = ProjectRules.resolve(selection.model, rulesFile, Prefs::rules); // fails before any work
+        Doc doc = ModelReader.read(selection, (view, page) -> {
+            check(progress);
+            progress.subTask("Drawing " + view.getName());
+            ViewImages.render(view, page);
+            progress.worked(1);
+        }, shown);
         Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile
         long time = System.currentTimeMillis();
-        Exporter exporter = new Exporter(doc, Prefs.rules());
-        exporter.export(folder, formats);
+        Exporter exporter = new Exporter(doc, rules).version(selection.model.getName(),
+                selection.model.getFile() == null ? null : selection.model.getFile().toPath(), LocalDateTime.now());
+        exporter.export(folder, formats, new Exporter.Progress() {
+            @Override
+            public void step(String task) {
+                progress.subTask(task);
+                progress.worked(1);
+            }
+
+            @Override
+            public boolean cancelled() {
+                return progress.isCanceled();
+            }
+        });
         try {
             ExportState.get().record(selection.model, fingerprints, time);
             ExportMarks.refresh();
@@ -142,6 +186,12 @@ public class ExportHandler extends AbstractHandler {
             Activator.log("The export worked, but what it showed could not be noted for the model tree marks", e);
         }
         return exporter.problems();
+    }
+
+    private static void check(IProgressMonitor monitor) {
+        if (monitor.isCanceled()) {
+            throw new CancellationException("The export was cancelled");
+        }
     }
 
     private static void finished(Display display, Path folder, List<String> problems) {

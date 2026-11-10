@@ -189,6 +189,10 @@ finishes, a message says *Exported to &lt;folder&gt;* and offers **Open Folder**
 refers to an asset that doesn't exist, the message lists those references (up to 15) and the pages show them in red
 – see [Assets](#12-assets-pictures-and-files).
 
+The Progress view shows which view's picture is being drawn and which format is being written. **Cancel** there stops
+the export; the previous export in the folder is then exactly as it was, and the change marks in the Models tree
+stay as they were. The same holds if an export fails.
+
 ### The export folder
 
 ```
@@ -213,6 +217,11 @@ online-insurance/
 Every export carries its own copies of pictures and files, so you can zip it, mail it or move it without breaking
 links.
 
+An export replaces what it owns: `html/`, `confluence/`, the PDF and `assets/` (the PDF's), each only when that format
+is exported now. Pages of views you renamed or deleted do not stay behind. Files you put elsewhere in the folder are
+never touched, and files you put inside `html/`, `confluence/` or `assets/` are removed, so keep your own files out of
+those folders.
+
 ---
 
 ## 6. The exported documentation
@@ -223,6 +232,12 @@ With more than one page, the export starts with an overview: the model's purpose
 and the list of pages.
 
 <p align="center"><img src="images/output-html-overview.png" width="760" alt="Exported overview page"></p>
+
+At the bottom of the overview page (and as the last line of the first page of the PDF) one line says which state of the
+model it shows: *Generated 2026-11-10 14:03 from Online Insurance*. If the model is shared with
+cooperativeArchi (a hidden `.coarchi` folder next to the model file), the line ends with the branch and the short
+commit, *– main ＠ 0123456*. If the branch or commit cannot be read, that part is left out. The Confluence pages do not
+have this line. (The PDF shows a plain @, its font has no full-width one.)
 
 ### View pages
 
@@ -365,6 +380,14 @@ what to export before you hand documentation over.
 | orange dot | the element, relationship or view changed since the last export that showed it |
 | blue dot | no export has shown it yet (new, or never exported) |
 | orange / blue ring | a folder (or the model) holding such objects, so you find them with the tree collapsed |
+| light orange dot / ring | only the layout changed since the last export (a box moved or resized, bend points, fonts, colours) |
+
+**Layout-only changes.** Moving a box does not change what the documentation says, so it gets the lighter mark with
+its own tooltip. Names, descriptions, properties, which objects are on a view and the texts on it are content: a
+change there gets the normal orange mark. Tick **Ignore layout-only changes** in the preferences (default off) to
+hide the light marks. The view's picture in an export is redrawn either way; the mark only tells you whether a new
+export is needed for the text. Marks from exports made by an older version stay as they were and cannot tell layout
+from content until the next export.
 
 - Hover over a mark to see what it means and when the object was last exported.
 - **Any** export counts: exporting a work package brings its elements up to date.
@@ -499,6 +522,18 @@ heading 2 color=#0052cc size=120%      how headings of a level (1-4) look
 sql background=#f4f5f7 theme=midnight linenumbers
 ```
 
+### Project rules
+
+To make everyone (and the CI build) format a model the same way, keep the rules next to the model: a file named
+`documentation.rules` in the folder of the `.archimate` file, in the same text format as **Edit as Text...**. When it
+exists, every export of that model uses it instead of the preferences; without it the preferences apply, and without
+those the built-in defaults.
+
+**Save as Project Rules...** (in the button column) writes the rules of the list to that file for a model you choose
+from the open, saved ones. Below the list, a line names the open models that use project rules, and the export dialog
+says so for the model it exports. If the file has an invalid line, the export stops and tells you the file and the
+line; it does not quietly use other rules.
+
 ---
 
 ## 12. Assets: pictures and files
@@ -589,9 +624,30 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 |--------|---------|
 | `--documentation.folder` | export the whole model's documentation to this folder |
 | `--documentation.formats` | comma separated `html`, `pdf`, `confluence`; default: all three |
+| `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
+| `--documentation.views a,b` | only these views: names or ids |
+| `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 
-The command line exports the whole model and uses the formatting settings of the Archi installation it runs in.
-Missing assets are logged as errors.
+Without `--documentation.workPackages`, `--documentation.views` and `--documentation.folders` the command line exports
+the whole model. Views and folders can be combined (`--documentation.views Overview --documentation.folders Views/Sales`);
+work packages cannot be mixed with them, run the export twice instead. Names are matched exactly; a work package by its
+name or by the ticket key its name starts with, a folder by its path from the top folder (the folder names Archi shows,
+`Views` for example). A name that matches nothing, or a view name shared by several views, stops the run with an error
+that lists every name not found.
+
+**Failing a build.** Archi's command line providers signal failure by throwing an error, and Archi ends with a
+non-zero exit code only when you also pass its own `--abortOnException`. For CI use both:
+
+```bash
+Archi -application com.archimatetool.commandline.app -consoleLog -nosplash --abortOnException \
+  --loadModel model.archimate --documentation.folder out --documentation.strict
+```
+
+An invalid rules file (the project file or the one given with `--documentation.rules`) always fails the run and names
+the file and line. The command line exports the whole model by default and uses the project rules file of the model if there is one, else the formatting settings of the Archi installation it runs in.
+Missing assets are logged as errors, and with `--documentation.strict` they fail the run.
 
 ---
 
@@ -603,6 +659,7 @@ Missing assets are logged as errors.
 | Work packages and their links | in the model (Work Package elements, associations) | yes, with the model |
 | Asset files | the `Assets` folder next to the model file | yes, if you share the folder |
 | Formatting and keywords | Archi's preferences on your computer | no – use **Edit as Text...** to copy them |
+| Project rules (`documentation.rules`) | next to the model file | yes, if you share the folder |
 | Export folder and formats | Archi's preferences on your computer | no |
 | What each export showed (change marks) | Archi's settings folder, per model, per computer | no – exporting never changes the model |
 

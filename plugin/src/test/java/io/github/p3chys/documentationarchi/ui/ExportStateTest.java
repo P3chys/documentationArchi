@@ -132,4 +132,34 @@ class ExportStateTest {
         assertThat(ExportState.tracked(shown)).isFalse(); // part of its view
         assertThat(ExportState.tracked(a)).isTrue();
     }
+
+    @Test
+    void movingABoxOnlyChangesTheLayoutOfItsView() throws Exception {
+        ExportState state = export(new ExportState(folder));
+
+        shown.setBounds(F.createBounds(50, 40, 200, 80));
+        shown.setFillColor("#ff0000");
+        assertThat(status(state, view)).isEqualTo(Status.LAYOUT);
+        assertThat(status(state, a)).isEqualTo(Status.CURRENT);
+
+        IDiagramModelArchimateObject second = F.createDiagramModelArchimateObject();
+        second.setArchimateElement(b);
+        second.setBounds(F.createBounds(10, 100, 120, 55));
+        view.getChildren().add(second);
+        assertThat(status(state, view)).isEqualTo(Status.CHANGED); // what is on the view is content
+    }
+
+    @Test
+    void entriesOfOlderVersionsStillReadAndAreNotAllChanged() throws Exception {
+        ExportState state = new ExportState(folder);
+        state.record(model, java.util.Map.of(a.getId(), ExportState.legacyFingerprint(a),
+                view.getId(), ExportState.legacyFingerprint(view)), 1000);
+        assertThat(status(state, a)).isEqualTo(Status.CURRENT);
+        assertThat(status(state, view)).isEqualTo(Status.CURRENT);
+
+        shown.setBounds(F.createBounds(70, 70, 120, 55));
+        assertThat(status(state, view)).isEqualTo(Status.CHANGED); // an old entry cannot tell layout from content
+        a.setName("Renamed");
+        assertThat(status(state, a)).isEqualTo(Status.CHANGED);
+    }
 }

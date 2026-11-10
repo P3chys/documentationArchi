@@ -63,9 +63,18 @@ the model (or the work package), and you're asked before files in it are replace
   confluence/pages/, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
 ```
 
-The export runs in the background, so you can keep working.
+The export runs in the background, so you can keep working; the Progress view shows the view being drawn and the
+format being written, and **Cancel** there stops it. A re-export replaces the folders it owns (`html/`, `assets/`,
+`confluence/` and the PDF, each only if that format is exported now), so files of renamed or deleted views do not
+stay behind. The new files are written next to the old ones and swapped in at the end: a cancelled or failed export
+leaves the previous one as it was, and the model tree marks do not change. Nothing else in the folder is touched.
 
 ## What a page contains
+
+The overview page ends with one line, and the first page of the PDF as well: "Generated 2026-11-10 14:03 from
+&lt;model&gt;". When the model sits in a cooperativeArchi workspace (a `.coarchi` folder next to the model file) it
+continues with " – &lt;branch&gt; ＠ &lt;short commit&gt;", read from that repository's files; the Confluence pages
+don't have the line.
 
 Each view gets a page with, in this order: the view's description, the list of its elements (with their types), its
 picture, its properties, the text of its notes, the views it refers to, and then each element described in full.
@@ -128,6 +137,9 @@ The Models tree shows what no documentation export reflects yet, with a small ma
 | orange dot | the element, relationship or view changed since the last export that showed it |
 | blue dot | no export showed it yet (a new element, or one never exported) |
 | orange / blue ring | a folder (or the model) holding such objects, so you find them with the tree collapsed |
+| light orange dot / ring | only the layout of a view changed since (a box moved or resized, bend points, fonts, colours); what it says is as exported |
+
+Tick **Ignore layout-only changes** in the preferences (default off) to hide the light orange marks.
 
 Hover over a mark to see what it means and when the object was last exported. Any export counts: export a work
 package and its elements are up to date again. A view counts as changed when anything on it moves or changes, or an
@@ -183,6 +195,11 @@ token variable color=#6554c0 italic   how {variable} looks; also table and const
 heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
 sql background=#f4f5f7 theme=midnight linenumbers
 ```
+
+**Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
+export of that model uses it instead of the preferences, on every computer and in CI (order: project file, then
+preferences, then the built-in defaults). **Save as Project Rules...** writes the current list there for an open, saved
+model. An invalid file fails the export and names the file and line; it never falls back to other rules.
 
 Confluence keeps text colour, bold, italic, underline, strikethrough and smaller text. It doesn't keep every
 background or larger size in every version, and the style editors say so where it matters.
@@ -255,7 +272,18 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
   --loadModel model.archimate --documentation.folder out [--documentation.formats html,pdf,confluence]
 ```
 
-This exports the whole model; formats default to all three. Missing assets are logged as errors.
+This exports the whole model; formats default to all three. Missing assets are logged as errors. More options:
+
+| `--documentation.workPackages KEY[,KEY]` | only these work packages: names, or the ticket key a name starts with (`RBWDP-20025`) |
+| `--documentation.views a,b` | only these views: names or ids |
+| `--documentation.folders Views/Sales` | only the views and elements in these folders (paths from the top folder) |
+| `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
+| `--documentation.strict` | missing assets also fail the run (unknown names always do) |
+
+Views and folders can be combined; work packages are a run of their own. A name that matches nothing (or a view name
+that matches several) is an error that lists what was not found. A run fails the way Archi's command line providers
+fail: it throws, and with Archi's own `--abortOnException` the process exits with a non-zero code. Add that option to
+CI runs. The model's `documentation.rules` file is used automatically; an invalid one fails the run.
 
 ## For developers
 

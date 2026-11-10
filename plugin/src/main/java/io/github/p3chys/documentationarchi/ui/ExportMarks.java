@@ -59,12 +59,14 @@ public class ExportMarks implements IStartup {
     private static boolean redrawing;
     private static Color changed;
     private static Color fresh;
+    private static Color layoutOnly;
 
     private static final class Marks {
         final Map<Object, ExportState.Mark> objects = new HashMap<>();
         /** Folders and models below which something changed, or is new. */
         final Set<Object> changedBelow = new HashSet<>();
         final Set<Object> newBelow = new HashSet<>();
+        final Set<Object> layoutBelow = new HashSet<>();
     }
 
     @Override
@@ -74,6 +76,7 @@ public class ExportMarks implements IStartup {
             Display display = workbench.getDisplay();
             changed = new Color(display, 255, 139, 0);
             fresh = new Color(display, 0, 101, 255);
+            layoutOnly = new Color(display, 255, 200, 140);
             for (IWorkbenchWindow window : workbench.getWorkbenchWindows()) {
                 watch(window);
             }
@@ -199,17 +202,19 @@ public class ExportMarks implements IStartup {
         return marks.computeIfAbsent(model, m -> {
             Marks result = new Marks();
             ExportState state = ExportState.get();
+            boolean ignoreLayout = Prefs.ignoreLayout();
             List<EObject> objects = new ArrayList<>();
             objects.add(m);
             m.eAllContents().forEachRemaining(objects::add);
             for (EObject o : objects) {
                 ExportState.Mark mark = state.mark(o);
-                if (mark == null) {
+                if (mark == null || ignoreLayout && mark.status == ExportState.Status.LAYOUT) {
                     continue;
                 }
                 result.objects.put(o, mark);
                 if (mark.status != ExportState.Status.CURRENT) {
-                    Set<Object> below = mark.status == ExportState.Status.CHANGED ? result.changedBelow : result.newBelow;
+                    Set<Object> below = mark.status == ExportState.Status.CHANGED ? result.changedBelow
+                            : mark.status == ExportState.Status.LAYOUT ? result.layoutBelow : result.newBelow;
                     for (EObject p = o.eContainer(); p != null; p = p.eContainer()) {
                         if (p instanceof IFolder || p instanceof IArchimateModel) {
                             below.add(p);
@@ -249,7 +254,10 @@ public class ExportMarks implements IStartup {
         if (m.changedBelow.contains(data)) {
             return new Shown(false, ExportState.Status.CHANGED, 0);
         }
-        return m.newBelow.contains(data) ? new Shown(false, ExportState.Status.NEW, 0) : null;
+        if (m.newBelow.contains(data)) {
+            return new Shown(false, ExportState.Status.NEW, 0);
+        }
+        return m.layoutBelow.contains(data) ? new Shown(false, ExportState.Status.LAYOUT, 0) : null;
     }
 
     private static void paint(Event e) {
@@ -269,7 +277,8 @@ public class ExportMarks implements IStartup {
         Color previousForeground = gc.getForeground();
         int antialias = gc.getAntialias();
         gc.setAntialias(SWT.ON);
-        Color colour = shown.status == ExportState.Status.CHANGED ? changed : fresh;
+        Color colour = shown.status == ExportState.Status.CHANGED ? changed
+                : shown.status == ExportState.Status.LAYOUT ? layoutOnly : fresh;
         if (shown.own) {
             gc.setBackground(colour);
             gc.fillOval(dot.x, dot.y, dot.width, dot.height);
@@ -308,12 +317,16 @@ public class ExportMarks implements IStartup {
         }
         if (!shown.own) {
             return shown.status == ExportState.Status.CHANGED ? "Holds changes no documentation export shows yet"
+                    : shown.status == ExportState.Status.LAYOUT ? "Holds objects whose layout changed since their export"
                     : "Holds objects no documentation export shows yet";
         }
         if (shown.status == ExportState.Status.NEW) {
             return "In no documentation export yet";
         }
-        return "Changed since its last documentation export" + (shown.exported > 0
+        String what = shown.status == ExportState.Status.LAYOUT
+                ? "Only the layout changed since its last documentation export (the text is as exported)"
+                : "Changed since its last documentation export";
+        return what + (shown.exported > 0
                 ? " (" + DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(shown.exported)) + ")"
                 : "");
     }

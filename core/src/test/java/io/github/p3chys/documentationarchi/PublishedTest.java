@@ -141,4 +141,18 @@ class PublishedTest {
 
         assertThat(Published.page(List.of(), "2026-11-10 09:00").documentation).startsWith("Nothing changed since");
     }
+
+    @Test
+    void changesPageSpeaksTheLanguageOfTheDocument() {
+        Published published = published(doc("a|Customer|Buys policies.", "b|Broker|Sells them."));
+        io.github.p3chys.documentationarchi.text.Texts czech = new io.github.p3chys.documentationarchi.text.Texts("cs",
+                Map.of("added", "Nové"));
+        DocPage page = Published.page(published.changesTo(doc("a|Client|Buys and renews.", "c|Agent|New here."), true),
+                "2026-11-10 09:00", czech::get);
+        assertThat(page.title).isEqualTo("Změny od 2026-11-10 09:00");
+        assertThat(page.documentation).isEqualTo("Od dokumentace zveřejněné 2026-11-10 09:00: přidáno 1, změněno 2, odebráno 1.");
+        assertThat(page.contents).extracting(l -> l.type).contains("Změněno Business Actor", "Nové Business Actor",
+                "Odebráno Business Actor");
+        assertThat(page.entries.get(1).properties).extracting(p -> p.key).contains("Name – před", "Name – po");
+    }
 }

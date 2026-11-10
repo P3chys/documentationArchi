@@ -31,6 +31,12 @@ public final class Texts {
         add("relationship", "Relationship", "Vztah");
         add("element", "Element", "Prvek");
         add("description", "Description", "Popis");
+        add("name", "Name", "Název");
+        add("token", "Token", "Výraz");
+        add("used-in", "Used in", "Použito v");
+        add("tables-index", "Database tables", "Databázové tabulky");
+        add("variables-index", "Variables", "Proměnné");
+        add("constants-index", "Constants", "Konstanty");
         add("views", "Views", "Pohledy");
         add("part-of", "Part of", "Součást");
         add("contains", "Contains", "Obsahuje");
@@ -49,6 +55,18 @@ public final class Texts {
         add("generated", "Generated {time} from {model}", "Vygenerováno {time} z {model}");
         add("missing-asset", "missing asset", "chybějící příloha");
         add("missing-reference", "missing reference", "chybějící odkaz");
+        // the page of changes since the published documentation
+        add("changes-since", "Changes since {date}", "Změny od {date}");
+        add("changes-summary", "Since the documentation published on {date}: {added} added, {changed} changed, {removed} removed.",
+                "Od dokumentace zveřejněné {date}: přidáno {added}, změněno {changed}, odebráno {removed}.");
+        add("changes-none", "Nothing changed since the documentation published on {date}.",
+                "Od dokumentace zveřejněné {date} se nic nezměnilo.");
+        add("added", "Added", "Přidáno");
+        add("changed", "Changed", "Změněno");
+        add("removed", "Removed", "Odebráno");
+        add("before", "before", "před");
+        add("after", "after", "po");
+        add("new", "new", "nové");
     }
 
     private final int language;

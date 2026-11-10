@@ -218,7 +218,7 @@ public final class Exporter {
     private void html(Path folder, Progress progress) throws IOException {
         Files.createDirectories(folder.resolve("images"));
         Files.writeString(folder.resolve("style.css"), resource("style.css"));
-        HtmlDialect dialect = new HtmlDialect(false);
+        HtmlDialect dialect = new HtmlDialect(doc, false);
         Set<Assets.Asset> used = new LinkedHashSet<>();
         for (DocPage page : doc.pages) {
             check(progress);
@@ -309,7 +309,7 @@ public final class Exporter {
     }
 
     private String singleDocument(Set<Assets.Asset> used) throws IOException {
-        HtmlDialect dialect = new HtmlDialect(true);
+        HtmlDialect dialect = new HtmlDialect(doc, true);
         StringBuilder bookmarks = new StringBuilder();
         StringBuilder body = new StringBuilder();
         for (DocPage page : doc.pages) {

@@ -9,7 +9,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.eclipse.emf.common.notify.Notification;
 import org.eclipse.emf.ecore.EObject;
@@ -39,6 +42,7 @@ import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IDiagramModel;
 import com.archimatetool.model.util.ArchimateModelUtils;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.render.Preview;
@@ -66,6 +70,8 @@ public final class PreviewView extends ViewPart {
     private int pages;
     /** The control that had the focus before a page was loaded, which keeps it. */
     private Control focus;
+    /** The real files of the assets the page shows or links to: the only files a click opens. */
+    private Set<Path> assets = Set.of();
     private final PictureCache pictures = new PictureCache(ViewImages::render);
     private final Runnable refresh = this::refresh;
 
@@ -207,7 +213,7 @@ public final class PreviewView extends ViewPart {
     private String render() throws IOException {
         IArchimateModel of = target == null ? null : PreviewTarget.model(target);
         if (of == null) {
-            return PreviewTarget.html(target, null, null, null);
+            return PreviewTarget.html(target, null, null, null, null);
         }
         model = of;
         KeywordRules rules = ProjectRules.resolve(of, null, Prefs::rules);
@@ -219,6 +225,7 @@ public final class PreviewView extends ViewPart {
             }
         }, new ArrayList<>());
         List<IOException> failed = new ArrayList<>();
+        Set<Assets.Asset> used = new HashSet<>();
         String html = PreviewTarget.html(target, doc, rules, p -> {
             try {
                 return picture(p);
@@ -226,10 +233,11 @@ public final class PreviewView extends ViewPart {
                 failed.add(e);
                 return null;
             }
-        });
+        }, used);
         if (!failed.isEmpty()) {
             throw failed.get(0);
         }
+        assets = used.stream().map(a -> a.file).collect(Collectors.toSet()); // real paths, see Assets
         return html;
     }
 
@@ -267,8 +275,6 @@ public final class PreviewView extends ViewPart {
     }
 
     private void follow(LocationEvent event) {
-        Path assets = model == null || model.getFile() == null ? null
-                : model.getFile().getAbsoluteFile().toPath().getParent().resolve("Assets");
         switch (PreviewLinks.decide(event.location, page, assets)) {
             case LOAD:
                 return;
@@ -282,7 +288,10 @@ public final class PreviewView extends ViewPart {
             case OPEN:
                 event.doit = false;
                 Path file = PreviewLinks.file(event.location);
-                Program.launch(file != null ? file.toString() : event.location);
+                Path asset = file == null ? null : PreviewLinks.asset(file, assets);
+                if (file == null || asset != null) { // checked again: decide() said yes for the same file
+                    Program.launch(asset != null ? asset.toString() : event.location);
+                }
                 return;
             default:
                 event.doit = false;

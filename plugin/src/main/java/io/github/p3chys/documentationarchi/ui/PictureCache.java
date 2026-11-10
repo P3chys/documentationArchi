@@ -53,5 +53,7 @@ final class PictureCache {
         page.image = picture.drawn.image;
         page.imageWidth = picture.drawn.imageWidth;
         page.imageHeight = picture.drawn.imageHeight;
+        page.areas.clear();
+        page.areas.addAll(picture.drawn.areas);
     }
 }

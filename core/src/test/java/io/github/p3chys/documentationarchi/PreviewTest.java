@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ class PreviewTest {
 
     private Doc doc;
     private DocPage view;
+    private final Set<Assets.Asset> used = new HashSet<>();
 
     @BeforeEach
     void doc() throws Exception {
@@ -50,7 +53,7 @@ class PreviewTest {
 
     @Test
     void pageIsTheExportedPageWithLinksThePreviewFollowsItself() {
-        String html = Preview.page(doc, view, KeywordRules.defaults(), "picture-1.png");
+        String html = Preview.page(doc, view, KeywordRules.defaults(), "picture-1.png", used);
 
         assertThat(html).startsWith("<!DOCTYPE html>").contains("<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"/>")
                 .contains("<h1>Sales</h1>").contains("src=\"picture-1.png\"")
@@ -61,11 +64,12 @@ class PreviewTest {
                 .contains("href=\"" + model.resolve("Assets/SLA.pdf").toUri() + "\">the SLA</a>")
                 .contains("[missing asset: gone.png]")
                 .contains("img.diagram"); // the export's style sheet
+        assertThat(used).extracting(a -> a.name).containsExactly("SLA.pdf");
     }
 
     @Test
     void elementIsItsDescriptionNamingThePageItIsOn() {
-        String html = Preview.elements(doc, List.of("e2"), KeywordRules.defaults());
+        String html = Preview.elements(doc, List.of("e2"), KeywordRules.defaults(), used);
 
         assertThat(html).contains("<title>Portal</title>")
                 .contains("Described on <a href=\"#ref-v2\">Back office</a>")
@@ -74,13 +78,13 @@ class PreviewTest {
 
     @Test
     void relationshipShowsBothEnds() {
-        assertThat(Preview.elements(doc, List.of("e1", "e2"), KeywordRules.defaults()))
+        assertThat(Preview.elements(doc, List.of("e1", "e2"), KeywordRules.defaults(), used))
                 .contains("<h3 id=\"e-e1\">").contains("<h3 id=\"e-e2\">").contains("<h3>Front office</h3>");
     }
 
     @Test
     void nothingForWhatNoPageDescribes() {
-        assertThat(Preview.elements(doc, List.of("v1", "nothere"), KeywordRules.defaults())).isNull();
+        assertThat(Preview.elements(doc, List.of("v1", "nothere"), KeywordRules.defaults(), used)).isNull();
         assertThat(Preview.message("Select <something>")).contains("Select &lt;something&gt;");
     }
 

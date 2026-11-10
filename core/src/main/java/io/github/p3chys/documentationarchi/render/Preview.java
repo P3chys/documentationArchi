@@ -4,9 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
@@ -28,20 +29,25 @@ public final class Preview {
     private Preview() {
     }
 
-    /** A whole page, as its HTML file has it. */
-    public static String page(Doc doc, DocPage page, KeywordRules rules, String pictureUrl) {
-        HtmlDialect dialect = HtmlDialect.preview(pictureUrl);
+    /**
+     * A whole page, as its HTML file has it.
+     *
+     * @param used gets the assets the page shows or links to
+     */
+    public static String page(Doc doc, DocPage page, KeywordRules rules, String pictureUrl, Set<Assets.Asset> used) {
+        HtmlDialect dialect = HtmlDialect.preview(doc, pictureUrl);
         return document(page.title, "<h1>" + title(page.title, rules, dialect) + "</h1>"
-                + PageBody.render(doc, page, dialect, rules, new HashSet<>()));
+                + PageBody.render(doc, page, dialect, rules, used));
     }
 
     /**
      * The descriptions of the elements as their page has them, each saying which page that is.
      *
+     * @param used gets the assets the descriptions show or link to
      * @return null when the export describes none of them
      */
-    public static String elements(Doc doc, List<String> ids, KeywordRules rules) {
-        HtmlDialect dialect = HtmlDialect.preview(null);
+    public static String elements(Doc doc, List<String> ids, KeywordRules rules, Set<Assets.Asset> used) {
+        HtmlDialect dialect = HtmlDialect.preview(doc, null);
         StringBuilder body = new StringBuilder();
         String title = null;
         for (String id : ids) {
@@ -59,7 +65,7 @@ public final class Preview {
             }
             body.append(body.length() == 0 ? "" : "<hr/>").append("<p class=\"preview-where\">Described on ")
                     .append(dialect.link(doc.locate(at.page.id), alone, Xml.escape(at.page.title)))
-                    .append("</p>").append(PageBody.render(doc, alone, dialect, rules, new HashSet<>()));
+                    .append("</p>").append(PageBody.render(doc, alone, dialect, rules, used));
             title = title == null ? entry.name : title;
         }
         return title == null ? null : document(title, body.toString());

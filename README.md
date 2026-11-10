@@ -91,6 +91,9 @@ grouped by type.
   the model as a `doc:home` property of the element (the view's id), which the export never shows.
 - With more than one page there is an overview page listing all of them. The model's purpose and properties go there.
 - The pictures are drawn at twice the size, so they stay sharp in the PDF and when zooming in.
+- Click an element in a view's picture to go to its description, on the same page or the one that describes it, in
+  the HTML pages and the PDF (not in Confluence). Elements that the export describes nowhere aren't clickable. On a
+  web page such a picture is shown at its own width, and a wide one scrolls sideways instead of shrinking.
 - The PDF has bookmarks for every page.
 - Elements that sit in a group of the view (Archi's visual *Group*) come under the group's name, in the list of
   elements and among the descriptions, group after group as they are on the view; the print order applies inside
@@ -118,7 +121,7 @@ view and choose **Show in Documentation Preview** to open it on that object.
   Properties view, a property, a rename) half a second after you stop typing. The picture of a view is only drawn
   again when that view changes.
 - A link to another element or view shows that one in the preview. Web links open in your browser, assets with
-  their program. Scripts never run.
+  their program (never a program or script among them). Scripts never run.
 - Missing assets show in red, as in the export. Previewing never changes the model and never counts as an export
   for the marks in the Models tree.
 
@@ -310,6 +313,8 @@ CONFLUENCE_TOKEN=<personal access token> python <model>/confluence/upload_to_con
 - Pages are matched by title. Existing ones get a new version, so you can upload the same export again after
   changes.
 - Page titles start with the model name, because Confluence titles must be unique in a space.
+- The pictures of views are plain pictures there: clicking an element in them leads nowhere (it does in the HTML
+  pages and the PDF).
 
 ## Command line
 

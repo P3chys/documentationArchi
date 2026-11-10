@@ -4,7 +4,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
@@ -21,15 +23,17 @@ import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
  */
 final class HtmlDialect implements Dialect {
 
+    private final Doc doc;
     private final boolean singleDocument;
     /** In the preview: where the picture of the view is; null otherwise. */
     private final String preview;
 
-    HtmlDialect(boolean singleDocument) {
-        this(singleDocument, null);
+    HtmlDialect(Doc doc, boolean singleDocument) {
+        this(doc, singleDocument, null);
     }
 
-    private HtmlDialect(boolean singleDocument, String preview) {
+    private HtmlDialect(Doc doc, boolean singleDocument, String preview) {
+        this.doc = doc;
         this.singleDocument = singleDocument;
         this.preview = preview;
     }
@@ -38,12 +42,16 @@ final class HtmlDialect implements Dialect {
      * The preview's: links to views and elements are {@link Preview#REF} and an id, which the preview shows instead of
      * following; assets are the files in the model's Assets folder, the picture is at {@code pictureUrl}.
      */
-    static HtmlDialect preview(String pictureUrl) {
-        return new HtmlDialect(false, pictureUrl == null ? "" : pictureUrl);
+    static HtmlDialect preview(Doc doc, String pictureUrl) {
+        return new HtmlDialect(doc, false, pictureUrl == null ? "" : pictureUrl);
     }
 
     @Override
     public String link(Doc.Location to, DocPage from, String label) {
+        return "<a href=\"" + Xml.escape(href(to, from)) + "\">" + label + "</a>";
+    }
+
+    private String href(Doc.Location to, DocPage from) {
         String href;
         if (preview != null) {
             href = Preview.REF + (to.anchor != null ? to.anchor.substring(Preview.ENTRY.length()) : to.page.id);
@@ -52,7 +60,7 @@ final class HtmlDialect implements Dialect {
         } else {
             href = (to.page == from ? "" : to.page.slug() + ".html") + (to.anchor != null ? "#" + to.anchor : "");
         }
-        return "<a href=\"" + Xml.escape(href.isEmpty() ? "#" : href) + "\">" + label + "</a>";
+        return href.isEmpty() ? "#" : href;
     }
 
     static String pageId(DocPage page) {
@@ -98,8 +106,64 @@ final class HtmlDialect implements Dialect {
                 : preview != null ? preview : "images/" + page.slug() + ".png";
         // the PDF fits it on one page; a web page shows it at its size, readers zoom and scroll
         int fitted = singleDocument ? Pictures.fit(page.imageWidth, page.imageHeight, Pictures.PDF_WIDTH) : 0;
-        return "<img class=\"diagram\" src=\"" + src + "\" style=\"width:" + (fitted > 0 ? fitted : page.imageWidth)
-                + "px\" alt=\"" + Xml.escape(page.title) + "\"/>";
+        int width = fitted > 0 ? fitted : page.imageWidth;
+        String alt = " alt=\"" + Xml.escape(page.title) + "\"/>";
+        String image = "<img class=\"diagram\" src=\"" + src + "\" style=\"width:" + width + "px\"";
+        List<DocPage.Area> areas = new ArrayList<>();
+        List<Doc.Location> targets = new ArrayList<>();
+        for (DocPage.Area area : page.areas) {
+            Doc.Location to = doc.locate(area.id);
+            if (to != null && to.anchor != null) { // an element described somewhere in this export
+                areas.add(area);
+                targets.add(to);
+            }
+        }
+        if (areas.isEmpty() || page.imageWidth <= 0) {
+            return image + alt;
+        }
+        return singleDocument ? pdfLinks(page, image + alt, width, areas, targets) : map(page, image, alt, areas, targets);
+    }
+
+    /**
+     * An image map, in the coordinates of the image as shown: at its width, never smaller (it scrolls sideways
+     * instead), since the areas of a map do not shrink with the image. The topmost figure is the first area.
+     */
+    private String map(DocPage page, String image, String alt, List<DocPage.Area> areas, List<Doc.Location> targets) {
+        String name = "map-" + page.slug();
+        StringBuilder map = new StringBuilder("<map name=\"").append(name).append("\" id=\"").append(name).append("\">");
+        for (int i = areas.size() - 1; i >= 0; i--) {
+            DocPage.Area a = areas.get(i);
+            String label = Xml.escape(a.label);
+            map.append("<area shape=\"rect\" coords=\"").append(a.x).append(',').append(a.y).append(',')
+                    .append(a.x + a.width).append(',').append(a.y + a.height).append("\" href=\"")
+                    .append(Xml.escape(href(targets.get(i), page))).append("\" alt=\"").append(label)
+                    .append("\" title=\"").append(label).append("\"/>");
+        }
+        return "<span class=\"diagram\">" + image + " usemap=\"#" + name + "\"" + alt + map + "</map></span>";
+    }
+
+    /**
+     * The PDF library knows no image maps: a link box over each figure, at the size the picture is fitted to. Drawn
+     * after their figures' outer ones, so the inner one is on top.
+     */
+    private String pdfLinks(DocPage page, String image, int width, List<DocPage.Area> areas, List<Doc.Location> targets) {
+        double scale = width / (double) page.imageWidth;
+        StringBuilder s = new StringBuilder("<span class=\"diagram-links\" style=\"width:").append(width).append("px;");
+        if (page.imageHeight > 0) {
+            s.append(" height:").append(Math.round(page.imageHeight * scale)).append("px;");
+        }
+        s.append("\">").append(image);
+        for (int i = 0; i < areas.size(); i++) {
+            DocPage.Area a = areas.get(i);
+            s.append("<a href=\"").append(Xml.escape(href(targets.get(i), page))).append("\" style=\"left:")
+                    .append(px(a.x * scale)).append("; top:").append(px(a.y * scale)).append("; width:")
+                    .append(px(a.width * scale)).append("; height:").append(px(a.height * scale)).append(";\"></a>");
+        }
+        return s.append("</span>").toString();
+    }
+
+    private static String px(double value) {
+        return String.format(Locale.ROOT, "%.1fpx", value);
     }
 
     /**

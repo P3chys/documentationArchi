@@ -2,6 +2,7 @@ package io.github.p3chys.documentationarchi.ui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.eclipse.emf.common.notify.Notification;
@@ -17,6 +18,7 @@ import com.archimatetool.model.IDiagramModelComponent;
 import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IJunction;
 
+import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.render.Preview;
@@ -75,8 +77,10 @@ final class PreviewTarget {
      *
      * @param doc the whole model as the export reads it
      * @param pictures where the picture of a page is, as a link of the document; writes it there if need be
+     * @param used gets the assets the document shows or links to
      */
-    static String html(EObject target, Doc doc, KeywordRules rules, Function<DocPage, String> pictures) {
+    static String html(EObject target, Doc doc, KeywordRules rules, Function<DocPage, String> pictures,
+            Set<Assets.Asset> used) {
         if (target == null || target instanceof IFolder) {
             return Preview.message(NOTHING);
         }
@@ -94,7 +98,7 @@ final class PreviewTarget {
             Doc.Location at = doc.locate(id);
             DocPage page = target instanceof IArchimateModel ? doc.pages.get(0) : at == null ? null : at.page;
             return page == null ? Preview.message("The export has no page for it.")
-                    : Preview.page(doc, page, rules, page.image == null ? null : pictures.apply(page));
+                    : Preview.page(doc, page, rules, page.image == null ? null : pictures.apply(page), used);
         }
         List<String> ids = new ArrayList<>();
         if (target instanceof IArchimateRelationship) {
@@ -104,7 +108,7 @@ final class PreviewTarget {
         } else {
             ids.add(id);
         }
-        String html = Preview.elements(doc, ids, rules);
+        String html = Preview.elements(doc, ids, rules, used);
         return html != null ? html : Preview.message("The export describes it nowhere.");
     }
 }

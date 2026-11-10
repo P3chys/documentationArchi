@@ -19,6 +19,27 @@ public final class DocPage {
     public int imageWidth;
     /** Height of the image at {@link #imageWidth}, in CSS pixels; 0 when unknown. */
     public int imageHeight;
+    /** Where the elements are drawn on the image, in the order they are drawn (one inside another after it). */
+    public final List<Area> areas = new ArrayList<>();
+
+    /** The box of an element's figure on the picture, in CSS pixels of the image shown at {@link #imageWidth}. */
+    public static final class Area {
+        public final String id;
+        public final String label;
+        public final int x;
+        public final int y;
+        public final int width;
+        public final int height;
+
+        public Area(String id, String label, int x, int y, int width, int height) {
+            this.id = id;
+            this.label = label;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+    }
     public final List<String> notes = new ArrayList<>();
     /** On a sketch or canvas view: the texts of its stickies, actors, blocks and groups, listed with the notes. */
     public final List<ObjectText> texts = new ArrayList<>();

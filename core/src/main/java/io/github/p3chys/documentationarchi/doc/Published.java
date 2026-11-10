@@ -13,6 +13,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
+
+import io.github.p3chys.documentationarchi.text.Texts;
 
 /**
  * What the published documentation of a model says, object by object: kept in a file next to the model, so that
@@ -241,24 +244,33 @@ public final class Published {
      * @param since when the documentation was published, as the title and the first line show it
      */
     public static DocPage page(List<Change> changes, String since) {
-        DocPage page = new DocPage("changes", "Changes since " + since);
+        return page(changes, since, Texts.english()::get);
+    }
+
+    /** @param texts the fixed texts of the output by key, in the document's language (see {@link Texts}) */
+    public static DocPage page(List<Change> changes, String since, Function<String, String> texts) {
+        DocPage page = new DocPage("changes", texts.apply("changes-since").replace("{date}", since));
         long added = changes.stream().filter(c -> c.kind == Kind.ADDED).count();
         long changed = changes.stream().filter(c -> c.kind == Kind.CHANGED).count();
         long removed = changes.stream().filter(c -> c.kind == Kind.REMOVED).count();
-        page.documentation = changes.isEmpty() ? "Nothing changed since the documentation published on " + since + "."
-                : "Since the documentation published on " + since + ": " + added + " added, " + changed + " changed, "
-                        + removed + " removed.";
+        page.documentation = changes.isEmpty() ? texts.apply("changes-none").replace("{date}", since)
+                : texts.apply("changes-summary").replace("{date}", since).replace("{added}", String.valueOf(added))
+                        .replace("{changed}", String.valueOf(changed)).replace("{removed}", String.valueOf(removed));
+        String before = " – " + texts.apply("before");
+        String after = " – " + texts.apply("after");
+        String gone = " (" + texts.apply("removed").toLowerCase(java.util.Locale.ROOT) + ")";
+        String fresh = " (" + texts.apply("new") + ")";
         for (Change c : changes) {
-            String what = c.kind == Kind.ADDED ? "Added" : c.kind == Kind.CHANGED ? "Changed" : "Removed";
+            String what = texts.apply(c.kind == Kind.ADDED ? "added" : c.kind == Kind.CHANGED ? "changed" : "removed");
             String type = c.type.isEmpty() ? what : what + " " + c.type;
             page.contents.add(new Link(c.id, c.name, type));
             List<Property> rows = new ArrayList<>();
             for (FieldChange f : c.fields) {
                 if (f.before != null) {
-                    rows.add(new Property(f.field + (f.after == null ? " (removed)" : " – before"), f.before));
+                    rows.add(new Property(f.field + (f.after == null ? gone : before), f.before));
                 }
                 if (f.after != null) {
-                    rows.add(new Property(f.field + (f.before == null ? " (new)" : " – after"), f.after));
+                    rows.add(new Property(f.field + (f.before == null ? fresh : after), f.after));
                 }
             }
             if (!rows.isEmpty()) {

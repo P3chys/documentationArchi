@@ -41,6 +41,18 @@ public final class Texts {
         add("generated", "Generated {time} from {model}", "Vygenerováno {time} z {model}");
         add("missing-asset", "missing asset", "chybějící příloha");
         add("missing-reference", "missing reference", "chybějící odkaz");
+        // the page of changes since the published documentation
+        add("changes-since", "Changes since {date}", "Změny od {date}");
+        add("changes-summary", "Since the documentation published on {date}: {added} added, {changed} changed, {removed} removed.",
+                "Od dokumentace zveřejněné {date}: přidáno {added}, změněno {changed}, odebráno {removed}.");
+        add("changes-none", "Nothing changed since the documentation published on {date}.",
+                "Od dokumentace zveřejněné {date} se nic nezměnilo.");
+        add("added", "Added", "Přidáno");
+        add("changed", "Changed", "Změněno");
+        add("removed", "Removed", "Odebráno");
+        add("before", "before", "před");
+        add("after", "after", "po");
+        add("new", "new", "nové");
     }
 
     private final int language;

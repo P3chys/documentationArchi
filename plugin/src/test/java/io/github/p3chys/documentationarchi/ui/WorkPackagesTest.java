@@ -89,6 +89,81 @@ class WorkPackagesTest {
         command.execute();
     }
 
+    private static io.github.p3chys.documentationarchi.doc.Entry entry(Doc doc, String id) {
+        return doc.pages.stream().flatMap(p -> p.entries.stream()).filter(e -> e.id.equals(id)).findFirst().orElse(null);
+    }
+
+    @Test
+    void kindOfChangeNamesTheLinkAndShowsNextToTheTicketAndTheElement() {
+        assertThat(WorkPackages.kind(ticket, portal)).isNull();
+        run(WorkPackages.change(model, List.of(portal, api), List.of(ticket), List.of(), null, e -> e == api ? "new" : "change"));
+        assertThat(WorkPackages.kind(ticket, portal)).isEqualTo("change"); // the link that was there is named
+        assertThat(WorkPackages.kind(ticket, api)).isEqualTo("new");
+        assertThat(WorkPackages.links(ticket).get(portal)).hasSize(1);
+        // not said: the links stay as they are
+        assertThat(WorkPackages.change(model, List.of(portal, api), List.of(ticket), List.of(), null, e -> null)).isNull();
+
+        Doc doc = read(model);
+        assertThat(entry(doc, api.getId()).workPackages).extracting(l -> l.label).containsExactly("RBWDP-20025 (new)");
+        assertThat(entry(doc, ticket.getId()).changes).extracting(l -> l.label).containsExactly("API (new)", "Portal (change)");
+    }
+
+    @Test
+    void closedWorkPackageStaysInTheModelButIsListedNowhereUnlessAskedFor() {
+        IWorkPackage open = workPackage("RBWDP-20030");
+        run(WorkPackages.change(model, List.of(portal), List.of(open), List.of(), null));
+        Command close = WorkPackages.close(List.of(ticket), true);
+        run(close);
+        assertThat(WorkPackages.closed(ticket)).isTrue();
+        assertThat(WorkPackages.close(List.of(ticket), true)).isNull();
+        assertThat(WorkPackages.open(model)).containsExactly(open);
+        assertThat(WorkPackages.of(model)).containsExactly(ticket, open);
+        assertThat(WorkPackages.elements(ticket)).containsExactly(portal); // its links are kept
+
+        Doc doc = read(model);
+        assertThat(entry(doc, portal.getId()).workPackages).extracting(l -> l.label).containsExactly("RBWDP-20030");
+        assertThat(entry(doc, ticket.getId())).isNull();
+        assertThat(entry(doc, open.getId())).isNotNull();
+        assertThat(doc.pages).allSatisfy(p -> assertThat(p.entries).noneMatch(e -> e.name.equals("RBWDP-20025")));
+
+        // exported itself, it is all there
+        Doc own = ModelReader.read(ModelReader.Selection.ofWorkPackages(model, List.of(ticket)), (view, page) -> { });
+        assertThat(own.pages.get(0).title).isEqualTo("RBWDP-20025");
+        assertThat(entry(own, portal.getId()).workPackages).extracting(l -> l.label).contains("RBWDP-20025");
+
+        close.undo();
+        assertThat(WorkPackages.closed(ticket)).isFalse();
+        run(close);
+        run(WorkPackages.close(List.of(ticket), false));
+        assertThat(WorkPackages.closed(ticket)).isFalse();
+        assertThat(ticket.getProperties()).isEmpty();
+    }
+
+    @Test
+    void whatChangedSincePublishingAndHasNoOpenTicketIsFoundWithItsKindOfChange() {
+        io.github.p3chys.documentationarchi.doc.Published published = new io.github.p3chys.documentationarchi.doc.Published();
+        published.publish(read(model), java.util.Map.of(), 1000, true);
+        assertThat(WorkPackages.unassigned(model, published.changesTo(read(model), true))).isEmpty();
+
+        db.setDocumentation("Now a cluster.");            // changed, no ticket
+        portal.setDocumentation("New login.");            // changed, has an open ticket
+        IArchimateElement queue = element(F.createNode(), "Queue"); // new, no ticket
+        IWorkPackage later = workPackage("RBWDP-20040");  // a work package is not something to link
+        api.setName("Public API");
+        run(WorkPackages.change(model, List.of(api), List.of(later), List.of(), null));
+        run(WorkPackages.close(List.of(later), true));    // changed, its only ticket is closed
+        model.getDefaultFolderForObject(db).getElements().remove(element(F.createNode(), "Gone before publishing"));
+
+        java.util.Map<IArchimateElement, String> found = WorkPackages.unassigned(model, published.changesTo(read(model), true));
+        assertThat(found).containsOnly(java.util.Map.entry(db, "change"), java.util.Map.entry(queue, "new"),
+                java.util.Map.entry(api, "change"));
+
+        run(WorkPackages.change(model, found.keySet(), List.of(ticket), List.of(), null, found::get));
+        assertThat(WorkPackages.kind(ticket, queue)).isEqualTo("new");
+        assertThat(WorkPackages.kind(ticket, db)).isEqualTo("change");
+        assertThat(WorkPackages.unassigned(model, published.changesTo(read(model), true))).isEmpty();
+    }
+
     private Doc read(Object... objects) {
         return ModelReader.read(ModelReader.Selection.of(List.of(objects)), (view, page) -> { });
     }

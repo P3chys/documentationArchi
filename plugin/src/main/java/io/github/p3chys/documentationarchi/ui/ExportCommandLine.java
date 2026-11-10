@@ -17,6 +17,7 @@ import com.archimatetool.model.IArchimateModel;
 
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
 import io.github.p3chys.documentationarchi.text.ExportProfile;
+import io.github.p3chys.documentationarchi.text.KeywordRules;
 
 /**
  * Exports from Archi's command line, for CI and scheduled documentation builds. Archi's providers signal failure by
@@ -34,6 +35,7 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
     private static final String STRICT = "documentation.strict";
     private static final String PUBLISH = "documentation.publish";
     private static final String PROFILE = "documentation.profile";
+    private static final String ASSETS = "documentation.assets";
 
     @Override
     public void run(CommandLine line) throws Exception {
@@ -70,7 +72,7 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                     : profile != null ? Profiles.formats(profile, EnumSet.allOf(Format.class))
                             : EnumSet.allOf(Format.class);
             result = ExportHandler.exportAll(selection, folder, formats, rules, new NullProgressMonitor(),
-                    line.hasOption(PUBLISH) || profile != null && profile.publish, profile);
+                    line.hasOption(PUBLISH) || profile != null && profile.publish, profile, line.getOptionValue(ASSETS));
         } catch (IllegalArgumentException e) { // unknown names, unusable rules, nothing to export
             throw failure(e.getMessage());
         }
@@ -92,8 +94,9 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
         }
         List<DocCheck.Finding> findings;
         try {
-            findings = DocCheck.check(model, ProjectRules.resolve(model,
-                    line.hasOption(RULES) ? Path.of(line.getOptionValue(RULES)) : null, Prefs::rules));
+            KeywordRules rules = ProjectRules.resolve(model,
+                    line.hasOption(RULES) ? Path.of(line.getOptionValue(RULES)) : null, Prefs::rules);
+            findings = DocCheck.check(model, line.hasOption(ASSETS) ? rules.withAssets(line.getOptionValue(ASSETS)) : rules);
         } catch (IllegalArgumentException e) { // unusable rules
             throw failure(e.getMessage());
         }
@@ -143,6 +146,10 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                 .build());
         options.addOption(Option.builder().longOpt(RULES).hasArg().argName("file")
                 .desc("Formatting rules to use instead of documentation.rules next to the model").build());
+        options.addOption(Option.builder().longOpt(ASSETS).hasArg().argName("folder")
+                .desc("Read assets from this folder (relative to the model's folder, or absolute) instead of the "
+                        + "assets rule or the Assets folder next to the model")
+                .build());
         options.addOption(Option.builder().longOpt(PUBLISH)
                 .desc("Note this export as the published documentation, in documentation.published next to the model")
                 .build());

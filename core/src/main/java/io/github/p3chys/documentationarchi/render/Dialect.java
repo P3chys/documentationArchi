@@ -4,6 +4,7 @@ import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
+import io.github.p3chys.documentationarchi.text.KeywordRules;
 import io.github.p3chys.documentationarchi.text.KeywordRules.PanelStyle;
 import io.github.p3chys.documentationarchi.text.KeywordRules.Rule;
 import io.github.p3chys.documentationarchi.text.KeywordRules.TagColour;
@@ -24,6 +25,11 @@ interface Dialect {
 
     /** @param rule how SQL blocks look, null for as usual */
     String sql(String sql, Rule rule);
+
+    /** SQL as {@link #sql(String, Rule)}, for outputs that can colour its keywords and tokens by the rules. */
+    default String sql(String sql, Rule rule, KeywordRules rules) {
+        return sql(sql, rule);
+    }
 
     String tag(String label, TagColour colour);
 
@@ -59,4 +65,7 @@ interface Dialect {
 
     /** A file of the Assets folder: the picture where the output shows it, otherwise a link that opens the file. */
     String asset(Assets.Asset asset, String escapedLabel);
+
+    /** A picture at a web address. */
+    String remoteImage(String escapedUrl);
 }

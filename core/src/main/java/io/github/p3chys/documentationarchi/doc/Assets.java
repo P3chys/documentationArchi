@@ -118,6 +118,8 @@ public final class Assets {
     }
 
     private final Path folder;
+    /** What is missing when there is no folder, for the problems. */
+    private final String missing;
     /** By path inside the folder, lower case with forward slashes. */
     private final Map<String, Path> byPath = new HashMap<>();
     /** By file name, lower case. */
@@ -127,7 +129,12 @@ public final class Assets {
     private final Set<String> problems = new LinkedHashSet<>();
 
     private Assets(Path folder, String problem) {
+        this(folder, problem, "there is no " + FOLDER + " folder next to the model");
+    }
+
+    private Assets(Path folder, String problem, String missing) {
         this.folder = folder;
+        this.missing = missing;
         if (problem != null) {
             problems.add(problem);
         }
@@ -171,12 +178,42 @@ public final class Assets {
         }
     }
 
+    /**
+     * The assets folder of a model: the one a {@code assets} rule names, else the Assets folder next to the model.
+     *
+     * @param setting the folder as the rule gives it, relative to the model's folder or absolute; null for none
+     */
+    public static Assets in(Path modelFolder, String setting) {
+        if (setting == null || setting.isBlank()) {
+            return in(modelFolder);
+        }
+        try {
+            Path folder = configured(modelFolder, setting);
+            return folder == null ? new Assets(null, null, "the assets folder " + setting + " does not exist")
+                    : new Assets(folder, null);
+        } catch (LinkedFolderException e) {
+            return new Assets(null, e.getMessage());
+        } catch (IOException | RuntimeException e) {
+            return new Assets(null, null, "the assets folder " + setting + " cannot be used");
+        }
+    }
+
     /** An Assets folder that is a link or junction to another folder. */
     public static final class LinkedFolderException extends IOException {
         private static final long serialVersionUID = 1L;
 
         LinkedFolderException(Path folder) {
             super(folder + " links to another folder, assets are not taken from or put there");
+        }
+
+        /** A folder a rule names that is outside the model's folder. */
+        public static LinkedFolderException outside(Path folder) {
+            return new LinkedFolderException(folder.toString(), true);
+        }
+
+        private LinkedFolderException(String folder, boolean outside) {
+            super(folder + " is outside the model's folder: a rules file cannot make it the assets folder, "
+                    + "only --documentation.assets can");
         }
     }
 
@@ -197,6 +234,46 @@ public final class Assets {
             throw new LinkedFolderException(folder);
         }
         return folder;
+    }
+
+    /**
+     * The folder an {@code assets} rule names; null when it is no folder (yet). A relative one must really be inside
+     * the model's folder, through no link on the way: rules files come with shared models. Only the command line can
+     * give an absolute one.
+     *
+     * @param setting relative to the model's folder (null: none, then only an absolute one works) or absolute
+     * @throws LinkedFolderException when it is a link or junction, or a relative one leads out of the model's folder
+     */
+    public static Path configured(Path modelFolder, String setting) throws IOException {
+        Path folder = Path.of(setting.strip());
+        boolean relative = !folder.isAbsolute();
+        if (relative) {
+            if (modelFolder == null) {
+                return null;
+            }
+            folder = modelFolder.resolve(folder);
+        }
+        folder = folder.toAbsolutePath().normalize();
+        if (relative && !folder.startsWith(modelFolder.toAbsolutePath().normalize())) {
+            throw LinkedFolderException.outside(folder);
+        }
+        if (!Files.isDirectory(folder)) {
+            return null;
+        }
+        requireNotLinked(folder);
+        if (relative && !folder.toRealPath().startsWith(modelFolder.toRealPath())) {
+            throw LinkedFolderException.outside(folder);
+        }
+        return folder;
+    }
+
+    /** @throws LinkedFolderException when the folder is a link or junction */
+    public static void requireNotLinked(Path folder) throws IOException {
+        Path parent = folder.toAbsolutePath().getParent();
+        if (Files.isSymbolicLink(folder)
+                || parent != null && !folder.toRealPath().equals(parent.toRealPath().resolve(folder.getFileName()))) {
+            throw new LinkedFolderException(folder);
+        }
     }
 
     /** A file name the export uses for something else (the pictures of views), which assets must not take. */
@@ -223,10 +300,15 @@ public final class Assets {
         }
         if (file == null) {
             problems.add("Asset \"" + reference + "\" on \"" + where + "\" not found"
-                    + (folder == null ? ": there is no " + FOLDER + " folder next to the model" : " in " + folder));
+                    + (folder == null ? ": " + missing : " in " + folder));
             return null;
         }
         return assets.computeIfAbsent(file, f -> new Asset(f, unique(f.getFileName().toString())));
+    }
+
+    /** Notes a path that is no file of the assets folder: absolute, or leaving it with {@code ..}. */
+    public synchronized void unsupported(String reference, String where) {
+        problems.add("Asset \"" + reference + "\" on \"" + where + "\" is not supported: use a path inside the assets folder");
     }
 
     private String unique(String name) {

@@ -231,6 +231,12 @@ public class ExportHandler extends AbstractHandler {
     /** @param profile adds its labels to leave out, properties to hide and language to the rules; null for none */
     static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
             IProgressMonitor monitor, boolean publish, ExportProfile profile) throws IOException {
+        return exportAll(selection, folder, formats, rulesFile, monitor, publish, profile, null);
+    }
+
+    /** @param assets the folder to read assets from instead of the rules' (the command line's), null for none */
+    static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
+            IProgressMonitor monitor, boolean publish, ExportProfile profile, String assets) throws IOException {
         if (publish && selection.model.getFile() == null) {
             throw new IllegalArgumentException("Save the model first: what is published is noted in the file "
                     + Published.FILE + " next to the model file.");
@@ -243,6 +249,9 @@ public class ExportHandler extends AbstractHandler {
         KeywordRules rules = ProjectRules.resolve(selection.model, rulesFile, Prefs::rules); // fails before any work
         if (profile != null) {
             rules = rules.with(profile);
+        }
+        if (assets != null) {
+            rules = rules.withAssets(assets);
         }
         Exclusion exclusion = selection.exclusion(rules);
         Doc doc = ModelReader.read(selection, (view, page) -> {
@@ -295,6 +304,7 @@ public class ExportHandler extends AbstractHandler {
             ExportState.get().publish(selection.model, doc, fingerprints, time, selection.wholeModel);
             ExportMarks.refresh();
         }
+        notes.addAll(doc.notes);
         return new Result(exporter.problems(), exclusion.count(), notes);
     }
 

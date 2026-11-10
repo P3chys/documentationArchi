@@ -22,6 +22,9 @@ import io.github.p3chys.documentationarchi.text.RichText;
 /** The content of one page, the same for every output apart from what its {@link Dialect} decides. */
 final class PageBody {
 
+    /** How far each open nesting tag indents, in pixels. */
+    private static final int INDENT = 20;
+
     private final Doc doc;
     private final DocPage page;
     private final Dialect dialect;
@@ -209,7 +212,8 @@ final class PageBody {
     }
 
     private void entry(Entry entry) {
-        out.append(dialect.entryHeading(entry, styled(rules.heading(3), type(entry.type) + Xml.escape(entry.name))));
+        String name = entry.headingUrl == null ? Xml.escape(entry.name) : external(entry.headingUrl, Xml.escape(entry.name));
+        out.append(dialect.entryHeading(entry, styled(rules.heading(3), type(entry.type) + name)));
         List<Relation> inside = new ArrayList<>();
         Map<String, List<Relation>> outside = new LinkedHashMap<>();
         for (Relation r : entry.relations) {
@@ -221,7 +225,14 @@ final class PageBody {
         }
         for (String part : rules.entryParts()) {
             switch (part) {
-                case "description": description(entry.documentation); break;
+                case "description":
+                    description(entry.documentation);
+                    entry.facts.forEach(f -> out.append("<p>").append(Xml.escape(f)).append("</p>"));
+                    for (Entry.Section section : entry.sections) {
+                        out.append(heading(4, section.title));
+                        description(section.text);
+                    }
+                    break;
                 case "properties": properties(entry.properties); break;
                 case "relations":
                     linkLine(t("part-of"), entry.partOf);
@@ -267,12 +278,18 @@ final class PageBody {
                 .append(Xml.escape(t("element"))).append("</th><th>").append(Xml.escape(t("description")))
                 .append("</th></tr>");
         for (Relation r : relations) {
-            out.append("<tr><td>").append(arrow(r)).append(Xml.escape(r.type));
+            out.append("<tr><td>").append(arrow(r));
+            if (r.verb != null) { // the type stays, smaller, as the information it is
+                out.append(Xml.escape(r.verb)).append("<br/>").append(grey(Xml.escape(r.type)));
+            } else {
+                out.append(Xml.escape(r.type));
+            }
             if (!r.name.isEmpty()) {
                 out.append("<br/>").append(Xml.escape(r.name));
             }
             out.append("</td><td>").append(others(r)).append("</td><td>");
             description(r.documentation);
+            note(r);
             out.append("</td></tr>");
         }
         out.append("</tbody></table>");
@@ -281,11 +298,12 @@ final class PageBody {
     private void relationGroup(String type, List<Relation> relations) {
         out.append("<p><strong>").append(Xml.escape(type)).append("</strong></p><ul>");
         for (Relation r : relations) {
-            out.append("<li>").append(arrow(r)).append(others(r));
+            out.append("<li>").append(arrow(r)).append(r.verb == null ? "" : Xml.escape(r.verb) + " ").append(others(r));
             if (!r.name.isEmpty()) {
                 out.append(" (").append(Xml.escape(r.name)).append(")");
             }
             description(r.documentation);
+            note(r);
             out.append("</li>");
         }
         out.append("</ul>");
@@ -298,6 +316,26 @@ final class PageBody {
             s.append(s.length() == 0 ? "" : " " + Xml.escape(r.junction) + " ").append(link(l));
         }
         return s.toString();
+    }
+
+    /** The other element's business description, in grey italics. */
+    private void note(Relation r) {
+        if (r.note != null) {
+            out.append("<p><em>").append(grey(inlines(RichText.inlines(r.note, rules)))).append("</em></p>");
+        }
+    }
+
+    /** {@code small} and an inline colour both survive in Confluence. */
+    private static String grey(String markup) {
+        return "<span style=\"color: rgb(107,119,140);\">" + markup + "</span>";
+    }
+
+    /** A link out of the export: a Confluence page or a Jira ticket. */
+    private static String external(String url, String escapedLabel) {
+        if (!url.matches("(?i)https?://\\S+")) { // never a javascript: or file: link
+            return escapedLabel;
+        }
+        return "<a href=\"" + Xml.escape(url) + "\">" + escapedLabel + "</a>";
     }
 
     private static String arrow(Relation r) {
@@ -314,9 +352,20 @@ final class PageBody {
     }
 
     private String link(Link link) {
-        Doc.Location to = doc.locate(link.id);
-        String label = Xml.escape(link.label);
-        return (link.type != null ? type(link.type) : "") + (to == null ? label : dialect.link(to, page, label));
+        return (link.type != null ? type(link.type) : "") + target(link.id, Xml.escape(link.label));
+    }
+
+    /**
+     * A link to where an element or view is documented: its Confluence page or Jira ticket when it has one, else its
+     * description in this export; the label alone when there is neither.
+     */
+    private String target(String id, String escapedLabel) {
+        String url = doc.external.get(id);
+        if (url != null) {
+            return external(url, escapedLabel);
+        }
+        Doc.Location to = doc.locate(id);
+        return to == null ? escapedLabel : dialect.link(to, page, escapedLabel);
     }
 
     /** The type in front of an element's name. {@code small} and an inline colour both survive in Confluence. */
@@ -341,9 +390,15 @@ final class PageBody {
         RichText.parse(text, rules).forEach(block -> out.append(block(block)));
     }
 
+    /** The block, in a division indented by the nesting tags open where it stands. */
     private String block(RichText.Block block) {
+        String html = content(block);
+        return block.indent > 0 ? "<div style=\"margin-left: " + block.indent * INDENT + "px\">" + html + "</div>" : html;
+    }
+
+    private String content(RichText.Block block) {
         if (block.sql != null) {
-            return dialect.sql(block.sql, rules.sql());
+            return dialect.sql(block.sql, rules.sql(), rules);
         }
         if (block.code != null) {
             return dialect.code(block.code, block.language);
@@ -388,6 +443,8 @@ final class PageBody {
                     s.append("<a href=\"").append(url).append("\">").append(url).append("</a>");
                     break;
                 case ASSET: s.append(asset(i)); break;
+                case BAD_ASSET: s.append(unsupportedAsset(i)); break;
+                case IMAGE_URL: s.append(dialect.remoteImage(Xml.escape(i.text))); break;
                 case BOLD: s.append("<strong>").append(inlines(i.children)).append("</strong>"); break;
                 case ITALIC: s.append("<em>").append(inlines(i.children)).append("</em>"); break;
                 case LINK:
@@ -416,8 +473,13 @@ final class PageBody {
         if (name == null) {
             return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(t("missing-reference")) + ": " + Xml.escape(reference.text) + "]</span>";
         }
-        Doc.Location to = doc.locate(reference.text);
-        return to == null ? Xml.escape(name) : dialect.link(to, page, Xml.escape(name));
+        return target(reference.text, Xml.escape(name));
+    }
+
+    /** A path outside the assets folder is no asset: it stays visible in red and is reported like a missing one. */
+    private String unsupportedAsset(RichText.Inline reference) {
+        doc.assets.unsupported(reference.text, page.title);
+        return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(t("unsupported-asset")) + ": " + Xml.escape(reference.text) + "]</span>";
     }
 
     /** A reference to a file that isn't there stays visible in red, so whoever reads the page notices. */

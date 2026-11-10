@@ -95,7 +95,7 @@ final class DocCheck {
         this.rules = rules;
         this.exclusion = new Exclusion(rules, Set.of());
         Path file = model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().getParent();
-        this.assets = Assets.in(file);
+        this.assets = Assets.in(file, rules.assetsFolder());
     }
 
     /** The findings for the model, grouped by kind in the order of {@link Kind}, each kind in model order. */
@@ -200,9 +200,13 @@ final class DocCheck {
         Set<String> seen = new HashSet<>();
         for (RichText.Block block : RichText.parse(text, rules)) {
             RichText.visit(block, i -> {
-                if (i.kind == RichText.InlineKind.ASSET && seen.add("a" + i.text)) {
+                if ((i.kind == RichText.InlineKind.ASSET || i.kind == RichText.InlineKind.BAD_ASSET) && seen.add("a" + i.text)) {
                     int before = assets.problems().size();
-                    assets.find(i.text, where);
+                    if (i.kind == RichText.InlineKind.ASSET) {
+                        assets.find(i.text, where);
+                    } else {
+                        assets.unsupported(i.text, where);
+                    }
                     List<String> problems = assets.problems();
                     if (problems.size() > before) {
                         findings.add(new Finding(Kind.ASSET, owner, problems.get(problems.size() - 1)));

@@ -133,6 +133,11 @@ final class StorageDialect implements Dialect {
         return "<ac:link>" + attachment + "<ac:link-body>" + label + "</ac:link-body></ac:link>";
     }
 
+    @Override
+    public String remoteImage(String url) {
+        return "<ac:image><ri:url ri:value=\"" + url + "\"/></ac:image>";
+    }
+
     private static String macro(String name, String content) {
         return "<ac:structured-macro ac:name=\"" + name + "\">" + content + "</ac:structured-macro>";
     }

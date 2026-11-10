@@ -8,15 +8,20 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.github.p3chys.documentationarchi.doc.Assets;
 import io.github.p3chys.documentationarchi.doc.Doc;
 import io.github.p3chys.documentationarchi.doc.DocPage;
 import io.github.p3chys.documentationarchi.doc.Entry;
+import io.github.p3chys.documentationarchi.text.KeywordRules;
 import io.github.p3chys.documentationarchi.text.KeywordRules.PanelStyle;
 import io.github.p3chys.documentationarchi.text.KeywordRules.Rule;
 import io.github.p3chys.documentationarchi.text.KeywordRules.TagColour;
 import io.github.p3chys.documentationarchi.text.KeywordRules.TextStyle;
+import io.github.p3chys.documentationarchi.text.KeywordRules.Token;
+import io.github.p3chys.documentationarchi.text.RichText;
 
 /**
  * Plain XHTML: one file per page, all pages in one document for the PDF, or one page in the Documentation Preview.
@@ -90,13 +95,52 @@ final class HtmlDialect implements Dialect {
 
     @Override
     public String sql(String sql, Rule rule) {
+        return sql(sql, rule, KeywordRules.defaults());
+    }
+
+    /** Keywords at the start of a line in bold; 'CONSTANT', {variable} and [object] in the colours of descriptions. */
+    @Override
+    public String sql(String sql, Rule rule, KeywordRules rules) {
+        String body = highlight(sql, rules);
         if (rule == null) {
-            return "<pre class=\"sql\">" + Xml.escape(sql) + "</pre>";
+            return "<pre class=\"sql\">" + body + "</pre>";
         }
         // the background on the whole block, the size relative to the block's own font
         String background = rule.style.background == null ? ""
                 : " style=\"background-color: " + TextStyle.rgb(rule.style.background) + ";\"";
-        return "<pre class=\"sql\"" + background + ">" + styled(Xml.escape(sql), rule.style.withoutBackground()) + "</pre>";
+        return "<pre class=\"sql\"" + background + ">" + styled(body, rule.style.withoutBackground()) + "</pre>";
+    }
+
+    private static final Pattern SQL_KEYWORD = Pattern.compile("(?i)^([ \\t]*)((?:SELECT|FROM|WHERE|AND|OR|ORDER[ \\t]+BY"
+            + "|GROUP[ \\t]+BY|HAVING|JOIN|LEFT[ \\t]+JOIN|RIGHT[ \\t]+JOIN|INNER[ \\t]+JOIN|OUTER[ \\t]+JOIN|ON|UNION"
+            + "|INSERT[ \\t]+INTO|VALUES|UPDATE|SET|DELETE[ \\t]+FROM|WITH|CASE|WHEN|THEN|ELSE|END|INTO))(?![\\p{L}\\p{N}_])");
+    private static final Pattern SQL_TOKEN = Pattern.compile("(?<constant>" + RichText.CONSTANT + ")"
+            + "|(?<variable>\\{[^{}\\n]+})|(?<table>\\[[^\\[\\]\\n]+])");
+
+    /** The SQL as escaped markup. */
+    private String highlight(String sql, KeywordRules rules) {
+        StringBuilder out = new StringBuilder();
+        String[] lines = sql.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            out.append(i > 0 ? "\n" : "");
+            Matcher keyword = SQL_KEYWORD.matcher(line);
+            if (keyword.find()) {
+                out.append(keyword.group(1)).append("<strong>").append(Xml.escape(keyword.group(2))).append("</strong>");
+                line = line.substring(keyword.end());
+            }
+            Matcher token = SQL_TOKEN.matcher(line);
+            int done = 0;
+            while (token.find()) {
+                Token kind = token.group("constant") != null ? Token.CONSTANT
+                        : token.group("variable") != null ? Token.VARIABLE : Token.TABLE;
+                out.append(Xml.escape(line.substring(done, token.start())))
+                        .append(styled(Xml.escape(token.group()), rules.token(kind)));
+                done = token.end();
+            }
+            out.append(Xml.escape(line.substring(done)));
+        }
+        return out.toString();
     }
 
     @Override
@@ -197,6 +241,18 @@ final class HtmlDialect implements Dialect {
         String image = "<img class=\"asset\" src=\"" + href + "\"" + width(fitted) + " alt=\"" + label + "\"/>";
         // a picture shown smaller opens at its full size
         return fitted > 0 ? "<a href=\"" + href + "\">" + image + "</a>" : image;
+    }
+
+    /**
+     * A picture on the web shows on the HTML pages, which their readers open in a browser anyway. The preview and the
+     * PDF link to it instead: they would fetch it while you work or export, from an address a shared model chose.
+     */
+    @Override
+    public String remoteImage(String url) {
+        if (preview != null || singleDocument) {
+            return "<a href=\"" + url + "\">" + url + "</a>";
+        }
+        return "<img class=\"asset\" src=\"" + url + "\" alt=\"" + url + "\"/>";
     }
 
     private static String width(int fitted) {

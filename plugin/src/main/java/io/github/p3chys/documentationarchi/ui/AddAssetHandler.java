@@ -55,8 +55,8 @@ public class AddAssetHandler extends AbstractHandler {
         Path modelFolder = model.getFile().getAbsoluteFile().toPath().getParent();
         Path assets;
         try {
-            assets = AssetLinks.assetsFolder(modelFolder);
-        } catch (IOException e) {
+            assets = AssetLinks.assetsFolder(modelFolder, ProjectRules.resolve(model, null, Prefs::rules).assetsFolder());
+        } catch (IOException | IllegalArgumentException e) {
             MessageDialog.openError(shell, TITLE, "Cannot read " + modelFolder + ": " + e.getMessage());
             return null;
         }

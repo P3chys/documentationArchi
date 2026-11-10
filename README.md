@@ -15,6 +15,7 @@ function, with screenshots.
 - [Documentation Preview](#documentation-preview)
 - [Print order](#print-order)
 - [Check Documentation](#check-documentation)
+- [Model conventions (HaF)](#model-conventions-haf)
 - [Work packages (Jira tickets)](#work-packages-jira-tickets)
 - [What changed since the last export](#what-changed-since-the-last-export)
 - [Formatting descriptions](#formatting-descriptions)
@@ -148,10 +149,47 @@ the view) and choose **Print Order...**. Move elements with the buttons, **Alt+U
 **OK**. **Remove Order** goes back to alphabetical.
 
 The order is kept in the model, the way modellers often do it by hand: a Grouping called `PrintOrder` on the view,
-with associations named `001`, `002`, `003`... from each element to it. You can also draw these yourself. Elements
-linked to the view's PrintOrder come first, by the number in the relationship's name, and the others follow
-alphabetically. A PrintOrder that is not on the view (one of another view) does not change its order.
+with associations named `001`, `002`, `003`... from each element to it. You can also draw these yourself, and any
+element with the specialization `PrintOrder` (of any type and name) is such a marker too. Elements linked to the
+view's PrintOrder come first, by the first number in the relationship's name (`pos 20` is 20; of several, the
+smallest), and the others follow alphabetically. A PrintOrder that is not on the view (one of another view) does not change its order.
 The PrintOrder element and its links never appear in the export or its pictures. **Undo** takes a change back.
+
+## Model conventions (HaF)
+
+Models written for HaF, the earlier documentation scripts, use these conventions; the export reads them the same way.
+
+- **Relationships in the text:** `` `NAME` `` (or ``` ``NAME`` ```) in an element's description, where `NAME` is the
+  name of one of its relationships (either way round, ignoring case), becomes a link to the element at the other end,
+  and that relationship is not listed again among the outgoing ones. When it is a composition to a part of the same
+  type, the part's whole description takes its place (with the part's own tokens, each part once). A name that no
+  relationship has stays as it is.
+- **How relationships read:** the relationship column says what it does, with the type (and specialization) under
+  it: *triggers* / *is triggered by*, *is used by* / *use* (serving), *composed of* / *is a part of*, and for an
+  assignment from a component *provides* (a service), *publishes* (an interface), *generates* (an event), *implements*
+  (a process or function), from an interface to a service *publishes*, read backwards *is provided by* and so on.
+  Serving and triggering show the other element's business description (its description up to a line
+  `Technically:`, without `Description:`) in grey italics; triggering only when the relationship has no description.
+- **Access:** *read from* / *write into* (backwards *is read by* / *is written by*), from the specialization
+  (`select` reads; `update`, `insert`, `delete` write) or else Archi's access type. A `select` access with
+  `<sellist>ID, STATE</sellist>` in its description shows `SELECT ID, STATE FROM <table>`, an `update` access with
+  `<updList>STATE = 'DONE'</updList>` shows `UPDATE <table> SET ...` (the table is the target's name without a
+  `[table]`-like prefix). An access to an element named `[select] ...` shows that element's description as its query.
+- **Parameters:** what an element reads from an element named `[parameters] ...` becomes its *Input parameters*, what
+  it writes its *Output* (*Request* and *Response* for an element named `[api] ...`), with that element's description;
+  `[parameters]` elements are never listed among the related elements.
+- **Roles:** an association to a Business Role named `[auth] DEV` (any case) prints *Available only for role DEV and
+  higher*, in the order VIEW, DEV, OPE, ADMIN (for ADMIN, without "and higher"; of several, the lowest); it is not
+  listed as an association.
+- **Confluence pages:** an element with a property `confluenceUrl` is documented there: every link to it goes to
+  `<url>#id-<PageTitle>-<«Type»Name>`, Confluence's anchor of its heading (spaces and `-` left out, `+` and `%20` out
+  of the title, other than ASCII percent-encoded, the type without Business/Application/Technology). An address with
+  a `#` is used as it is; one that names the page only by its id (`.../pages/12345`) links to the page, and the export
+  says so once. Only `http(s)` addresses are used.
+- **Jira:** with the rule line `jira https://jira.example.com/browse/`, a work package named exactly like a ticket
+  (`RBWDP-20025`, not `RBWDP-20025 portal`) has its heading and every link to it go to the ticket.
+
+Elements with neither a Confluence page nor a ticket link to their description in the export.
 
 ## Work packages (Jira tickets)
 
@@ -259,14 +297,17 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 |-------|--------|
 | `INFO: text`, `NOTE: text`, `TIP: text`, `WARNING: text` at the start of a line | a coloured panel with that title, up to the next blank line |
 | `<#>a remark</#>` (or up to the next blank line) | a note panel without a title |
+| `<#>` and `</#>` on lines of their own | a note panel up to `</#>`, across blank lines; it may hold SQL, tables, lists |
 | `#risk` or `[[risk]]` | a label; built in: `risk` (red), `deprecated` (grey), `todo` and `draft` (yellow), `new` (green) |
 | `Description:`, `Technically:` anywhere | bold |
 | `[ORDERS]` | a table name, coloured |
-| `'ACTIVE'` | a constant, coloured |
+| `'ACTIVE'` | a constant, coloured: capitals, digits, `_ ( ) :` in single quotes, with a capital (`'TYPE_1'`, `'NVL(X)'`; not `'hello'`, `'2024'`) |
 | `{client_id}` | a variable, coloured |
-| `<sql>select ...</sql>` | an SQL code block (in Confluence: the code macro with SQL highlighting) |
+| `<sql>select ...</sql>` | an SQL code block; in HTML and PDF keywords at the start of a line (`SELECT`, `FROM`, `WHERE`, `LEFT JOIN`...) are bold and `'CONSTANT'`, `{variable}`, `[object]` coloured (in Confluence: the code macro with SQL highlighting) |
 | `https://...` | a link |
-| `[[asset:file.png]]` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
+| `[[asset:file.png]]`, `<ass>file.png</ass>` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
+| `<tbl>` ... `</tbl>` | a table of the lines starting with `\|`, the first its header; no line of dashes needed; a line without `\|` goes on in the last cell |
+| a line of only `<name>` ... `</name>` | indents the lines in between by 20px per level; the tag lines are printed; `<section end>` ends all levels |
 | `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
 | `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
 | `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
@@ -316,7 +357,9 @@ text contents = Table of contents   replace one fixed text
 page description picture elements   sections of a view's page, in this order
 entry description relations     parts of an element's description, in this order
 pdf landscape off               no landscape pages in the PDF; also pdf cover off, pdf contents off
+assets Files                    the folder assets are read from (default: Assets)
 defaults off                    in documentation.rules: without the built-in panels, labels and bold texts
+jira https://jira.example.com/browse/   work packages named like a ticket link to it
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
@@ -335,7 +378,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `reads`, `writes`, `reads-writes`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `input-parameters`, `output`, `request`, `response`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
@@ -389,6 +432,19 @@ A reference that finds no file shows in red as *[missing asset: name]* on its pa
 finishes (on the command line, as errors). Only files really inside `Assets` are used: a link from there to a file
 elsewhere, or an `Assets` folder that is itself a link, is ignored and reported. That way a model shared with you
 can't pull other files from your computer into an export.
+
+`<ass>path</ass>` works like `[[asset:path]]` and may be broken over lines (they are joined). A web address in it is a
+link, or a picture when it ends in `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp` or `.svg` (a query string is ignored). An
+absolute path, or one that leaves the folder with `..`, shows in red as *[Unsupported asset: path]* and is reported
+like a missing asset.
+
+A web picture shows on the HTML and Confluence pages; the Documentation Preview and the PDF link to it instead, so
+nothing is fetched from the web while you work or export.
+
+**Another folder:** the rule line `assets <folder>` (relative to the model file's folder; in quotes when it has
+spaces) says where assets are read from instead of `Assets`; Add Asset copies there too. The folder must be inside the
+model's folder, since the rules file travels with the model. On the command line `--documentation.assets <folder>`
+overrides it and may name any folder, absolute too.
 
 ## Confluence
 
@@ -492,6 +548,7 @@ This exports the whole model; formats default to all three. Missing assets are l
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
 | `--documentation.profile name` | export as this profile of the rules says, see [Export profiles](#export-profiles); `--documentation.folder` is then optional, explicit options win |
 | `--documentation.check` | print what is missing or wrong in the documentation, see [Check Documentation](#check-documentation); with `--documentation.strict`, findings fail the run |
+| `--documentation.assets folder` | read assets from this folder (relative to the model's folder, or absolute), instead of the `assets` rule |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
 | `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 

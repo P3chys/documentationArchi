@@ -424,6 +424,22 @@ from content until the next export.
 - To hide the marks, untick **Mark in the model tree what no export shows yet** in
   [Preferences > Documentation Export](#11-documentation-formatting-changing-the-look).
 
+### Publishing: what the readers have
+
+Tick **Publish** in the export dialog when an export is the documentation your readers get. The plugin then notes
+what that export shows in a file `documentation.published` next to the model file, and two things follow:
+
+- **Marks for the whole team.** An object counts as exported if your own exports show it as it is, or the published
+  documentation does. Share the file with the model (cooperativeArchi does it for you from the version after 1.6.0; otherwise copy
+  it) and a colleague who never exported anything sees the same marks as you: only what the readers don't have yet.
+- **A page "Changes since ...".** Every later export of the whole model starts with a page listing the views and
+  elements added, changed and removed since the documentation was published, with each changed name, description,
+  property and relationship before and after, and links to where they are described now.
+
+Publishing a part (a work package, some views) keeps what was published of the rest. An export without **Publish**
+is a preview: it changes nothing in that file. The model must have been saved, so the plugin knows where the file
+goes. The file is text and is written in the same order each time; it is not meant to be edited.
+
 ---
 
 ## Check Documentation
@@ -744,6 +760,7 @@ Archi -application com.archimatetool.commandline.app -consoleLog -nosplash \
 | `--documentation.rules file` | formatting rules from this file, instead of `documentation.rules` next to the model |
 | `--documentation.check` | list what is missing or wrong in the documentation (see Check Documentation); with `--documentation.strict`, findings fail the run |
 | `--documentation.strict` | missing assets also fail the run (unknown names always do) |
+| `--documentation.publish` | note this export as the published documentation, in `documentation.published` next to the model |
 
 Without `--documentation.workPackages`, `--documentation.views` and `--documentation.folders` the command line exports
 the whole model. Views and folders can be combined (`--documentation.views Overview --documentation.folders Views/Sales`);
@@ -778,6 +795,7 @@ Missing assets are logged as errors, and with `--documentation.strict` they fail
 | Project rules (`documentation.rules`) | next to the model file | yes, if you share the folder |
 | Export folder and formats | Archi's preferences on your computer | no |
 | What each export showed (change marks) | Archi's settings folder, per model, per computer | no – exporting never changes the model |
+| What the published documentation shows | `documentation.published` next to the model file | yes, if you share the file (cooperativeArchi does) |
 
 ---
 

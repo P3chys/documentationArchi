@@ -609,6 +609,23 @@ are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, 
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 
+### Page template
+
+The order of the parts of a page is fixed, unless you say otherwise with two rule lines:
+
+```text
+page description contents picture properties notes related elements
+entry description properties relations views workpackages other
+```
+
+`page` lists the sections of a view's page to print, in this order: the view's description, the list of its elements
+(`contents`), the picture, the view's properties, the texts of the notes, the related views (`related`; on the Labels
+page, its labels) and the described elements (`elements`). `entry` does the same for one element's description: its
+description, properties, `relations` (part of, contains, the elements a work package changes, and the table of
+relationships), the views it is on, its work packages and the relationships to elements outside the view (`other`).
+A section or part you leave out is not printed (leave out `elements` and the links to the elements lead nowhere). An
+unknown or repeated name is an error, reported with its line. Without the lines the output is as it always was.
+
 ---
 
 ## 12. Assets: pictures and files

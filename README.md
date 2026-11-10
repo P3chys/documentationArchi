@@ -228,6 +228,8 @@ exclude label draft             leave out what carries #draft
 hide property internal*         never print these properties
 language cs                     fixed texts of the output in Czech
 text contents = Table of contents   replace one fixed text
+page description picture elements   sections of a view's page, in this order
+entry description relations     parts of an element's description, in this order
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
@@ -244,6 +246,11 @@ the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
 `text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`).
+
+**Page template:** `page description contents picture properties notes related elements` gives the sections of a
+view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations
+views workpackages other` does the same for the parts of an element's description. Without the lines the order is as
+shown. Unknown names are errors.
 
 Confluence keeps text colour, bold, italic, underline, strikethrough and smaller text. It doesn't keep every
 background or larger size in every version, and the style editors say so where it matters.

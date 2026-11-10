@@ -26,6 +26,8 @@ import java.util.regex.Pattern;
  * hide property internal*         properties with this key are never printed; * at the end matches any ending
  * language cs                     the fixed texts of the output in Czech (default: en)
  * text contents = Table of contents   replaces one fixed text, see {@link Texts}
+ * page description picture notes  the sections of a view's page to print, in this order ({@link #PAGE_SECTIONS})
+ * entry description relations     the parts of an element's description to print, in this order ({@link #ENTRY_PARTS})
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -38,7 +40,7 @@ public final class KeywordRules {
     public enum Kind {
         PANEL(false), TAG(false), STYLE(false), TOKEN(false), HEADING(false), SQL(false),
         /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
-        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true);
+        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true);
 
         public final boolean setting;
 
@@ -73,6 +75,14 @@ public final class KeywordRules {
 
     public static final int HEADING_LEVELS = 4;
 
+    /** The sections of a view's page, in the usual order. */
+    public static final List<String> PAGE_SECTIONS = List.of("description", "contents", "picture", "properties", "notes",
+            "related", "elements");
+
+    /** The parts of an element's description, in the usual order. */
+    public static final List<String> ENTRY_PARTS = List.of("description", "properties", "relations", "views",
+            "workpackages", "other");
+
     private static final String HELP = String.join("\n",
             "# panel <info|note|tip|warning> <keyword>   line starting with \"keyword:\"",
             "# tag <grey|red|yellow|green|blue> <keyword>   #keyword or [[keyword]] in the text",
@@ -85,6 +95,8 @@ public final class KeywordRules {
             "# hide property <key>   properties with this key are never printed; * at the end matches any ending",
             "# language <en|cs>   the language of the fixed texts of the output (default: en)",
             "# text <key> = <replacement>   replaces one fixed text, e.g. text contents = Table of contents",
+            "# page <section>...   the sections of a view's page to print, in this order: description contents picture properties notes related elements",
+            "# entry <part>...   the parts of an element's description to print, in this order: description properties relations views workpackages other",
             "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
             "");
 
@@ -313,9 +325,40 @@ public final class KeywordRules {
                     replacement.strip());
         }
 
+        /** @param sections names out of {@link KeywordRules#PAGE_SECTIONS}, in the order to print them */
+        public static Rule page(List<String> sections) {
+            return new Rule(Kind.PAGE, names(sections, PAGE_SECTIONS, "section"), null, null, null, null, false);
+        }
+
+        /** @param parts names out of {@link KeywordRules#ENTRY_PARTS}, in the order to print them */
+        public static Rule entry(List<String> parts) {
+            return new Rule(Kind.ENTRY, names(parts, ENTRY_PARTS, "part"), null, null, null, null, false);
+        }
+
+        private static String names(List<String> names, List<String> known, String what) {
+            List<String> checked = new ArrayList<>();
+            for (String name : names) {
+                String n = name.toLowerCase(Locale.ROOT);
+                if (!known.contains(n)) {
+                    throw new IllegalArgumentException("unknown " + what + " \"" + name + "\", use "
+                            + String.join(", ", known));
+                }
+                if (checked.contains(n)) {
+                    throw new IllegalArgumentException("the " + what + " \"" + name + "\" is there twice");
+                }
+                checked.add(n);
+            }
+            if (checked.isEmpty()) {
+                throw new IllegalArgumentException("expected the " + what + "s to print: " + String.join(" ", known));
+            }
+            return String.join(" ", checked);
+        }
+
         /** The rule as one line of text, which {@link KeywordRules#parse} reads back. */
         public String line() {
             switch (kind) {
+                case PAGE: return "page " + keyword;
+                case ENTRY: return "entry " + keyword;
                 case LANGUAGE: return "language " + keyword;
                 case TEXT: return "text " + keyword + " = " + value;
                 case EXCLUDE_LABEL: return "exclude label " + keyword;
@@ -344,7 +387,7 @@ public final class KeywordRules {
         }
 
         String key() {
-            if (kind == Kind.LANGUAGE) {
+            if (kind == Kind.LANGUAGE || kind == Kind.PAGE || kind == Kind.ENTRY) {
                 return kind.name(); // one language
             }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
@@ -372,6 +415,8 @@ public final class KeywordRules {
     private final List<String> excludedLabels = new ArrayList<>();
     private final List<String> hiddenProperties = new ArrayList<>();
     private Texts fixedTexts = Texts.english();
+    private List<String> pageSections = PAGE_SECTIONS;
+    private List<String> entryParts = ENTRY_PARTS;
     private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
@@ -389,6 +434,8 @@ public final class KeywordRules {
         for (Rule rule : rules) {
             switch (rule.kind) {
                 case LANGUAGE: language = rule.keyword; break;
+                case PAGE: pageSections = List.of(rule.keyword.split(" ")); break;
+                case ENTRY: entryParts = List.of(rule.keyword.split(" ")); break;
                 case TEXT: replaced.put(rule.keyword, rule.value); break;
                 case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
                 case TAG: tags.put(rule.keyword.toLowerCase(Locale.ROOT), rule.tag); break;
@@ -486,6 +533,10 @@ public final class KeywordRules {
                 Options o = Options.read(rest, true).only();
                 return Rule.sql(o.style(), o.theme, o.lineNumbers);
             }
+            case "page":
+                return Rule.page(words(rest));
+            case "entry":
+                return Rule.entry(words(rest));
             case "language":
                 return Rule.language(rest);
             case "text": {
@@ -525,7 +576,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language or text");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page or entry");
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -599,6 +650,10 @@ public final class KeywordRules {
         }
     }
 
+    private static List<String> words(String text) {
+        return text.isBlank() ? List.of() : List.of(text.strip().split("\\s+"));
+    }
+
     private static String oneWord(String text, String what) {
         String word = text.strip();
         if (word.startsWith("#")) {
@@ -669,6 +724,16 @@ public final class KeywordRules {
             }
         }
         return labels;
+    }
+
+    /** The sections of a view's page to print, in order: all of them in the usual order unless a rule says so. */
+    public List<String> pageSections() {
+        return pageSections;
+    }
+
+    /** The parts of an element's description to print, in order. */
+    public List<String> entryParts() {
+        return entryParts;
     }
 
     /** The fixed texts of the output: the language of the rules, with the replacements. */

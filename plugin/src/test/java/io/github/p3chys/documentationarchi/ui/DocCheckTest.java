@@ -108,6 +108,53 @@ class DocCheckTest {
         assertThat(of(findings, DocCheck.Kind.WORK_PACKAGE)).containsExactly("ABC-1");
     }
 
+    private com.archimatetool.model.IArchimateRelationship relation(IArchimateElement from, IArchimateElement to, String name) {
+        com.archimatetool.model.IArchimateRelationship r = F.createAssociationRelationship();
+        r.setName(name);
+        r.connect(from, to);
+        model.getFolder(FolderType.RELATIONS).getElements().add(r);
+        return r;
+    }
+
+    @Test
+    void tokensThatNameARelationshipResolveAndOthersAreFound() {
+        IArchimateElement other = element("Other", "text");
+        add(view, other);
+        relation(described, other, "˝˝0035˝˝");
+        relation(other, described, " ˝0036˝ ");
+        described.setDocumentation("Uses ˝˝0035˝˝ and ˝0036˝, not ˝˝0099˝˝ or "
+                + "˝˝0099˝˝ again.");
+
+        List<DocCheck.Finding> findings = check("");
+
+        assertThat(findings.stream().filter(f -> f.kind == DocCheck.Kind.UNRESOLVED_TOKEN).map(f -> f.detail))
+                .containsExactly("˝˝0099˝˝");
+        assertThat(of(findings, DocCheck.Kind.MALFORMED_TOKEN)).isEmpty();
+    }
+
+    @Test
+    void tokensDoNotResolveThroughJunctionsOrPrintOrderRelationships() {
+        com.archimatetool.model.IJunction junction = F.createJunction();
+        model.getFolder(FolderType.OTHER).getElements().add(junction);
+        relation(described, junction, "˝˝1˝˝");
+        described.setDocumentation("˝˝1˝˝");
+
+        assertThat(of(check(""), DocCheck.Kind.UNRESOLVED_TOKEN)).containsExactly("Described");
+    }
+
+    @Test
+    void anOddNumberOfMarksOrAMistypedMarkIsMalformedOncePerElement() {
+        described.setDocumentation("˝˝0058¨˝ and ˝0059");
+        IArchimateElement other = element("Other", "ok ˝˝1˝˝");
+        add(view, other);
+        relation(other, described, "˝˝1˝˝");
+
+        List<DocCheck.Finding> findings = check("");
+
+        assertThat(of(findings, DocCheck.Kind.MALFORMED_TOKEN)).containsExactly("Described");
+        assertThat(DocCheck.format(findings)).contains("Malformed");
+    }
+
     @Test
     void aWorkPackageThatChangesAnElementIsFine() {
         IWorkPackage ticket = F.createWorkPackage();

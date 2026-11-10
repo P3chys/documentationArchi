@@ -113,8 +113,8 @@ public class ExportHandler extends AbstractHandler {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    List<String> problems = export(selection, folder, formats, null, monitor);
-                    display.asyncExec(() -> finished(display, folder, problems));
+                    Result result = exportAll(selection, folder, formats, null, monitor);
+                    display.asyncExec(() -> finished(display, folder, result));
                     return Status.OK_STATUS;
                 } catch (CancellationException | OperationCanceledException e) { // the previous export is as it was
                     return Status.CANCEL_STATUS;
@@ -151,18 +151,36 @@ public class ExportHandler extends AbstractHandler {
      */
     static List<String> export(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
             IProgressMonitor monitor) throws IOException {
+        return exportAll(selection, folder, formats, rulesFile, monitor).problems;
+    }
+
+    /** What an export found: assets without a file, and how many objects the rules left out. */
+    static final class Result {
+        final List<String> problems;
+        final int excluded;
+
+        Result(List<String> problems, int excluded) {
+            this.problems = problems;
+            this.excluded = excluded;
+        }
+    }
+
+    /** Like {@link #export(ModelReader.Selection, Path, Set, Path, IProgressMonitor)}, with more to report. */
+    static Result exportAll(ModelReader.Selection selection, Path folder, Set<Format> formats, Path rulesFile,
+            IProgressMonitor monitor) throws IOException {
         SubMonitor progress = SubMonitor.convert(monitor, "Exporting documentation",
                 selection.views.size() + formats.size() + 1);
         // the PDF library uses AWT classes, which must not start a GUI next to SWT (it would hang on macOS)
         System.setProperty("java.awt.headless", "true");
         List<EObject> shown = new ArrayList<>();
         KeywordRules rules = ProjectRules.resolve(selection.model, rulesFile, Prefs::rules); // fails before any work
+        Exclusion exclusion = selection.exclusion(rules);
         Doc doc = ModelReader.read(selection, (view, page) -> {
             check(progress);
             progress.subTask("Drawing " + view.getName());
             ViewImages.render(view, page);
             progress.worked(1);
-        }, shown);
+        }, shown, rules, exclusion);
         Map<String, String> fingerprints = ExportState.fingerprints(shown); // as read, whatever changes meanwhile
         long time = System.currentTimeMillis();
         Exporter exporter = new Exporter(doc, rules).version(selection.model.getName(),
@@ -185,7 +203,7 @@ public class ExportHandler extends AbstractHandler {
         } catch (IOException | RuntimeException e) {
             Activator.log("The export worked, but what it showed could not be noted for the model tree marks", e);
         }
-        return exporter.problems();
+        return new Result(exporter.problems(), exclusion.count());
     }
 
     private static void check(IProgressMonitor monitor) {
@@ -194,8 +212,12 @@ public class ExportHandler extends AbstractHandler {
         }
     }
 
-    private static void finished(Display display, Path folder, List<String> problems) {
+    private static void finished(Display display, Path folder, Result result) {
+        List<String> problems = result.problems;
         String message = "Exported to " + folder;
+        if (result.excluded > 0) {
+            message += "\n" + result.excluded + " object(s) were left out by the exclusion rules.";
+        }
         if (!problems.isEmpty()) {
             message += "\n\nThese assets are missing from the export (shown in red on their pages):\n"
                     + problems.stream().limit(MAX_PROBLEMS).map(p -> "- " + p).collect(Collectors.joining("\n"))

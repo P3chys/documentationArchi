@@ -16,6 +16,7 @@ import org.eclipse.swt.widgets.Shell;
 
 import com.archimatetool.editor.diagram.util.DiagramUtils;
 import com.archimatetool.model.IDiagramModel;
+import com.archimatetool.model.IDiagramModelArchimateConnection;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 
 import io.github.p3chys.documentationarchi.doc.DocPage;
@@ -31,19 +32,20 @@ final class ViewImages {
 
     /** Figures can only be drawn on the UI thread, wherever the export runs. */
     static void render(IDiagramModel view, DocPage page) {
+        Exclusion hidden = Exclusion.current(); // of the export running on this thread
         Display display = Display.getCurrent();
         if (display != null) {
-            draw(view, page);
+            draw(view, page, hidden);
         } else {
-            Display.getDefault().syncExec(() -> draw(view, page));
+            Display.getDefault().syncExec(() -> draw(view, page, hidden));
         }
     }
 
-    private static void draw(IDiagramModel view, DocPage page) {
+    private static void draw(IDiagramModel view, DocPage page, Exclusion hidden) {
         Shell shell = new Shell();
         try {
             GraphicalViewer viewer = DiagramUtils.createViewer(view, shell);
-            removePrintOrder(view, viewer);
+            removePrintOrder(view, viewer, hidden);
             Image image = DiagramUtils.createImage(viewer, SCALE, MARGIN);
             try {
                 ImageData data = image.getImageData();
@@ -62,11 +64,18 @@ final class ViewImages {
         }
     }
 
-    /** Only from the figures of this throwaway viewer: the model stays as it is. */
-    private static void removePrintOrder(IDiagramModel view, GraphicalViewer viewer) {
+    /**
+     * PrintOrder, and what the rules leave out ({@link Exclusion}; null: nothing). Only from the figures of this
+     * throwaway viewer: the model stays as it is.
+     */
+    private static void removePrintOrder(IDiagramModel view, GraphicalViewer viewer, Exclusion hidden) {
         view.eAllContents().forEachRemaining(o -> {
-            if (o instanceof IDiagramModelArchimateObject
-                    && ModelReader.isPrintOrder(((IDiagramModelArchimateObject) o).getArchimateElement())) {
+            if (hidden != null && o instanceof IDiagramModelArchimateConnection
+                    && hidden.excludedWithEnds(((IDiagramModelArchimateConnection) o).getArchimateRelationship())) {
+                remove((EditPart) viewer.getEditPartRegistry().get(o));
+            } else if (o instanceof IDiagramModelArchimateObject
+                    && (ModelReader.isPrintOrder(((IDiagramModelArchimateObject) o).getArchimateElement())
+                    || hidden != null && hidden.excluded(((IDiagramModelArchimateObject) o).getArchimateElement()))) {
                 GraphicalEditPart part = (GraphicalEditPart) viewer.getEditPartRegistry().get(o);
                 remove(part.getSourceConnections());
                 remove(part.getTargetConnections());

@@ -224,12 +224,21 @@ style color=#bf2600 background=#ffebe6 size=120% bold italic Deadline
 token variable color=#6554c0 italic   how {variable} looks; also table and constant
 heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
 sql background=#f4f5f7 theme=midnight linenumbers
+exclude label draft             leave out what carries #draft
+hide property internal*         never print these properties
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
 export of that model uses it instead of the preferences, on every computer and in CI (order: project file, then
 preferences, then the built-in defaults). **Save as Project Rules...** writes the current list there for an open, saved
 model. An invalid file fails the export and names the file and line; it never falls back to other rules.
+
+**Leaving things out:** a property `doc:exclude` (any value but `false`) on a view, element, relationship or folder
+leaves it out of every export (a folder: everything in it), pictures included; links to it become plain text. The rule
+line `exclude label draft` does the same for everything whose description carries `#draft`, and `hide property key`
+(repeatable, case-insensitive, `*` at the end matches any ending) never prints properties with that key. The `doc:`
+properties are never printed. What you select directly is still exported, and the final message says how many objects
+the rules left out.
 
 Confluence keeps text colour, bold, italic, underline, strikethrough and smaller text. It doesn't keep every
 background or larger size in every version, and the style editors say so where it matters.

@@ -583,6 +583,23 @@ from the open, saved ones. Below the list, a line names the open models that use
 says so for the model it exports. If the file has an invalid line, the export stops and tells you the file and the
 line; it does not quietly use other rules.
 
+### Leaving things out
+
+Everything in a model is exported unless you leave it out:
+
+- **A property `doc:exclude`** on a view, element, relationship or folder (any value but `false`) leaves it out of every
+  export; for a folder, everything in it. The element is gone from the pictures of views as well, and so are the
+  relationships to it. A link to it in a description (`[[ref:...]]`) shows its plain name.
+- **`exclude label draft`** (a rule line) leaves out every view, element and relationship whose description carries
+  `#draft` or `[[draft]]`.
+- **`hide property internal*`** (a rule line, as many as you like) never prints properties with that key. Case does
+  not matter, and a `*` at the end matches any ending. The `doc:` properties (`doc:exclude`, `doc:home`) are never
+  printed.
+
+What you select yourself is still exported: right-click an excluded view and export it, and you get it. When the
+export finishes, its message says how many objects the rules left out. The rule lines work in the preferences, in
+`documentation.rules` and on the command line alike.
+
 ---
 
 ## 12. Assets: pictures and files

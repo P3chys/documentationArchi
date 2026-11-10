@@ -22,6 +22,8 @@ import java.util.regex.Pattern;
  * token variable color=#6554c0 italic   how {variable} looks; also table ([table]) and constant ('constant')
  * heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
  * sql background=#f4f5f7 theme=midnight linenumbers   how SQL blocks look; theme and line numbers are Confluence's
+ * exclude label draft             views, elements and relationships labelled #draft stay out of every export
+ * hide property internal*         properties with this key are never printed; * at the end matches any ending
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -31,7 +33,17 @@ public final class KeywordRules {
 
     public enum TagColour { GREY, RED, YELLOW, GREEN, BLUE }
 
-    public enum Kind { PANEL, TAG, STYLE, TOKEN, HEADING, SQL }
+    public enum Kind {
+        PANEL(false), TAG(false), STYLE(false), TOKEN(false), HEADING(false), SQL(false),
+        /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
+        EXCLUDE_LABEL(true), HIDE_PROPERTY(true);
+
+        public final boolean setting;
+
+        Kind(boolean setting) {
+            this.setting = setting;
+        }
+    }
 
     /** Coloured tokens in descriptions, with how they look when no rule says otherwise. */
     public enum Token {
@@ -67,6 +79,8 @@ public final class KeywordRules {
             "# token <table|constant|variable> <options>   how [table], 'constant' and {variable} look",
             "# heading <1-4> <options>   how headings look (1: page title)",
             "# sql <options> [theme=<confluence theme>] [linenumbers]   how SQL blocks look",
+            "# exclude label <keyword>   views, elements and relationships labelled #keyword stay out of every export",
+            "# hide property <key>   properties with this key are never printed; * at the end matches any ending",
             "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
             "");
 
@@ -254,9 +268,22 @@ public final class KeywordRules {
             return new Rule(Kind.SQL, "sql", null, null, Objects.requireNonNull(style), theme, lineNumbers);
         }
 
+        /** @param label the keyword, without # */
+        public static Rule excludeLabel(String label) {
+            return new Rule(Kind.EXCLUDE_LABEL, label.startsWith("#") ? label.substring(1) : label, null, null, null,
+                    null, false);
+        }
+
+        /** @param key a property key; {@code *} at the end stands for any ending */
+        public static Rule hideProperty(String key) {
+            return new Rule(Kind.HIDE_PROPERTY, key, null, null, null, null, false);
+        }
+
         /** The rule as one line of text, which {@link KeywordRules#parse} reads back. */
         public String line() {
             switch (kind) {
+                case EXCLUDE_LABEL: return "exclude label " + keyword;
+                case HIDE_PROPERTY: return "hide property " + keyword;
                 case PANEL: return "panel " + lower(panel) + " " + keyword;
                 case TAG: return "tag " + lower(tag) + " " + keyword;
                 case TOKEN: return join("token " + keyword, style.options());
@@ -303,6 +330,8 @@ public final class KeywordRules {
     private final List<Rule> rules;
     private final Map<String, PanelStyle> panels = new LinkedHashMap<>();
     private final Map<String, TagColour> tags = new LinkedHashMap<>();
+    private final List<String> excludedLabels = new ArrayList<>();
+    private final List<String> hiddenProperties = new ArrayList<>();
     private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
@@ -322,6 +351,8 @@ public final class KeywordRules {
                 case TOKEN: tokens.put(Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT)), rule.style); break;
                 case HEADING: headings[Integer.parseInt(rule.keyword)] = rule.style; break;
                 case SQL: sql = rule; break;
+                case EXCLUDE_LABEL: excludedLabels.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
+                case HIDE_PROPERTY: hiddenProperties.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 default: texts.add(rule);
             }
         }
@@ -410,6 +441,20 @@ public final class KeywordRules {
                 Options o = Options.read(rest, true).only();
                 return Rule.sql(o.style(), o.theme, o.lineNumbers);
             }
+            case "exclude": {
+                String[] label = rest.split("\\s+", 2);
+                if (!label[0].equalsIgnoreCase("label") || label.length < 2 || label[1].isBlank()) {
+                    throw new IllegalArgumentException("expected: exclude label <keyword>");
+                }
+                return Rule.excludeLabel(oneWord(label[1], "keyword"));
+            }
+            case "hide": {
+                String[] key = rest.split("\\s+", 2);
+                if (!key[0].equalsIgnoreCase("property") || key.length < 2 || key[1].isBlank()) {
+                    throw new IllegalArgumentException("expected: hide property <key>");
+                }
+                return Rule.hideProperty(key[1].strip());
+            }
             default:
         }
         String[] parts = rule.split("\\s+", 3);
@@ -426,7 +471,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading or sql");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude or hide");
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -500,6 +545,17 @@ public final class KeywordRules {
         }
     }
 
+    private static String oneWord(String text, String what) {
+        String word = text.strip();
+        if (word.startsWith("#")) {
+            word = word.substring(1);
+        }
+        if (word.isEmpty() || word.matches(".*\\s.*")) {
+            throw new IllegalArgumentException("the " + what + " must be one word");
+        }
+        return word;
+    }
+
     private static boolean isOption(String word) {
         String w = word.toLowerCase(Locale.ROOT);
         return w.contains("=") || w.equals("bold") || w.equals("italic") || w.equals("underline") || w.equals("strike");
@@ -559,6 +615,22 @@ public final class KeywordRules {
             }
         }
         return labels;
+    }
+
+    /** The labels (without #) that leave a view, element or relationship out of every export, lower case. */
+    public List<String> excludedLabels() {
+        return Collections.unmodifiableList(excludedLabels);
+    }
+
+    /** Whether properties with this key are never printed: a {@code hide property} rule matches it. */
+    public boolean hidesProperty(String key) {
+        String k = key == null ? "" : key.toLowerCase(Locale.ROOT);
+        for (String hidden : hiddenProperties) {
+            if (hidden.endsWith("*") ? k.startsWith(hidden.substring(0, hidden.length() - 1)) : k.equals(hidden)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Matches any styled text; {@link #style} tells which one. */

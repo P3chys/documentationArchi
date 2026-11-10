@@ -42,19 +42,21 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
         }
         Path folder = Path.of(line.getOptionValue(FOLDER));
         Path rules = line.hasOption(RULES) ? Path.of(line.getOptionValue(RULES)) : null;
-        List<String> problems;
+        ExportHandler.Result result;
         try {
             ModelReader.Selection selection = CommandLineSelection.select(model,
                     CommandLineSelection.names(line.getOptionValue(WORK_PACKAGES)),
                     CommandLineSelection.names(line.getOptionValue(VIEWS)),
                     CommandLineSelection.names(line.getOptionValue(FOLDERS)));
-            problems = ExportHandler.export(selection, folder, formats(line.getOptionValue(FORMATS)), rules,
+            result = ExportHandler.exportAll(selection, folder, formats(line.getOptionValue(FORMATS)), rules,
                     new NullProgressMonitor());
         } catch (IllegalArgumentException e) { // unknown names, unusable rules, nothing to export
             throw failure(e.getMessage());
         }
+        List<String> problems = result.problems;
         problems.forEach(this::logError);
-        logMessage("Exported documentation to " + folder);
+        logMessage("Exported documentation to " + folder
+                + (result.excluded > 0 ? ", " + result.excluded + " object(s) left out by the exclusion rules" : ""));
         if (line.hasOption(STRICT) && !problems.isEmpty()) {
             throw new IllegalStateException(problems.size() + " asset reference(s) have no file, see the errors above");
         }

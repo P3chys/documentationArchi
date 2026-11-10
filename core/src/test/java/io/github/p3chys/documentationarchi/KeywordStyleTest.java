@@ -202,7 +202,7 @@ class KeywordStyleTest {
                 .contains("<h2><span style=\"color: rgb(0,82,204); font-size: 120%;\">Notes</span></h2>")
                 .contains("<h3 id=\"e-e\"><em><small>")
                 .contains("<pre class=\"sql\" style=\"background-color: rgb(0,0,0);\">"
-                        + "<span style=\"color: rgb(255,255,255); font-size: 90%;\">select 1</span></pre>")
+                        + "<span style=\"color: rgb(255,255,255); font-size: 90%;\"><strong>select</strong> 1</span></pre>")
                 .contains("<span style=\"color: rgb(255,0,0);\"><em>{user}</em></span> in [orders]");
         assertWellFormed(html.substring(html.indexOf("<html")));
 
@@ -215,7 +215,7 @@ class KeywordStyleTest {
         assertWellFormed("<root xmlns:ac=\"urn:ac\" xmlns:ri=\"urn:ri\">" + storage + "</root>");
 
         try (PDDocument pdf = Loader.loadPDF(folder.resolve("model.pdf").toFile())) {
-            assertThat(new PDFTextStripper().getText(pdf)).contains("select 1").contains("{user}").contains("Notes");
+            assertThat(new PDFTextStripper().getText(pdf)).contains("select").contains("{user}").contains("Notes");
         }
     }
 

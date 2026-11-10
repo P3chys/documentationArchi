@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
  * sql background=#f4f5f7 theme=midnight linenumbers   how SQL blocks look; theme and line numbers are Confluence's
  * exclude label draft             views, elements and relationships labelled #draft stay out of every export
  * hide property internal*         properties with this key are never printed; * at the end matches any ending
+ * assets Files                   the folder assets are read from: relative to the model's folder or absolute, "quoted" with spaces
  * language cs                     the fixed texts of the output in Czech (default: en)
  * text contents = Table of contents   replaces one fixed text, see {@link Texts}
  * profile developers folders=Views/Sales formats=html,pdf   a named export set-up, see {@link ExportProfile}
@@ -48,7 +49,7 @@ public final class KeywordRules {
     public enum Kind {
         PANEL(false), TAG(false), STYLE(false), TOKEN(false), HEADING(false), SQL(false),
         /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
-        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true),
+        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true), ASSETS(true),
         PROFILE(true), CATALOG(true), INDEX(true),
         /** {@code jira <url>}: where a work package named after a ticket ({@code ABC-123}) links to. */
         JIRA(true),
@@ -110,6 +111,7 @@ public final class KeywordRules {
             "# sql <options> [theme=<confluence theme>] [linenumbers]   how SQL blocks look",
             "# exclude label <keyword>   views, elements and relationships labelled #keyword stay out of every export",
             "# hide property <key>   properties with this key are never printed; * at the end matches any ending",
+            "# assets <folder>   where assets are read from, relative to the model's folder or absolute (default: Assets); quote it if it has spaces",
             "# language <en|cs>   the language of the fixed texts of the output (default: en)",
             "# text <key> = <replacement>   replaces one fixed text, e.g. text contents = Table of contents",
             "# page <section>...   the sections of a view's page to print, in this order: description contents picture properties notes related elements",
@@ -350,6 +352,11 @@ public final class KeywordRules {
             return new Rule(Kind.LANGUAGE, language.strip().toLowerCase(Locale.ROOT), null, null, null, null, false);
         }
 
+        /** @param folder where assets are read from: relative to the model's folder, or absolute */
+        public static Rule assets(String folder) {
+            return new Rule(Kind.ASSETS, folder, null, null, null, null, false);
+        }
+
         /** @param key one of {@link Texts#keys()} @param replacement the text to print instead */
         public static Rule text(String key, String replacement) {
             if (!Texts.exists(key.strip())) {
@@ -435,6 +442,7 @@ public final class KeywordRules {
             switch (kind) {
                 case PAGE: return "page " + keyword;
                 case ENTRY: return "entry " + keyword;
+                case ASSETS: return "assets " + (keyword.matches(".*\\s.*") ? "\"" + keyword + "\"" : keyword);
                 case LANGUAGE: return "language " + keyword;
                 case PDF: return "pdf " + keyword + " " + value;
                 case DEFAULTS: return "defaults " + value;
@@ -469,8 +477,8 @@ public final class KeywordRules {
         }
 
         String key() {
-            if (kind == Kind.LANGUAGE || kind == Kind.PAGE || kind == Kind.ENTRY || kind == Kind.DEFAULTS
-                    || kind == Kind.JIRA) {
+            if (kind == Kind.LANGUAGE || kind == Kind.ASSETS || kind == Kind.PAGE || kind == Kind.ENTRY
+                    || kind == Kind.DEFAULTS || kind == Kind.JIRA) {
                 return kind.name(); // one language
             }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
@@ -509,6 +517,7 @@ public final class KeywordRules {
     private final List<TextStyle> styles = new ArrayList<>();
     private Rule sql;
     private String jira;
+    private String assetsFolder;
     private Pattern styled;
 
     private KeywordRules(List<Rule> rules) {
@@ -522,6 +531,7 @@ public final class KeywordRules {
         for (Rule rule : rules) {
             switch (rule.kind) {
                 case LANGUAGE: language = rule.keyword; break;
+                case ASSETS: assetsFolder = rule.keyword; break;
                 case PAGE: pageSections = List.of(rule.keyword.split(" ")); break;
                 case ENTRY: entryParts = List.of(rule.keyword.split(" ")); break;
                 case PDF:
@@ -673,6 +683,20 @@ public final class KeywordRules {
                 return Rule.entry(words(rest));
             case "language":
                 return Rule.language(rest);
+            case "assets": {
+                String folder = rest.strip();
+                folder = folder.length() >= 2 && folder.startsWith("\"") && folder.endsWith("\"")
+                        ? folder.substring(1, folder.length() - 1).strip() : folder;
+                if (folder.isEmpty()) {
+                    throw new IllegalArgumentException("expected: assets <folder>");
+                }
+                // a rules file comes with a shared model: it must not make any folder of the computer the assets
+                if (!insideModelFolder(folder)) {
+                    throw new IllegalArgumentException("the assets folder must be inside the model's folder; "
+                            + "use --documentation.assets for one elsewhere");
+                }
+                return Rule.assets(folder);
+            }
             case "pdf": {
                 String[] w = rest.strip().toLowerCase(Locale.ROOT).split("\\s+");
                 if (w.length != 2 || !w[1].equals("on") && !w[1].equals("off")) {
@@ -742,7 +766,23 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page, entry, pdf, profile, catalog, index, jira or defaults");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, assets, text, page, entry, pdf, profile, catalog, index, jira or defaults");
+    }
+
+    /** Whether a folder as written stays inside the folder it is relative to: not absolute, no way up out of it. */
+    private static boolean insideModelFolder(String folder) {
+        String f = folder.replace('\\', '/');
+        if (f.startsWith("/") || f.matches("^[A-Za-z]:.*") || f.matches("^[A-Za-z][A-Za-z0-9+.-]*:.*")) {
+            return false;
+        }
+        int depth = 0;
+        for (String part : f.split("/")) {
+            depth += part.equals("..") ? -1 : part.isEmpty() || part.equals(".") ? 0 : 1;
+            if (depth < 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -910,6 +950,18 @@ public final class KeywordRules {
     /** The parts of an element's description to print, in order. */
     public List<String> entryParts() {
         return entryParts;
+    }
+
+    /** The folder assets are read from, as written (relative to the model's folder, or absolute); null for the usual. */
+    public String assetsFolder() {
+        return assetsFolder;
+    }
+
+    /** These rules reading assets from this folder instead, e.g. what the command line says. */
+    public KeywordRules withAssets(String folder) {
+        List<Rule> all = new ArrayList<>(rules);
+        all.add(Rule.assets(folder));
+        return of(all);
     }
 
     /** The fixed texts of the output: the language of the rules, with the replacements. */

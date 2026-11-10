@@ -22,6 +22,9 @@ import io.github.p3chys.documentationarchi.text.RichText;
 /** The content of one page, the same for every output apart from what its {@link Dialect} decides. */
 final class PageBody {
 
+    /** How far each open nesting tag indents, in pixels. */
+    private static final int INDENT = 20;
+
     private final Doc doc;
     private final DocPage page;
     private final Dialect dialect;
@@ -329,6 +332,9 @@ final class PageBody {
 
     /** A link out of the export: a Confluence page or a Jira ticket. */
     private static String external(String url, String escapedLabel) {
+        if (!url.matches("(?i)https?://\\S+")) { // never a javascript: or file: link
+            return escapedLabel;
+        }
         return "<a href=\"" + Xml.escape(url) + "\">" + escapedLabel + "</a>";
     }
 
@@ -384,9 +390,15 @@ final class PageBody {
         RichText.parse(text, rules).forEach(block -> out.append(block(block)));
     }
 
+    /** The block, in a division indented by the nesting tags open where it stands. */
     private String block(RichText.Block block) {
+        String html = content(block);
+        return block.indent > 0 ? "<div style=\"margin-left: " + block.indent * INDENT + "px\">" + html + "</div>" : html;
+    }
+
+    private String content(RichText.Block block) {
         if (block.sql != null) {
-            return dialect.sql(block.sql, rules.sql());
+            return dialect.sql(block.sql, rules.sql(), rules);
         }
         if (block.code != null) {
             return dialect.code(block.code, block.language);
@@ -431,6 +443,8 @@ final class PageBody {
                     s.append("<a href=\"").append(url).append("\">").append(url).append("</a>");
                     break;
                 case ASSET: s.append(asset(i)); break;
+                case BAD_ASSET: s.append(unsupportedAsset(i)); break;
+                case IMAGE_URL: s.append(dialect.remoteImage(Xml.escape(i.text))); break;
                 case BOLD: s.append("<strong>").append(inlines(i.children)).append("</strong>"); break;
                 case ITALIC: s.append("<em>").append(inlines(i.children)).append("</em>"); break;
                 case LINK:
@@ -460,6 +474,12 @@ final class PageBody {
             return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(t("missing-reference")) + ": " + Xml.escape(reference.text) + "]</span>";
         }
         return target(reference.text, Xml.escape(name));
+    }
+
+    /** A path outside the assets folder is no asset: it stays visible in red and is reported like a missing one. */
+    private String unsupportedAsset(RichText.Inline reference) {
+        doc.assets.unsupported(reference.text, page.title);
+        return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(t("unsupported-asset")) + ": " + Xml.escape(reference.text) + "]</span>";
     }
 
     /** A reference to a file that isn't there stays visible in red, so whoever reads the page notices. */

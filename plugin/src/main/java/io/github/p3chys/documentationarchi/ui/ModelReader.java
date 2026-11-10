@@ -526,7 +526,8 @@ final class ModelReader {
     }
 
     /**
-     * The Assets folder next to the model file; a model never saved has none. References ([[ref:id]]) to elements
+     * The Assets folder next to the model file, or the one the rules name; a model never saved has none unless the
+     * rules give an absolute folder. References ([[ref:id]]) to elements
      * and views of the model the export leaves out show their names.
      */
     private Doc doc(String title, List<DocPage> pages) {
@@ -536,7 +537,8 @@ final class ModelReader {
                     + " object(s) with " + Exclusion.PROPERTY + " or an excluded label).");
         }
         Doc doc = new Doc(title, pages,
-                Assets.in(model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().getParent()));
+                Assets.in(model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().getParent(),
+                        rules.assetsFolder()));
         boolean[] warned = {false};
         model.eAllContents().forEachRemaining(o -> {
             if (o instanceof IDiagramModel || o instanceof IArchimateElement && !(o instanceof IJunction)) {
@@ -548,7 +550,7 @@ final class ModelReader {
                 for (IProperty p : element.getProperties()) {
                     String page = p.getValue() == null ? "" : p.getValue().strip();
                     if (url == null && p.getKey() != null && CONFLUENCE_URL.equalsIgnoreCase(p.getKey().strip())
-                            && !page.isEmpty()) {
+                            && page.matches("(?i)https?://\\S+")) {
                         url = confluence(page, element);
                         if (url.equals(page) && !page.contains("#") && !warned[0]) {
                             warned[0] = true;

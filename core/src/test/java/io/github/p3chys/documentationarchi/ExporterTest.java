@@ -184,7 +184,7 @@ class ExporterTest {
         new Exporter(doc, KeywordRules.defaults()).export(folder, EnumSet.allOf(Format.class));
 
         String html = Files.readString(folder.resolve("html/index.html"));
-        assertThat(html).contains("<pre class=\"sql\">select a &lt; b from t where x = ']]&gt;'</pre>")
+        assertThat(html).contains("<pre class=\"sql\"><strong>select</strong> a &lt; b from t where x = ']]&gt;'</pre>")
                 .contains("<div class=\"panel note\"><p>Remark</p></div>")
                 .contains("<span style=\"color: rgb(7,71,166);\">[orders]</span>")
                 .contains("<span style=\"color: rgb(0,102,68);\">'NEW'</span>")

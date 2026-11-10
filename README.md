@@ -226,6 +226,8 @@ heading 2 color=#0052cc size=120%     how headings of a level (1-4) look
 sql background=#f4f5f7 theme=midnight linenumbers
 exclude label draft             leave out what carries #draft
 hide property internal*         never print these properties
+language cs                     fixed texts of the output in Czech
+text contents = Table of contents   replace one fixed text
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
@@ -239,6 +241,9 @@ line `exclude label draft` does the same for everything whose description carrie
 (repeatable, case-insensitive, `*` at the end matches any ending) never prints properties with that key. The `doc:`
 properties are never printed. What you select directly is still exported, and the final message says how many objects
 the rules left out.
+
+**Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`).
 
 Confluence keeps text colour, bold, italic, underline, strikethrough and smaller text. It doesn't keep every
 background or larger size in every version, and the style editors say so where it matters.

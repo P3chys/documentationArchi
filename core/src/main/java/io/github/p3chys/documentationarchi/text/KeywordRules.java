@@ -24,6 +24,8 @@ import java.util.regex.Pattern;
  * sql background=#f4f5f7 theme=midnight linenumbers   how SQL blocks look; theme and line numbers are Confluence's
  * exclude label draft             views, elements and relationships labelled #draft stay out of every export
  * hide property internal*         properties with this key are never printed; * at the end matches any ending
+ * language cs                     the fixed texts of the output in Czech (default: en)
+ * text contents = Table of contents   replaces one fixed text, see {@link Texts}
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -36,7 +38,7 @@ public final class KeywordRules {
     public enum Kind {
         PANEL(false), TAG(false), STYLE(false), TOKEN(false), HEADING(false), SQL(false),
         /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
-        EXCLUDE_LABEL(true), HIDE_PROPERTY(true);
+        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true);
 
         public final boolean setting;
 
@@ -81,6 +83,8 @@ public final class KeywordRules {
             "# sql <options> [theme=<confluence theme>] [linenumbers]   how SQL blocks look",
             "# exclude label <keyword>   views, elements and relationships labelled #keyword stay out of every export",
             "# hide property <key>   properties with this key are never printed; * at the end matches any ending",
+            "# language <en|cs>   the language of the fixed texts of the output (default: en)",
+            "# text <key> = <replacement>   replaces one fixed text, e.g. text contents = Table of contents",
             "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
             "");
 
@@ -221,9 +225,16 @@ public final class KeywordRules {
         /** Confluence's theme for an SQL block, null for Confluence's default. */
         public final CodeTheme theme;
         public final boolean lineNumbers;
+        /** For a {@code text} rule: what replaces the text. */
+        public final String value;
 
         private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
                 boolean lineNumbers) {
+            this(kind, keyword, panel, tag, style, theme, lineNumbers, null);
+        }
+
+        private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
+                boolean lineNumbers, String value) {
             if (keyword == null || keyword.isBlank()) {
                 throw new IllegalArgumentException("the keyword is empty");
             }
@@ -237,6 +248,7 @@ public final class KeywordRules {
             this.style = style;
             this.theme = theme;
             this.lineNumbers = lineNumbers;
+            this.value = value;
         }
 
         public static Rule panel(String keyword, PanelStyle style) {
@@ -279,9 +291,33 @@ public final class KeywordRules {
             return new Rule(Kind.HIDE_PROPERTY, key, null, null, null, null, false);
         }
 
+        /** @param language one of {@link Texts#LANGUAGES} */
+        public static Rule language(String language) {
+            if (!Texts.LANGUAGES.contains(language.strip().toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("unknown language \"" + language + "\", use "
+                        + String.join(" or ", Texts.LANGUAGES));
+            }
+            return new Rule(Kind.LANGUAGE, language.strip().toLowerCase(Locale.ROOT), null, null, null, null, false);
+        }
+
+        /** @param key one of {@link Texts#keys()} @param replacement the text to print instead */
+        public static Rule text(String key, String replacement) {
+            if (!Texts.exists(key.strip())) {
+                throw new IllegalArgumentException("unknown text \"" + key + "\", use one of "
+                        + String.join(", ", Texts.keys()));
+            }
+            if (replacement.isBlank() || replacement.contains("\n") || replacement.contains("\r")) {
+                throw new IllegalArgumentException("the replacement must be one line of text");
+            }
+            return new Rule(Kind.TEXT, key.strip().toLowerCase(Locale.ROOT), null, null, null, null, false,
+                    replacement.strip());
+        }
+
         /** The rule as one line of text, which {@link KeywordRules#parse} reads back. */
         public String line() {
             switch (kind) {
+                case LANGUAGE: return "language " + keyword;
+                case TEXT: return "text " + keyword + " = " + value;
                 case EXCLUDE_LABEL: return "exclude label " + keyword;
                 case HIDE_PROPERTY: return "hide property " + keyword;
                 case PANEL: return "panel " + lower(panel) + " " + keyword;
@@ -308,6 +344,9 @@ public final class KeywordRules {
         }
 
         String key() {
+            if (kind == Kind.LANGUAGE) {
+                return kind.name(); // one language
+            }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
         }
 
@@ -332,6 +371,7 @@ public final class KeywordRules {
     private final Map<String, TagColour> tags = new LinkedHashMap<>();
     private final List<String> excludedLabels = new ArrayList<>();
     private final List<String> hiddenProperties = new ArrayList<>();
+    private Texts fixedTexts = Texts.english();
     private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
@@ -344,8 +384,12 @@ public final class KeywordRules {
         for (Token token : Token.values()) {
             tokens.put(token, token.builtIn);
         }
+        String language = "en";
+        Map<String, String> replaced = new LinkedHashMap<>();
         for (Rule rule : rules) {
             switch (rule.kind) {
+                case LANGUAGE: language = rule.keyword; break;
+                case TEXT: replaced.put(rule.keyword, rule.value); break;
                 case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
                 case TAG: tags.put(rule.keyword.toLowerCase(Locale.ROOT), rule.tag); break;
                 case TOKEN: tokens.put(Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT)), rule.style); break;
@@ -356,6 +400,7 @@ public final class KeywordRules {
                 default: texts.add(rule);
             }
         }
+        fixedTexts = new Texts(language, replaced);
         // the longest text first, so "Key point" wins over "Key"; one numbered group per text tells which one matched
         texts.sort(Comparator.comparingInt((Rule r) -> r.keyword.length()).reversed());
         StringBuilder alternatives = new StringBuilder();
@@ -441,6 +486,15 @@ public final class KeywordRules {
                 Options o = Options.read(rest, true).only();
                 return Rule.sql(o.style(), o.theme, o.lineNumbers);
             }
+            case "language":
+                return Rule.language(rest);
+            case "text": {
+                int equals = rest.indexOf('=');
+                if (equals < 0) {
+                    throw new IllegalArgumentException("expected: text <key> = <replacement>");
+                }
+                return Rule.text(rest.substring(0, equals).strip(), rest.substring(equals + 1).strip());
+            }
             case "exclude": {
                 String[] label = rest.split("\\s+", 2);
                 if (!label[0].equalsIgnoreCase("label") || label.length < 2 || label[1].isBlank()) {
@@ -471,7 +525,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude or hide");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language or text");
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -615,6 +669,11 @@ public final class KeywordRules {
             }
         }
         return labels;
+    }
+
+    /** The fixed texts of the output: the language of the rules, with the replacements. */
+    public Texts texts() {
+        return fixedTexts;
     }
 
     /** The labels (without #) that leave a view, element or relationship out of every export, lower case. */

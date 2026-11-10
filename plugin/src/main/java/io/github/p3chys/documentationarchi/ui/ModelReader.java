@@ -223,6 +223,10 @@ final class ModelReader {
         this.elements = visible(selection.elements, new LinkedHashSet<>());
     }
 
+    private String t(String key) {
+        return rules.texts().get(key);
+    }
+
     private <T extends EObject, C extends Collection<T>> C visible(Collection<T> objects, C to) {
         objects.stream().filter(o -> !exclusion.excluded(o)).forEach(to::add);
         return to;
@@ -292,10 +296,10 @@ final class ModelReader {
         List<IArchimateElement> workPackages = selection.wholeModel
                 ? rest.stream().filter(IWorkPackage.class::isInstance).collect(Collectors.toList()) : List.of();
         rest.removeAll(workPackages);
-        elementsPage(rest, selection.wholeModel ? "Elements not in any view" : "Selected elements", pages);
+        elementsPage(rest, selection.wholeModel ? t("elements-not-in-any-view") : t("selected-elements"), pages);
         if (!workPackages.isEmpty()) {
             workPackages.sort(Comparator.comparing(ModelReader::label, ModelReader::compareNatural));
-            DocPage page = new DocPage("work-packages", "Work packages");
+            DocPage page = new DocPage("work-packages", t("work-packages"));
             workPackages.forEach(e -> page.contents.add(link(e)));
             describe(workPackages, workPackages, page);
             pages.add(page);
@@ -335,7 +339,7 @@ final class ModelReader {
         showing.forEach(view -> pages.add(viewPage(view, changed)));
         List<DocPage> views = new ArrayList<>(pages);
         elementsPage(ordered(changed, null).stream().filter(e -> !described.contains(e.getId()))
-                .collect(Collectors.toList()), "Elements not in any view", pages);
+                .collect(Collectors.toList()), t("elements-not-in-any-view"), pages);
 
         List<IWorkPackage> workPackages = new ArrayList<>(selection.workPackages);
         DocPage first;
@@ -392,7 +396,7 @@ final class ModelReader {
                 labelled(texts, new Link(at.getId(), ends, typeName(r)), found);
             }
         }
-        DocPage page = new DocPage("labels", "Labels");
+        DocPage page = new DocPage("labels", t("labels"));
         for (String label : rules.labels()) {
             if (found.containsKey(label)) {
                 page.labels.put(label, found.get(label));
@@ -559,7 +563,7 @@ final class ModelReader {
      * The elements in the view's groups after the others, a group's together, the groups in their order on the
      * view; print order stays inside each. An element shown more than once counts where it is shown first.
      */
-    private static List<IArchimateElement> grouped(List<IArchimateElement> elements, IDiagramModel view, DocPage page) {
+    private List<IArchimateElement> grouped(List<IArchimateElement> elements, IDiagramModel view, DocPage page) {
         Map<IArchimateElement, IDiagramModelGroup> groupOf = new HashMap<>();
         List<IDiagramModelGroup> groups = new ArrayList<>();
         for (TreeIterator<EObject> i = view.eAllContents(); i.hasNext();) {
@@ -578,7 +582,7 @@ final class ModelReader {
         for (IArchimateElement e : list) {
             IDiagramModelGroup group = groupOf.get(e);
             if (group != null) {
-                page.groups.put(e.getId(), group.getName() == null || group.getName().isBlank() ? "Group"
+                page.groups.put(e.getId(), group.getName() == null || group.getName().isBlank() ? t("group")
                         : group.getName().strip());
             }
         }

@@ -600,6 +600,15 @@ What you select yourself is still exported: right-click an excluded view and exp
 export finishes, its message says how many objects the rules left out. The rule lines work in the preferences, in
 `documentation.rules` and on the command line alike.
 
+### Language and fixed texts
+
+The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
+`language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
+`text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `generated`, `missing-asset`, `missing-reference`. `generated` keeps the placeholders `{time}` and `{model}`. The names of element and relationship types stay as
+Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
+`documentation.rules` and on the command line. A wrong language or key is reported with its line.
+
 ---
 
 ## 12. Assets: pictures and files

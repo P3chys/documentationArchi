@@ -70,6 +70,48 @@ class ExportStateTest {
         return state.mark(o).status;
     }
 
+    /** Publishes the whole model, as an export with "Publish" does. */
+    private void publish(ExportState state, long time) throws Exception {
+        List<EObject> exported = new ArrayList<>();
+        io.github.p3chys.documentationarchi.doc.Doc doc = ModelReader.read(ModelReader.Selection.of(List.of(model)),
+                (v, p) -> { }, exported);
+        state.publish(model, doc, ExportState.fingerprints(exported), time, true);
+    }
+
+    @Test
+    void whatAColleaguePublishedCountsAsExportedOnEveryComputer() throws Exception {
+        java.nio.file.Files.createDirectories(folder.resolve("shared"));
+        model.setFile(folder.resolve("shared/model.archimate").toFile());
+        ExportState bob = new ExportState(folder.resolve("bob"));
+        assertThat(status(bob, a)).isEqualTo(Status.NEW);
+
+        publish(new ExportState(folder.resolve("alice")), 5000);
+        assertThat(folder.resolve("shared/documentation.published")).exists();
+        bob = new ExportState(folder.resolve("bob")); // Bob never exported anything himself
+        assertThat(status(bob, a)).isEqualTo(Status.CURRENT);
+        assertThat(status(bob, view)).isEqualTo(Status.CURRENT);
+        assertThat(bob.mark(a).exported).isEqualTo(5000);
+
+        shown.setBounds(F.createBounds(50, 50, 120, 55));
+        assertThat(status(bob, view)).isEqualTo(Status.LAYOUT);
+        a.setName("A renamed");
+        assertThat(status(bob, a)).isEqualTo(Status.CHANGED);
+        assertThat(status(bob, element("C"))).isEqualTo(Status.NEW);
+
+        // his own export of the changed model counts too: either is enough
+        export(bob);
+        assertThat(status(bob, a)).isEqualTo(Status.CURRENT);
+        assertThat(status(bob, view)).isEqualTo(Status.CURRENT);
+    }
+
+    @Test
+    void modelNeverSavedHasNothingPublishedAndCannotBePublished() throws Exception {
+        ExportState state = new ExportState(folder);
+        assertThat(state.published(model).isEmpty()).isTrue();
+        assertThat(status(state, a)).isEqualTo(Status.NEW);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> publish(state, 1)).hasMessageContaining("never saved");
+    }
+
     @Test
     void whatChangesOrIsAddedAfterAnExportIsMarked() throws Exception {
         ExportState state = new ExportState(folder);

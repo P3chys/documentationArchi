@@ -24,14 +24,19 @@ import io.github.p3chys.documentationarchi.render.Exporter.Format;
 final class ExportDialog extends Dialog {
 
     private final String what;
+    private final boolean canPublish;
+    private Button publishButton;
+    private boolean publish;
     private final Map<Format, Button> formatButtons = new EnumMap<>(Format.class);
     private Text folderText;
     private String folder;
     private Set<Format> formats;
 
-    ExportDialog(Shell shell, String what) {
+    /** @param canPublish the model has a file, next to which what is published can be noted */
+    ExportDialog(Shell shell, String what, boolean canPublish) {
         super(shell);
         this.what = what;
+        this.canPublish = canPublish;
     }
 
     @Override
@@ -68,6 +73,15 @@ final class ExportDialog extends Dialog {
         format(c, Format.HTML, "HTML pages", selected);
         format(c, Format.PDF, "PDF document", selected);
         format(c, Format.CONFLUENCE, "Confluence pages (storage format, with an upload script)", selected);
+
+        // never remembered: publishing is a decision each time
+        publishButton = new Button(c, SWT.CHECK);
+        publishButton.setText("Publish: this export is what the readers get (noted next to the model, for the whole team)");
+        publishButton.setToolTipText("Notes what this export shows in the file documentation.published next to the model "
+                + "file. The model tree then marks what the published documentation doesn't show yet, for everyone the "
+                + "file is shared with, and later exports of the whole model list what changed since.");
+        publishButton.setEnabled(canPublish);
+        GridDataFactory.fillDefaults().span(3, 1).indent(0, 8).applyTo(publishButton);
         return c;
     }
 
@@ -100,6 +114,7 @@ final class ExportDialog extends Dialog {
                 formats.add(format);
             }
         });
+        publish = publishButton.getSelection();
         Prefs.folder(folder);
         Prefs.formats(formats);
         super.okPressed();
@@ -111,5 +126,9 @@ final class ExportDialog extends Dialog {
 
     Set<Format> formats() {
         return formats;
+    }
+
+    boolean publish() {
+        return publish;
     }
 }

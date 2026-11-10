@@ -30,6 +30,7 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
     private static final String FOLDERS = "documentation.folders";
     private static final String RULES = "documentation.rules";
     private static final String STRICT = "documentation.strict";
+    private static final String PUBLISH = "documentation.publish";
 
     @Override
     public void run(CommandLine line) throws Exception {
@@ -49,7 +50,7 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                     CommandLineSelection.names(line.getOptionValue(VIEWS)),
                     CommandLineSelection.names(line.getOptionValue(FOLDERS)));
             problems = ExportHandler.export(selection, folder, formats(line.getOptionValue(FORMATS)), rules,
-                    new NullProgressMonitor());
+                    new NullProgressMonitor(), line.hasOption(PUBLISH));
         } catch (IllegalArgumentException e) { // unknown names, unusable rules, nothing to export
             throw failure(e.getMessage());
         }
@@ -91,6 +92,9 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                 .desc("Export only these folders: paths like Views/Sales, comma separated").build());
         options.addOption(Option.builder().longOpt(RULES).hasArg().argName("file")
                 .desc("Formatting rules to use instead of documentation.rules next to the model").build());
+        options.addOption(Option.builder().longOpt(PUBLISH)
+                .desc("Note this export as the published documentation, in documentation.published next to the model")
+                .build());
         options.addOption(Option.builder().longOpt(STRICT)
                 .desc("Fail on missing assets too (unknown names always fail); with --abortOnException: non-zero exit")
                 .build());

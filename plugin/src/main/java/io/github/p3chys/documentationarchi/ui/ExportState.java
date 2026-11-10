@@ -33,6 +33,9 @@ import com.archimatetool.model.IDiagramModelArchimateComponent;
 import com.archimatetool.model.IIdentifier;
 import com.archimatetool.model.IProperty;
 
+import io.github.p3chys.documentationarchi.doc.Doc;
+import io.github.p3chys.documentationarchi.doc.Published;
+
 /**
  * What the model looked like at its last documentation export, so the model tree can show what no export reflects
  * yet ({@link ExportMarks}). Every export keeps, for each element, relationship and view it shows (and the model, for
@@ -41,6 +44,10 @@ import com.archimatetool.model.IProperty;
  * <p>
  * The fingerprints are kept per model (by its id) in the plugin's own folder of Archi's workspace, not in the model:
  * an export doesn't change the model, and needs no saving.
+ * <p>
+ * An export that is published is also noted in the file {@link Published#FILE} next to the model file, which
+ * travels with the model. An object counts as exported if either says so: this computer's own exports, or the
+ * documentation that whoever on the team published.
  */
 final class ExportState {
 
@@ -71,6 +78,17 @@ final class ExportState {
 
     private final Path folder;
     private final Map<String, Properties> models = new HashMap<>();
+    private final Map<Path, Shared> shared = new HashMap<>();
+
+    /** The published state of one model, read again when its file changes (a colleague's publish arrives). */
+    private static final class Shared {
+        Published published;
+        long modified;
+        long checked;
+    }
+
+    /** How often the file is looked at: the model tree asks for every object it paints. */
+    private static final long CHECK_EVERY = 1000;
 
     ExportState(Path folder) {
         this.folder = folder;
@@ -225,7 +243,25 @@ final class ExportState {
             return null;
         }
         IArchimateModel model = o instanceof IArchimateModelObject ? ((IArchimateModelObject) o).getArchimateModel() : null;
-        String stored = model == null ? null : load(model.getId()).getProperty(((IIdentifier) o).getId());
+        String id = ((IIdentifier) o).getId();
+        Mark own = own(model == null ? null : load(model.getId()).getProperty(id), o);
+        Published.Item item = model == null || own.status == Status.CURRENT ? null : published(model).item(id);
+        if (item != null && item.print != null) {
+            Status status = status(item.print, item.print.indexOf(',') < 0, o);
+            if (rank(status) < rank(own.status)) {
+                return new Mark(status, item.time);
+            }
+        }
+        return own;
+    }
+
+    /** From nothing left to export to everything. */
+    private static int rank(Status status) {
+        return List.of(Status.CURRENT, Status.LAYOUT, Status.CHANGED, Status.NEW).indexOf(status);
+    }
+
+    /** How the object stands against this computer's own exports. */
+    private static Mark own(String stored, EObject o) {
         if (stored == null) {
             return new Mark(Status.NEW, 0);
         }
@@ -267,6 +303,54 @@ final class ExportState {
             properties.store(out, "documentationArchi: what the last export of each object showed, model " + model.getId());
         }
         Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    /** The file next to the model file that says what was published; null for a model never saved. */
+    static Path publishedFile(IArchimateModel model) {
+        return model.getFile() == null ? null : model.getFile().getAbsoluteFile().toPath().resolveSibling(Published.FILE);
+    }
+
+    /** What was published of the model, by anyone; nothing for a model never saved or never published. */
+    synchronized Published published(IArchimateModel model) {
+        Path file = publishedFile(model);
+        if (file == null) {
+            return new Published();
+        }
+        Shared s = shared.computeIfAbsent(file, k -> new Shared());
+        long now = System.currentTimeMillis();
+        if (s.published == null || now - s.checked >= CHECK_EVERY) {
+            s.checked = now;
+            long modified = -1;
+            try {
+                modified = Files.isRegularFile(file) ? Files.getLastModifiedTime(file).toMillis() : -1;
+                if (s.published == null || modified != s.modified) {
+                    s.published = Published.read(file);
+                }
+            } catch (IOException | RuntimeException e) {
+                Activator.log("Cannot read " + file + ", nothing counts as published", e);
+                s.published = new Published();
+            }
+            s.modified = modified;
+        }
+        return s.published;
+    }
+
+    /**
+     * Notes in the file next to the model that this document was published, with what it says and the fingerprints
+     * of what it shows.
+     *
+     * @param whole the document is the whole model: what it doesn't show is no longer published
+     */
+    synchronized void publish(IArchimateModel model, Doc doc, Map<String, String> fingerprints, long time, boolean whole)
+            throws IOException {
+        Path file = publishedFile(model);
+        if (file == null) {
+            throw new IOException("The model was never saved");
+        }
+        Published published = Published.read(file);
+        published.publish(doc, fingerprints, time, whole);
+        published.write(file);
+        shared.remove(file);
     }
 
     private Properties load(String modelId) {

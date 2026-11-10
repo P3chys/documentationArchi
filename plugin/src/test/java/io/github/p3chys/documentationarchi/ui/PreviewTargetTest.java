@@ -198,13 +198,19 @@ class PreviewTargetTest {
         Path assets = Files.createDirectories(dir.resolve("Assets"));
         Path sla = Files.write(assets.resolve("SLA 2026.pdf"), new byte[] { 1 });
         Path tool = Files.write(assets.resolve("tool.exe"), new byte[] { 1 });
+        Path macros = Files.write(assets.resolve("rates.xlsm"), new byte[] { 1 });
+        Path bare = Files.write(assets.resolve("README"), new byte[] { 1 });
         Path other = Files.write(assets.resolve("other.pdf"), new byte[] { 1 });
         Path outside = Files.write(dir.resolve("secret.txt"), new byte[] { 1 });
-        Set<Path> used = Set.of(sla.toRealPath(), tool.toRealPath(), outside.toRealPath());
+        Set<Path> used = Set.of(sla.toRealPath(), tool.toRealPath(), macros.toRealPath(), bare.toRealPath(),
+                outside.toRealPath());
 
-        assertThat(PreviewLinks.decide(sla.toUri().toString(), null, used)).isEqualTo(PreviewLinks.Action.OPEN);
-        assertThat(PreviewLinks.asset(sla, used)).isEqualTo(sla.toRealPath());
-        assertThat(PreviewLinks.decide(tool.toUri().toString(), null, used)).isEqualTo(PreviewLinks.Action.IGNORE);
+        assertThat(PreviewLinks.decide(sla.toRealPath().toUri().toString(), null, used)).isEqualTo(PreviewLinks.Action.OPEN);
+        assertThat(PreviewLinks.asset(sla.toRealPath(), used)).isEqualTo(sla.toRealPath());
+        assertThat(PreviewLinks.decide(tool.toRealPath().toUri().toString(), null, used)).isEqualTo(PreviewLinks.Action.IGNORE);
+        assertThat(PreviewLinks.decide(macros.toRealPath().toUri().toString(), null, used)).isEqualTo(PreviewLinks.Action.IGNORE);
+        assertThat(PreviewLinks.decide(bare.toRealPath().toUri().toString(), null, used)).isEqualTo(PreviewLinks.Action.IGNORE);
+        assertThat(PreviewLinks.decide("file://server/share/SLA.pdf", null, used)).isEqualTo(PreviewLinks.Action.IGNORE);
         assertThat(PreviewLinks.decide(other.toUri().toString(), null, used)).isEqualTo(PreviewLinks.Action.IGNORE);
         assertThat(PreviewLinks.decide(assets.resolve("gone.pdf").toUri().toString(), null, used))
                 .isEqualTo(PreviewLinks.Action.IGNORE);

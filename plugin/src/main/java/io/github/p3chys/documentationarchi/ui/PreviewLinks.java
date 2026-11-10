@@ -1,6 +1,5 @@
 package io.github.p3chys.documentationarchi.ui;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -11,18 +10,20 @@ import io.github.p3chys.documentationarchi.render.Preview;
 
 /**
  * What a click on a link of the Documentation Preview does. The preview never navigates away from its page: a view
- * or element is shown in it, a web address opens in the system's browser, an asset of the page opens with its
- * program, and anything else does nothing: a file elsewhere on the computer written into a description, and any
- * program or script, even among the assets (a model shared with you could bring one).
+ * or element is shown in it, a web address opens in the system's browser, a document or picture among the assets
+ * of the page opens with its program, and anything else does nothing: a file elsewhere on the computer written into
+ * a description, and any other kind of asset.
  */
 final class PreviewLinks {
 
     enum Action { LOAD, SHOW, OPEN, IGNORE }
 
-    /** Files that run something when opened, on Windows, macOS or Linux. */
-    private static final Set<String> PROGRAMS = Set.of("exe", "com", "bat", "cmd", "msi", "msp", "scr", "pif", "cpl",
-            "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "hta", "jar", "lnk", "url", "reg", "inf", "sh",
-            "bash", "command", "app", "py", "pyw", "pl", "rb", "appref-ms", "application", "gadget", "msc", "scf");
+    /**
+     * What a click may open: documents and pictures. Anything else could run something (programs, scripts, shortcuts,
+     * documents with macros), and a model shared with you can bring such a file into its Assets folder.
+     */
+    private static final Set<String> DOCUMENTS = Set.of("pdf", "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp", "txt",
+            "csv", "md", "log", "rtf", "docx", "xlsx", "pptx", "vsdx", "odt", "ods", "odp", "odg");
 
     private PreviewLinks() {
     }
@@ -52,18 +53,18 @@ final class PreviewLinks {
         return asset(file, assets) != null ? Action.OPEN : Action.IGNORE;
     }
 
-    /** The real file of one of the assets that is no program, null for any other file. */
+    /**
+     * The file, if it is one of the assets and a document or picture; null for any other. Decided by its path alone:
+     * the assets are known by their real paths, and the file system is not asked about a path from a link (a
+     * network path would make the computer connect to that server).
+     */
     static Path asset(Path file, Set<Path> assets) {
-        Path real;
-        try {
-            real = file.toRealPath();
-        } catch (IOException | RuntimeException e) {
+        if (!assets.contains(file)) {
             return null;
         }
-        String name = real.getFileName().toString().toLowerCase(Locale.ROOT);
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
         int dot = name.lastIndexOf('.');
-        boolean program = dot < 0 || PROGRAMS.contains(name.substring(dot + 1));
-        return assets.contains(real) && !program ? real : null;
+        return dot > 0 && DOCUMENTS.contains(name.substring(dot + 1)) ? file : null;
     }
 
     /** The file of a file: location, without its #fragment; null for any other location. */

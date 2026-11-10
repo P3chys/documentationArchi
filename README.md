@@ -121,7 +121,7 @@ view and choose **Show in Documentation Preview** to open it on that object.
   Properties view, a property, a rename) half a second after you stop typing. The picture of a view is only drawn
   again when that view changes.
 - A link to another element or view shows that one in the preview. Web links open in your browser, assets with
-  their program (never a program or script among them). Scripts never run.
+  their program if they are documents or pictures (never a program, script or macro file). Scripts never run.
 - Missing assets show in red, as in the export. Previewing never changes the model and never counts as an export
   for the marks in the Models tree.
 

@@ -326,7 +326,8 @@ object as the HTML export shows it – the same reading of the model, the same f
   description in the Properties view and watch it formatted. The focus stays where you type.
 - The picture of a view is drawn again only when something on that view changes (or an element on it is renamed).
 - Click a link to another element or view, or an element in the picture, to show that one. Web links open in your
-  browser, and links to the page's assets open the file with its program – never a program or script, which a model
+  browser, and links to the page's assets open the file with its program if it is a document or picture (PDF, Office
+  and OpenDocument files without macros, text, CSV, pictures) – never a program, script or other file, which a model
   shared with you could bring along; other links do nothing. Scripts are off.
 - A missing asset shows in red, as in the export. An invalid `documentation.rules` file shows its error instead.
 - The preview only reads: it never changes the model, and it does not count as an export for the

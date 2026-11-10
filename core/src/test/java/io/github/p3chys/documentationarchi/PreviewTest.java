@@ -52,7 +52,7 @@ class PreviewTest {
     }
 
     @Test
-    void pageIsTheExportedPageWithLinksThePreviewFollowsItself() {
+    void pageIsTheExportedPageWithLinksThePreviewFollowsItself() throws Exception {
         String html = Preview.page(doc, view, KeywordRules.defaults(), "picture-1.png", used);
 
         assertThat(html).startsWith("<!DOCTYPE html>").contains("<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"/>")
@@ -61,7 +61,7 @@ class PreviewTest {
                 .contains("<a href=\"#ref-e2\">Portal</a>") // to the other page
                 .contains("class=\"panel warning\"").contains("class=\"tag red\">RISK</span>")
                 .contains("<h3>Front office</h3>")
-                .contains("href=\"" + model.resolve("Assets/SLA.pdf").toUri() + "\">the SLA</a>")
+                .contains("href=\"" + model.resolve("Assets/SLA.pdf").toRealPath().toUri() + "\">the SLA</a>")
                 .contains("[missing asset: gone.png]")
                 .contains("img.diagram"); // the export's style sheet
         assertThat(used).extracting(a -> a.name).containsExactly("SLA.pdf");

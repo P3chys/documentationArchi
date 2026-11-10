@@ -402,7 +402,8 @@ its editor.
 
 **How it's stored:** a Grouping named `PrintOrder` on the view, with associations named `001`, `002`, `003`...
 from each element to it – the way many modellers do it by hand, so you can also draw them yourself. Elements linked
-to a PrintOrder come first, by the number in the link's name; the rest follow alphabetically. The PrintOrder element
+to the view's PrintOrder come first, by the number in the link's name; the rest follow alphabetically. A PrintOrder
+that is not on the view (one of another view) does not change its order. The PrintOrder element
 and its links never appear in the export or its pictures. **Edit > Undo** takes a change back.
 
 ---
@@ -710,10 +711,16 @@ To make everyone (and the CI build) format a model the same way, keep the rules 
 exists, every export of that model uses it instead of the preferences; without it the preferences apply, and without
 those the built-in defaults.
 
+The file adds to the built-in rules (the `INFO:`, `NOTE:`, `TIP:` and `WARNING:` panels, the `#risk`, `#deprecated`,
+`#todo`, `#draft` and `#new` labels, `Description:` and `Technically:` in bold), so it only needs your own lines; a
+line for the same keyword replaces the built-in one (`tag blue risk`). Start the file with `defaults off` to leave the
+built-in rules out: the file then holds all its rules itself, and a built-in rule it does not list is off.
+
 **Save as Project Rules...** (in the button column) writes the rules of the list to that file for a model you choose
 from the open, saved ones. Below the list, a line names the open models that use project rules, and the export dialog
 says so for the model it exports. If the file has an invalid line, the export stops and tells you the file and the
-line; it does not quietly use other rules.
+line; it does not quietly use other rules. When the list leaves out a built-in rule, the saved file starts with
+`defaults off`, so the rule stays off.
 
 ### Leaving things out
 
@@ -858,8 +865,9 @@ in a view), and one or more files you pick. The model must have been saved, so t
 | `[[asset:contracts/SLA 2026.pdf\|the SLA]]` | a link "the SLA" that opens the file |
 | `asset:tariff.csv` | short form, for names without spaces |
 
-- A file name alone is enough when only one file in `Assets` has it; otherwise use its path inside `Assets`. Case
-  and `/` or `\` don't matter.
+- A file name alone is enough when only one file in `Assets` has it; otherwise use its path inside `Assets`. A file
+  directly in `Assets` has its name as its path, so `readme.txt` means `Assets/readme.txt` even when a subfolder has
+  another `readme.txt`. Case and `/` or `\` don't matter.
 - PNG, JPEG, GIF, BMP and SVG are pictures; anything else is a file to open.
 - Large pictures are shown smaller, keeping their proportions: in the PDF never wider or taller than a page; on HTML
   and Confluence pages at most about 860 pixels high – click to see full size.

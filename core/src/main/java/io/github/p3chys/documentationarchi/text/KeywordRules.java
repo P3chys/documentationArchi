@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
  * page description picture notes  the sections of a view's page to print, in this order ({@link #PAGE_SECTIONS})
  * entry description relations     the parts of an element's description to print, in this order ({@link #ENTRY_PARTS})
  * pdf landscape off               leaves out a part of the PDF's layout ({@link #PDF_PARTS})
+ * defaults off                    a rules file without the built-in rules, see {@link #parseFile}
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -49,7 +50,9 @@ public final class KeywordRules {
         EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true),
         PROFILE(true), CATALOG(true), INDEX(true),
         /** The PDF's layout: {@code pdf cover|contents|landscape off}. */
-        PDF(true);
+        PDF(true),
+        /** {@code defaults off}: a rules file that does not start from the built-in rules, see {@link #parseFile}. */
+        DEFAULTS(true);
 
         public final boolean setting;
 
@@ -112,6 +115,7 @@ public final class KeywordRules {
             "# profile <name> <setting>...   a named export set-up: folders= views= workpackages= formats= exclude= hide= language= output= publish",
             "# catalog \"<title>\" type=<element type>[|<type>] [folder=<path>] columns=name,<property>,description   a table page of the elements of a type",
             "# index <tables|variables|constants>   a page listing every [table], {variable} or 'constant' of the descriptions, with where it is used",
+            "# defaults off   in a rules file: leave out the built-in rules (INFO: panels, #risk labels...); a file adds to them otherwise",
             "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
             "");
 
@@ -365,6 +369,11 @@ public final class KeywordRules {
             }
             return new Rule(Kind.PDF, p, null, null, null, null, false, on ? "on" : "off");
         }
+
+        /** @param on whether a rules file starts from the built-in rules (the usual), see {@link #parseFile} */
+        public static Rule defaults(boolean on) {
+            return new Rule(Kind.DEFAULTS, "defaults", null, null, null, null, false, on ? "on" : "off");
+        }
         // ---- end pdf layout
 
         /** @param token the kind of token to list; the rule is written {@code index tables}, {@code variables} or {@code constants} */
@@ -416,6 +425,7 @@ public final class KeywordRules {
                 case ENTRY: return "entry " + keyword;
                 case LANGUAGE: return "language " + keyword;
                 case PDF: return "pdf " + keyword + " " + value;
+                case DEFAULTS: return "defaults " + value;
                 case PROFILE: return "profile " + profile.text();
                 case CATALOG: return "catalog " + catalog.text();
                 case INDEX: return "index " + keyword;
@@ -446,7 +456,7 @@ public final class KeywordRules {
         }
 
         String key() {
-            if (kind == Kind.LANGUAGE || kind == Kind.PAGE || kind == Kind.ENTRY) {
+            if (kind == Kind.LANGUAGE || kind == Kind.PAGE || kind == Kind.ENTRY || kind == Kind.DEFAULTS) {
                 return kind.name(); // one language
             }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
@@ -507,6 +517,7 @@ public final class KeywordRules {
                     }
                     break;
                 case TEXT: replaced.put(rule.keyword, rule.value); break;
+                case DEFAULTS: break; // only says how a rules file is read
                 case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
                 case TAG: tags.put(rule.keyword.toLowerCase(Locale.ROOT), rule.tag); break;
                 case TOKEN: tokens.put(Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT)), rule.style); break;
@@ -565,6 +576,39 @@ public final class KeywordRules {
         return of(rules);
     }
 
+    /**
+     * A rules file ({@code documentation.rules}, or one given on the command line): the built-in rules, then the
+     * file's own lines, which replace a built-in rule for the same keyword. A file with {@code defaults off} holds all
+     * its rules itself, so leaving out a built-in one there turns it off.
+     *
+     * @throws IllegalArgumentException naming the first line that is not a valid rule
+     */
+    public static KeywordRules parseFile(String text) {
+        KeywordRules own = parse(text);
+        if (own.rules.stream().anyMatch(r -> r.kind == Kind.DEFAULTS && r.value.equals("off"))) {
+            return own;
+        }
+        List<Rule> all = new ArrayList<>(defaults().rules);
+        all.addAll(own.rules);
+        return of(all);
+    }
+
+    /**
+     * The rules as the text of a rules file, which {@link #parseFile} reads back as these rules: starting with
+     * {@code defaults off} when they leave out a built-in rule, which the file would bring back otherwise.
+     */
+    public String formatFile() {
+        boolean leftOut = rules.stream().noneMatch(r -> r.kind == Kind.DEFAULTS)
+                && defaults().rules.stream().anyMatch(d -> rules.stream().noneMatch(r -> r.key().equals(d.key())));
+        if (!leftOut) {
+            return format();
+        }
+        List<Rule> all = new ArrayList<>();
+        all.add(Rule.defaults(false));
+        all.addAll(rules);
+        return new KeywordRules(all).format();
+    }
+
     private static Rule rule(String rule) {
         String[] start = rule.split("\\s+", 2);
         String type = start[0].toLowerCase(Locale.ROOT);
@@ -620,6 +664,13 @@ public final class KeywordRules {
                 }
                 return Rule.pdf(w[0], w[1].equals("on"));
             }
+            case "defaults": {
+                String w = rest.strip().toLowerCase(Locale.ROOT);
+                if (!w.equals("on") && !w.equals("off")) {
+                    throw new IllegalArgumentException("expected: defaults off (or on)");
+                }
+                return Rule.defaults(w.equals("on"));
+            }
             case "text": {
                 int equals = rest.indexOf('=');
                 if (equals < 0) {
@@ -673,7 +724,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page, entry, pdf, profile, catalog or index");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page, entry, pdf, profile, catalog, index or defaults");
     }
 
     /** The options in front of what a rule is about, and what follows them. */

@@ -47,7 +47,43 @@ class ProjectRulesTest {
     void theProjectFileReplacesThePreferences() throws IOException {
         Files.writeString(folder.resolve("documentation.rules"), "# mine\nbold Project\n");
         KeywordRules rules = ProjectRules.resolve(model, null, () -> preferences);
-        assertThat(rules.rules()).extracting(r -> r.keyword).containsExactly("Project");
+        assertThat(rules.rules()).extracting(r -> r.keyword).contains("Project").doesNotContain("Prefs");
+    }
+
+    @Test
+    void aFileAddsToTheBuiltInRules() throws IOException {
+        Files.writeString(folder.resolve("documentation.rules"), "tag blue risk\ntag grey security\n");
+        KeywordRules rules = ProjectRules.resolve(model, null, () -> preferences);
+        assertThat(rules.rules()).contains(KeywordRules.Rule.panel("INFO", KeywordRules.PanelStyle.INFO));
+        assertThat(rules.tag("todo")).isEqualTo(KeywordRules.TagColour.YELLOW);
+        assertThat(rules.tag("risk")).as("the file's line replaces the built-in one")
+                .isEqualTo(KeywordRules.TagColour.BLUE);
+        assertThat(rules.tag("security")).isEqualTo(KeywordRules.TagColour.GREY);
+    }
+
+    @Test
+    void defaultsOffLeavesOutTheBuiltInRules() throws IOException {
+        Files.writeString(folder.resolve("documentation.rules"), "defaults off\nbold Project\n");
+        KeywordRules rules = ProjectRules.resolve(model, null, () -> preferences);
+        assertThat(rules.rules()).extracting(r -> r.kind)
+                .doesNotContain(KeywordRules.Kind.PANEL, KeywordRules.Kind.TAG);
+        assertThat(rules.labels()).isEmpty();
+    }
+
+    @Test
+    void savedRulesWithoutABuiltInOneKeepItLeftOut() throws IOException {
+        KeywordRules rules = KeywordRules.parse(KeywordRules.DEFAULTS.replace("tag yellow draft\n", ""));
+        Path file = ProjectRules.save(model, rules);
+        assertThat(Files.readString(file)).contains("\ndefaults off\n");
+        assertThat(ProjectRules.read(file).tag("draft")).isNull();
+        assertThat(ProjectRules.read(file).tag("todo")).isEqualTo(KeywordRules.TagColour.YELLOW);
+    }
+
+    @Test
+    void savedRulesWithAllBuiltInOnesNeedNoDefaultsLine() throws IOException {
+        Path file = ProjectRules.save(model, KeywordRules.parse(KeywordRules.DEFAULTS + "tag blue security\n"));
+        assertThat(Files.readString(file)).doesNotContain("\ndefaults ");
+        assertThat(ProjectRules.read(file).tag("security")).isEqualTo(KeywordRules.TagColour.BLUE);
     }
 
     @Test
@@ -56,7 +92,7 @@ class ProjectRulesTest {
         Path other = folder.resolve("other.rules");
         Files.writeString(other, "bold Other\n");
         assertThat(ProjectRules.resolve(model, other, () -> preferences).rules()).extracting(r -> r.keyword)
-                .containsExactly("Other");
+                .contains("Other").doesNotContain("Project", "Prefs");
     }
 
     @Test
@@ -80,7 +116,10 @@ class ProjectRulesTest {
         KeywordRules rules = KeywordRules.parse("tag red risk\nbold Description:");
         Path file = ProjectRules.save(model, rules);
         assertThat(file).isEqualTo(folder.resolve("documentation.rules"));
-        assertThat(ProjectRules.read(file).rules()).isEqualTo(rules.rules());
+        // the list leaves out built-in rules, so the file says defaults off and reads back as exactly this list
+        assertThat(Files.readString(file)).contains("\ndefaults off\n");
+        assertThat(ProjectRules.read(file).rules()).filteredOn(r -> r.kind != KeywordRules.Kind.DEFAULTS)
+                .isEqualTo(rules.rules());
     }
 
     @Test

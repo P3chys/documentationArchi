@@ -13,7 +13,8 @@ import io.github.p3chys.documentationarchi.text.KeywordRules;
 /**
  * The formatting rules that belong to a model: {@value #NAME} next to its .archimate file, in the "Edit as Text..."
  * format. Kept with the model so every analyst and the CI build style it the same way. Precedence: the project file,
- * then the preferences, then the built-in defaults (what the preferences hold until changed).
+ * then the preferences, then the built-in defaults (what the preferences hold until changed). A file adds its lines to
+ * the built-in rules unless it says {@code defaults off}, see {@link KeywordRules#parseFile}.
  */
 final class ProjectRules {
 
@@ -57,7 +58,7 @@ final class ProjectRules {
             throw new IllegalArgumentException("Cannot read the formatting rules " + file + ": " + e.getMessage(), e);
         }
         try {
-            return KeywordRules.parse(text);
+            return KeywordRules.parseFile(text);
         } catch (IllegalArgumentException e) {
             // the parser says "Line 3: ..."
             throw new IllegalArgumentException("The formatting rules " + file + " are not valid. " + e.getMessage(), e);
@@ -70,7 +71,7 @@ final class ProjectRules {
         if (file == null) {
             throw new IOException("Save the model first: the rules go next to its file.");
         }
-        Files.writeString(file, rules.format(), StandardCharsets.UTF_8);
+        Files.writeString(file, rules.formatFile(), StandardCharsets.UTF_8);
         return file;
     }
 }

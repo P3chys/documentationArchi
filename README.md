@@ -149,7 +149,8 @@ the view) and choose **Print Order...**. Move elements with the buttons, **Alt+U
 
 The order is kept in the model, the way modellers often do it by hand: a Grouping called `PrintOrder` on the view,
 with associations named `001`, `002`, `003`... from each element to it. You can also draw these yourself. Elements
-linked to a PrintOrder come first, by the number in the relationship's name, and the others follow alphabetically.
+linked to the view's PrintOrder come first, by the number in the relationship's name, and the others follow
+alphabetically. A PrintOrder that is not on the view (one of another view) does not change its order.
 The PrintOrder element and its links never appear in the export or its pictures. **Undo** takes a change back.
 
 ## Work packages (Jira tickets)
@@ -315,12 +316,16 @@ text contents = Table of contents   replace one fixed text
 page description picture elements   sections of a view's page, in this order
 entry description relations     parts of an element's description, in this order
 pdf landscape off               no landscape pages in the PDF; also pdf cover off, pdf contents off
+defaults off                    in documentation.rules: without the built-in panels, labels and bold texts
 ```
 
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
 export of that model uses it instead of the preferences, on every computer and in CI (order: project file, then
-preferences, then the built-in defaults). **Save as Project Rules...** writes the current list there for an open, saved
-model. An invalid file fails the export and names the file and line; it never falls back to other rules.
+preferences, then the built-in defaults). The file adds to the built-in rules (the `INFO:`... panels, the `#risk`...
+labels, `Description:` and `Technically:` in bold), so it only needs your own lines, and a line for the same keyword
+replaces the built-in one; a line `defaults off` makes the file hold all its rules itself. **Save as Project
+Rules...** writes the current list there for an open, saved model, starting with `defaults off` when the list leaves
+out a built-in rule. An invalid file fails the export and names the file and line; it never falls back to other rules.
 
 **Leaving things out:** a property `doc:exclude` (any value but `false`) on a view, element, relationship or folder
 leaves it out of every export (a folder: everything in it), pictures included; links to it become plain text. The rule
@@ -366,8 +371,10 @@ Large pictures are shown smaller, keeping their proportions: in the PDF a pictur
 page (the pictures of views too), and on HTML and Confluence pages a very tall picture is shown at most about 860
 pixels high; click it to see it at full size.
 
-A file name alone is enough when only one file in `Assets` has it; otherwise use its path inside `Assets`. Case and
-`/` or `\` don't matter. PNG, JPEG, GIF, BMP and SVG are pictures; anything else is a file to open.
+A file name alone is enough when only one file in `Assets` has it; otherwise use its path inside `Assets`. A file
+directly in `Assets` has its name as its path, so `readme.txt` means `Assets/readme.txt` even when a subfolder has
+another `readme.txt` (that one is `dup/readme.txt`). Case and `/` or `\` don't matter. PNG, JPEG, GIF, BMP and SVG
+are pictures; anything else is a file to open.
 
 **Every export carries its own copies,** so you can zip, mail or move the export folder without breaking anything:
 

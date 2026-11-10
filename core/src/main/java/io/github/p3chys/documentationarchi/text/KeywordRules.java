@@ -26,6 +26,9 @@ import java.util.regex.Pattern;
  * hide property internal*         properties with this key are never printed; * at the end matches any ending
  * language cs                     the fixed texts of the output in Czech (default: en)
  * text contents = Table of contents   replaces one fixed text, see {@link Texts}
+ * profile developers folders=Views/Sales formats=html,pdf   a named export set-up, see {@link ExportProfile}
+ * catalog "Applications" type=Application Component columns=name,description   a table page, see {@link Catalog}
+ * index tables                  a page listing every [table] (or variables, constants) of the descriptions
  * page description picture notes  the sections of a view's page to print, in this order ({@link #PAGE_SECTIONS})
  * entry description relations     the parts of an element's description to print, in this order ({@link #ENTRY_PARTS})
  * </pre>
@@ -40,7 +43,8 @@ public final class KeywordRules {
     public enum Kind {
         PANEL(false), TAG(false), STYLE(false), TOKEN(false), HEADING(false), SQL(false),
         /** Settings: not about how text looks, so the style lists of the preferences leave them alone. */
-        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true);
+        EXCLUDE_LABEL(true), HIDE_PROPERTY(true), LANGUAGE(true), TEXT(true), PAGE(true), ENTRY(true),
+        PROFILE(true), CATALOG(true), INDEX(true);
 
         public final boolean setting;
 
@@ -97,6 +101,9 @@ public final class KeywordRules {
             "# text <key> = <replacement>   replaces one fixed text, e.g. text contents = Table of contents",
             "# page <section>...   the sections of a view's page to print, in this order: description contents picture properties notes related elements",
             "# entry <part>...   the parts of an element's description to print, in this order: description properties relations views workpackages other",
+            "# profile <name> <setting>...   a named export set-up: folders= views= workpackages= formats= exclude= hide= language= output= publish",
+            "# catalog \"<title>\" type=<element type>[|<type>] [folder=<path>] columns=name,<property>,description   a table page of the elements of a type",
+            "# index <tables|variables|constants>   a page listing every [table], {variable} or 'constant' of the descriptions, with where it is used",
             "# options: [color=#rrggbb] [background=#rrggbb] [size=<50-300>%] [bold] [italic] [underline] [strike]",
             "");
 
@@ -239,6 +246,10 @@ public final class KeywordRules {
         public final boolean lineNumbers;
         /** For a {@code text} rule: what replaces the text. */
         public final String value;
+        /** For a {@code profile} rule: the set-up. */
+        public final ExportProfile profile;
+        /** For a {@code catalog} rule: the table. */
+        public final Catalog catalog;
 
         private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
                 boolean lineNumbers) {
@@ -247,6 +258,16 @@ public final class KeywordRules {
 
         private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
                 boolean lineNumbers, String value) {
+            this(kind, keyword, panel, tag, style, theme, lineNumbers, value, null);
+        }
+
+        private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
+                boolean lineNumbers, String value, ExportProfile profile) {
+            this(kind, keyword, panel, tag, style, theme, lineNumbers, value, profile, null);
+        }
+
+        private Rule(Kind kind, String keyword, PanelStyle panel, TagColour tag, TextStyle style, CodeTheme theme,
+                boolean lineNumbers, String value, ExportProfile profile, Catalog catalog) {
             if (keyword == null || keyword.isBlank()) {
                 throw new IllegalArgumentException("the keyword is empty");
             }
@@ -261,6 +282,8 @@ public final class KeywordRules {
             this.theme = theme;
             this.lineNumbers = lineNumbers;
             this.value = value;
+            this.profile = profile;
+            this.catalog = catalog;
         }
 
         public static Rule panel(String keyword, PanelStyle style) {
@@ -325,6 +348,19 @@ public final class KeywordRules {
                     replacement.strip());
         }
 
+        /** @param token the kind of token to list; the rule is written {@code index tables}, {@code variables} or {@code constants} */
+        public static Rule index(Token token) {
+            return new Rule(Kind.INDEX, lower(token) + "s", null, null, null, null, false);
+        }
+
+        public static Rule catalog(Catalog catalog) {
+            return new Rule(Kind.CATALOG, catalog.title, null, null, null, null, false, null, null, catalog);
+        }
+
+        public static Rule profile(ExportProfile profile) {
+            return new Rule(Kind.PROFILE, profile.name, null, null, null, null, false, null, profile);
+        }
+
         /** @param sections names out of {@link KeywordRules#PAGE_SECTIONS}, in the order to print them */
         public static Rule page(List<String> sections) {
             return new Rule(Kind.PAGE, names(sections, PAGE_SECTIONS, "section"), null, null, null, null, false);
@@ -360,6 +396,9 @@ public final class KeywordRules {
                 case PAGE: return "page " + keyword;
                 case ENTRY: return "entry " + keyword;
                 case LANGUAGE: return "language " + keyword;
+                case PROFILE: return "profile " + profile.text();
+                case CATALOG: return "catalog " + catalog.text();
+                case INDEX: return "index " + keyword;
                 case TEXT: return "text " + keyword + " = " + value;
                 case EXCLUDE_LABEL: return "exclude label " + keyword;
                 case HIDE_PROPERTY: return "hide property " + keyword;
@@ -414,6 +453,9 @@ public final class KeywordRules {
     private final Map<String, TagColour> tags = new LinkedHashMap<>();
     private final List<String> excludedLabels = new ArrayList<>();
     private final List<String> hiddenProperties = new ArrayList<>();
+    private final Map<String, ExportProfile> profiles = new LinkedHashMap<>();
+    private final List<Catalog> catalogs = new ArrayList<>();
+    private final List<Token> indexes = new ArrayList<>();
     private Texts fixedTexts = Texts.english();
     private List<String> pageSections = PAGE_SECTIONS;
     private List<String> entryParts = ENTRY_PARTS;
@@ -444,6 +486,9 @@ public final class KeywordRules {
                 case SQL: sql = rule; break;
                 case EXCLUDE_LABEL: excludedLabels.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 case HIDE_PROPERTY: hiddenProperties.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
+                case PROFILE: profiles.put(rule.keyword.toLowerCase(Locale.ROOT), rule.profile); break;
+                case CATALOG: catalogs.add(rule.catalog); break;
+                case INDEX: indexes.add(Token.valueOf(rule.keyword.substring(0, rule.keyword.length() - 1).toUpperCase(Locale.ROOT))); break;
                 default: texts.add(rule);
             }
         }
@@ -483,7 +528,8 @@ public final class KeywordRules {
                 continue;
             }
             try {
-                rules.add(rule(rule));
+                Rule parsed = rule(rule);
+                rules.add(parsed.kind == Kind.PROFILE ? Rule.profile(parsed.profile.atLine(number)) : parsed);
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Line " + number + ": " + e.getMessage() + ": " + rule, e);
             }
@@ -553,6 +599,22 @@ public final class KeywordRules {
                 }
                 return Rule.excludeLabel(oneWord(label[1], "keyword"));
             }
+            case "index": {
+                Token token = null;
+                for (Token t : Token.values()) {
+                    if (rest.strip().equalsIgnoreCase(lower(t) + "s")) {
+                        token = t;
+                    }
+                }
+                if (token == null) {
+                    throw new IllegalArgumentException("expected: index tables, index variables or index constants");
+                }
+                return Rule.index(token);
+            }
+            case "catalog":
+                return Rule.catalog(Catalog.parse(rest));
+            case "profile":
+                return Rule.profile(ExportProfile.parse(rest));
             case "hide": {
                 String[] key = rest.split("\\s+", 2);
                 if (!key[0].equalsIgnoreCase("property") || key.length < 2 || key[1].isBlank()) {
@@ -576,7 +638,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page or entry");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, text, page, entry, profile, catalog or index");
     }
 
     /** The options in front of what a rule is about, and what follows them. */
@@ -755,6 +817,37 @@ public final class KeywordRules {
             }
         }
         return false;
+    }
+
+    /** The export profiles of the rules, in the order of the rules. */
+    public List<ExportProfile> profiles() {
+        return Collections.unmodifiableList(new ArrayList<>(profiles.values()));
+    }
+
+    /** The catalogs of the rules, in the order of the rules. */
+    public List<Catalog> catalogs() {
+        return Collections.unmodifiableList(catalogs);
+    }
+
+    /** The kinds of token that get an index page, in the order of the rules. */
+    public List<Token> indexes() {
+        return Collections.unmodifiableList(indexes);
+    }
+
+    /** The profile with this name (ignoring case), null if there is none. */
+    public ExportProfile profile(String name) {
+        return profiles.get(name.strip().toLowerCase(Locale.ROOT));
+    }
+
+    /** These rules with what a profile adds: the labels to leave out, the properties to hide, its language. */
+    public KeywordRules with(ExportProfile profile) {
+        List<Rule> all = new ArrayList<>(rules);
+        profile.exclude.forEach(label -> all.add(Rule.excludeLabel(label)));
+        profile.hide.forEach(key -> all.add(Rule.hideProperty(key)));
+        if (profile.language != null) {
+            all.add(Rule.language(profile.language));
+        }
+        return of(all);
     }
 
     /** Matches any styled text; {@link #style} tells which one. */

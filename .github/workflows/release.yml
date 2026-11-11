@@ -1,0 +1,163 @@
+name: Release
+# Merging a pull request into main releases a new version when the PR has a release:patch, release:minor or
+# release:major label (the highest wins), or when it raised the version in gradle.properties itself. The release job
+# builds and tests the plugin, commits the new version to main, tags it and publishes a GitHub release with the
+# .archiplugin. The notes are the PR's "## Release notes" section, or GitHub's generated notes when it has none.
+# On an open PR, the plan job shows which version merging it would release.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled, edited]
+    branches: [main]
+  # pull_request_target: a merged PR gets a token that can push to main and release, also from a fork. It never runs
+  # the PR's code: it checks out main, which already has the merge.
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Part of the version to raise (none = the version in gradle.properties, if it is new)
+        type: choice
+        options: [patch, minor, major, none]
+        default: patch
+permissions:
+  contents: read
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with: { fetch-depth: 0 }
+      - name: Version this PR releases
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          bump=$(jq -r 'if index("release:major") then "major" elif index("release:minor") then "minor"
+            elif index("release:patch") then "patch" else "none" end' <<<"$LABELS")
+          eval "$(bash .github/scripts/next-version.sh "$bump")"
+          if [ -z "$version" ]; then
+            echo "Merging this PR releases nothing (no release:* label, gradle.properties still at $previous)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Merging this PR releases **$version** (latest release $previous)." >> "$GITHUB_STEP_SUMMARY"
+            if ! printf '%s\n' "$BODY" | tr -d '\r' | grep -Eq '^##[[:space:]]+Release notes'; then
+              echo "::notice::No '## Release notes' section in the PR description, the release gets GitHub's generated notes."
+            fi
+          fi
+
+  release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.merged)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    concurrency:
+      # One release at a time, and never cancel one halfway.
+      group: release
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: echo "::error::Release from main only" && exit 1
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - id: version
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BUMP" ]; then
+            BUMP=$(jq -r 'if index("release:major") then "major" elif index("release:minor") then "minor"
+              elif index("release:patch") then "patch" else "none" end' <<<"$LABELS")
+          fi
+          bash .github/scripts/next-version.sh "$BUMP" | tee -a "$GITHUB_OUTPUT"
+      - if: steps.version.outputs.version == ''
+        run: echo "Nothing to release." >> "$GITHUB_STEP_SUMMARY"
+
+      - if: steps.version.outputs.version != ''
+        uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "21" }
+      - if: steps.version.outputs.version != ''
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          # pull_request_target runs on main's cache scope; reading it is enough
+          cache-read-only: true
+      - if: steps.version.outputs.version != ''
+        id: archi
+        uses: ./.github/actions/setup-archi
+      - if: steps.version.outputs.version != ''
+        name: Build and test ${{ steps.version.outputs.version }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHI_HOME: ${{ steps.archi.outputs.home }}
+        run: |
+          sed -i "s/^version=.*/version=$VERSION/" gradle.properties
+          ./gradlew build -ParchiHome="$ARCHI_HOME"
+          test -f "build/dist/documentationArchi-$VERSION.archiplugin"
+
+      - if: steps.version.outputs.version != ''
+        name: Release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          BODY: ${{ github.event.pull_request.body }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Install"
+            echo
+            echo "Download \`documentationArchi-$VERSION.archiplugin\`, then in Archi **Help > Manage Plug-ins... > Install New...**, choose the file and restart Archi (uninstall $PREVIOUS first). **One file for every Archi version** from 4.9 up, Windows and macOS."
+            echo
+          } > notes.md
+          printf '%s\n' "$BODY" | tr -d '\r' \
+            | awk '/^##[[:space:]]+Release notes/ { f = 1; next } f && /^##[[:space:]]/ { exit } f' > section.md
+          if grep -q '[^[:space:]]' section.md; then
+            cat section.md >> notes.md
+            echo "generate=false" >> "$GITHUB_ENV"
+          else
+            echo "generate=true" >> "$GITHUB_ENV"
+          fi
+
+      - if: steps.version.outputs.version != ''
+        name: Commit the version to main
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- gradle.properties; then
+            echo "gradle.properties already at $VERSION"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: release $VERSION" -- gradle.properties
+            # main may have moved on while the build ran
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - if: steps.version.outputs.version != ''
+        name: Publish the release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$generate" = true ]; then
+            args+=(--generate-notes)
+            git rev-parse -q --verify "refs/tags/v$PREVIOUS" >/dev/null && args+=(--notes-start-tag "v$PREVIOUS")
+          fi
+          gh release create "v$VERSION" "build/dist/documentationArchi-$VERSION.archiplugin" \
+            --target "$sha" --title "documentationArchi $VERSION" --notes-file notes.md "${args[@]}"
+          echo "Released [v$VERSION]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/v$VERSION)" >> "$GITHUB_STEP_SUMMARY"

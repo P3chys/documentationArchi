@@ -1,0 +1,57 @@
+name: Issue branch
+# Picking up an issue (assigning it to someone) creates its branch from main and links it to the issue, so the pull
+# request from that branch closes the issue. Run it by hand for an issue that is already assigned.
+on:
+  issues:
+    types: [assigned]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+permissions:
+  contents: write
+  issues: write
+concurrency:
+  group: issue-branch-${{ github.event.issue.number || inputs.issue }}
+jobs:
+  branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+    steps:
+      - name: Create and link the branch
+        run: |
+          set -euo pipefail
+          issue=$(gh issue view "$ISSUE" --json title,labels,state)
+          if [ "$(jq -r .state <<<"$issue")" != OPEN ]; then
+            echo "Issue #$ISSUE is not open, no branch."; exit 0
+          fi
+          linked=$(gh issue develop --list "$ISSUE" 2>/dev/null | awk -F'\t' 'NF > 1 { print $1; exit }' || true)
+          if [ -n "$linked" ]; then
+            echo "Issue #$ISSUE already has the branch $linked."; exit 0
+          fi
+
+          # bug -> fix/, documentation -> docs/, anything else -> feat/ (the conventional commit type of the PR)
+          labels=$(jq -r '[.labels[].name] | join(",")' <<<"$issue")
+          case ",$labels," in
+            *,bug,*) type=fix ;;
+            *,documentation,*) type=docs ;;
+            *) type=feat ;;
+          esac
+          slug=$(jq -r .title <<<"$issue" | iconv -f utf-8 -t ascii//TRANSLIT 2>/dev/null \
+            | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//' | cut -c1-40 | sed -E 's/-+$//')
+          branch="$type/$ISSUE${slug:+-$slug}"
+
+          gh issue develop "$ISSUE" --base main --name "$branch"
+          gh issue comment "$ISSUE" --body "Branch \`$branch\` created from \`main\`:
+
+          \`\`\`bash
+          git fetch origin && git switch $branch
+          \`\`\`
+
+          Open the pull request with \`Closes #$ISSUE\` in its description, and a \`release:patch\`, \`release:minor\` or \`release:major\` label to release a new version when it is merged."
+          echo "Created $branch" >> "$GITHUB_STEP_SUMMARY"

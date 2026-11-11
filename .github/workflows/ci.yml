@@ -4,7 +4,7 @@ on:
   pull_request:
 jobs:
   core:
-    # The plugin compiles against a local Archi installation, so CI covers the platform independent engine.
+    # The platform independent engine, on every OS the analysts use.
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -16,3 +16,33 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - shell: bash
         run: ./gradlew :core:build -ParchiHome=none
+
+  plugin:
+    # The plugin compiles and runs its tests against the jars of an Archi installation, so download a pinned release.
+    runs-on: ubuntu-latest
+    env:
+      ARCHI_VERSION: 5.11.0
+      ARCHI_TAG: 5_11
+      ARCHI_SHA256: a13f4f058c16d8653c1307a145b9dd6bddd4226abc952f58c586c46d61db219e
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "21" }
+      - uses: gradle/actions/setup-gradle@v5
+      - id: archi-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/archi
+          key: archi-linux64-${{ env.ARCHI_VERSION }}
+      - if: steps.archi-cache.outputs.cache-hit != 'true'
+        name: Download Archi ${{ env.ARCHI_VERSION }}
+        run: |
+          curl -fsSL -o archi.tgz \
+            "https://github.com/archimatetool/archi.io/releases/download/$ARCHI_TAG/Archi-Linux64-$ARCHI_VERSION.tgz"
+          echo "$ARCHI_SHA256  archi.tgz" | sha256sum -c -
+          mkdir -p ~/archi && tar xzf archi.tgz -C ~/archi && rm archi.tgz
+      - run: ./gradlew build -ParchiHome="$HOME/archi/Archi"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: documentationArchi-plugin
+          path: build/dist/*.archiplugin

@@ -17,6 +17,7 @@ import io.github.p3chys.documentationarchi.doc.ObjectText;
 import io.github.p3chys.documentationarchi.doc.Property;
 import io.github.p3chys.documentationarchi.doc.Relation;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
+import io.github.p3chys.documentationarchi.text.KeywordRules.PanelStyle;
 import io.github.p3chys.documentationarchi.text.RichText;
 
 /** The content of one page, the same for every output apart from what its {@link Dialect} decides. */
@@ -603,13 +604,27 @@ final class PageBody {
     }
 
     private void description(String text) {
-        RichText.parse(text, rules).forEach(block -> out.append(block(block)));
+        out.append(blocks(RichText.parse(text, rules)));
     }
 
-    /** The block, in a division indented by the nesting tags open where it stands. */
+    /** The blocks one after the other; two tables in a row get an empty paragraph between, or they would run together. */
+    private String blocks(List<RichText.Block> blocks) {
+        StringBuilder s = new StringBuilder();
+        RichText.Block before = null;
+        for (RichText.Block block : blocks) {
+            s.append(before != null && before.rows != null && block.rows != null ? "<p></p>" : "").append(block(block));
+            before = block;
+        }
+        return s.toString();
+    }
+
+    /**
+     * The block, in a division indented by the nesting tags open where it stands. With {@code type style haf} the
+     * nesting tag lines themselves stay at the left edge; only what is between them is indented.
+     */
     private String block(RichText.Block block) {
         String html = content(block);
-        return block.indent > 0 ? "<div style=\"margin-left: " + block.indent * INDENT + "px\">" + html + "</div>" : html;
+        return block.indent > 0 && !(rules.hafTypes() && block.tagLine) ? "<div style=\"margin-left: " + block.indent * INDENT + "px\">" + html + "</div>" : html;
     }
 
     private String content(RichText.Block block) {
@@ -628,7 +643,7 @@ final class PageBody {
         }
         if (block.rows != null) {
             int columns = block.rows.get(0).size();
-            s.append("<table><tbody>");
+            s.append(rules.hafTypes() ? "<table class=\"md\"><tbody>" : "<table><tbody>");
             for (List<List<RichText.Inline>> row : block.rows) {
                 String cell = row == block.rows.get(0) ? "th" : "td";
                 s.append("<tr>");
@@ -642,9 +657,14 @@ final class PageBody {
         }
         if (block.children.isEmpty()) {
             String text = inlines(block.inlines);
-            s.append("<p>").append(grey ? grey(text) : text).append("</p>");
+            // a nesting tag line is a label: grey italics, see .tag-line in style.css
+            s.append(rules.hafTypes() && block.tagLine ? "<p class=\"tag-line\" style=\"color: #999999; font-style: italic;\">"
+                    : "<p>").append(grey ? grey(text) : text).append("</p>");
         } else {
-            block.children.forEach(b -> s.append(block(b)));
+            s.append(blocks(block.children));
+        }
+        if (block.style == PanelStyle.NOTE && block.note && rules.hafTypes()) {
+            return dialect.noteBox(s.toString());
         }
         return block.style == null ? s.toString() : dialect.panel(block.style, block.title, s.toString());
     }
@@ -668,17 +688,43 @@ final class PageBody {
                     s.append("<a href=\"").append(Xml.escape(i.text)).append("\">").append(Xml.escape(i.label)).append("</a>");
                     break;
                 case REF: s.append(reference(i)); break;
+                case CODE: s.append("<code>").append(Xml.escape(i.text)).append("</code>"); break;
                 case STYLED:
+                    // HaF: the colon after a keyword is not part of its style
+                    if (rules.hafTypes() && i.text.endsWith(":") && i.text.length() > 1) {
+                        s.append(dialect.styled(Xml.escape(i.text.substring(0, i.text.length() - 1)), i.style)).append(":");
+                        break;
+                    }
+                    s.append(dialect.styled(Xml.escape(i.text), i.style));
+                    break;
                 case TABLE:
                 case CONSTANT:
                 case VARIABLE:
-                    // inline styles, not CSS classes: they are what Confluence keeps in storage format
-                    s.append(dialect.styled(Xml.escape(i.text), i.style));
+                    s.append(token(i));
                     break;
                 default: s.append(text(i.text));
             }
         }
         return s.toString();
+    }
+
+    /**
+     * A coloured token, in inline styles, not CSS classes: they are what Confluence keeps in storage format. With HaF's
+     * look (no {@code token} rule): {name} has its braces in normal text and its name in monospace, 'NAME' its quotes in
+     * normal text, and [table x] is all monospace.
+     */
+    private String token(RichText.Inline token) {
+        String text = Xml.escape(token.text);
+        KeywordRules.Token kind = KeywordRules.Token.valueOf(token.kind.name());
+        if (!rules.hafToken(kind)) {
+            return dialect.styled(text, token.style);
+        }
+        String inner = Xml.escape(token.text.substring(1, token.text.length() - 1));
+        switch (kind) {
+            case VARIABLE: return "{<code>" + dialect.styled(inner, token.style) + "</code>}";
+            case CONSTANT: return "'" + dialect.styled(inner, token.style) + "'";
+            default: return "<code>" + dialect.styled(text, token.style) + "</code>";
+        }
     }
 
     /**
@@ -703,9 +749,15 @@ final class PageBody {
     private String asset(RichText.Inline reference) {
         Assets.Asset asset = doc.assets.find(reference.text, page.title);
         if (asset == null) {
-            return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(t("missing-asset")) + ": " + Xml.escape(reference.text) + "]</span>";
+            String missing = t("missing-asset");
+            if (rules.hafTypes()) { // [Missing asset: x]
+                missing = missing.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + missing.substring(1);
+            }
+            return "<span style=\"color: rgb(191,38,0);\">[" + Xml.escape(missing) + ": " + Xml.escape(reference.text) + "]</span>";
         }
         used.add(asset);
-        return dialect.asset(asset, Xml.escape(reference.label != null ? reference.label : asset.name));
+        // a picture's alt text is the reference as written, such as sub/nested.png; a file's link shows its name
+        String shown = reference.label != null ? reference.label : asset.image() ? reference.text : asset.name;
+        return dialect.asset(asset, Xml.escape(shown));
     }
 }

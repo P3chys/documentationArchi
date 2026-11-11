@@ -162,12 +162,14 @@ Models written for HaF, the earlier documentation scripts, use these conventions
 - **Tokens:** `˝˝NAME˝˝` or `˝NAME˝` (U+02DD, as HaF writes them; also `` `NAME` ``) in an element's description names
   one of its relationships, of any type and either way round: the relationship named exactly so, delimiters included
   (`˝˝0035˝˝`), else by the name inside. Where the token stands, the export writes what HaF writes:
-  - a **sentence** for most relationships: *triggers «Process»Pay*, with the relationship's description under it in
-    grey (a `<tbl>` in it a table) and, for serving (and triggering without a description), the other element's
-    business description in grey italics, in parentheses;
+  - a **sentence** for most relationships, on the token's own line: *triggers «Process»Pay*, followed by the
+    relationship's description in grey and, for serving (and triggering without a description), the other element's
+    business description in grey italics, in parentheses; a description holding a `<tbl>` or SQL makes the sentence a
+    block of its own, the table under it. An access names its object without the type (*read from [table ORDERS]*);
   - for a **composition** to a part of the element's own type, the part described in full, indented: its heading
     `«Type»Name`, its description with its own tokens, its roles and the accesses its text leaves out; a part already
-    being described says *[recursive reference: Name]*. A composition to another type is just the linked name;
+    being described says *[recursive reference: Name]*; each level has its own coloured bar. A composition to another
+    type is just the linked name;
   - for an **access**, its SQL or parameters (below); for an `[auth]` role, the role line.
 
   Relationships going out that a token wrote in are not listed again; incoming ones stay. A token no relationship has
@@ -176,7 +178,8 @@ Models written for HaF, the earlier documentation scripts, use these conventions
   it: *triggers* / *is triggered by*, *is used by* / *use* (serving), *composed of* / *is a part of*, *associated
   with*, *realizes*, *influences*, *flows to* / *flows from*, and for an assignment from a component *provides* (a
   service), *publishes* (an interface), *generates* (an event), *implements* (a process or function), from an
-  interface to a service *publishes*, read backwards *is provided by* and so on.
+  interface to a service *publishes*, read backwards *is provided by*, *is published on* and so on. A relationship
+  name that is only a token (`˝˝0035˝˝`) is not printed.
 - **Business description:** the text between a leading `Description:` and `Technically:`. A description not written
   that way has none.
 - **Access:** what it does is the name of its specialization (`select`, `update`, `insert`...), else Archi's access
@@ -204,7 +207,7 @@ Models written for HaF, the earlier documentation scripts, use these conventions
   (`RBWDP-20025`, not `RBWDP-20025 portal`) has its heading and every link to it go to the ticket.
 - **Looks:** the rule line `type style haf` shows types as HaF does, `«Process»Pay` instead of
   `<<Business Process>> Pay`; `workpackage one-page` exports a work package as one page, its description and then
-  each element it changes described in full.
+  each element it changes described in full, sorted by name, under the title linked to the ticket.
 
 Elements with neither a Confluence page nor a ticket link to their description in the export.
 
@@ -385,6 +388,12 @@ type style haf                  types as «Process»Pay
 workpackage one-page            a work package's export is one page
 ```
 
+**HaF look:** `type style haf` also switches the pages to HaF's look: thin grey lines between parts and elements,
+a 20px title, HaF's colours for `{variable}`, `'CONSTANT'` and `[table x]`, SQL and plain code in a light box
+(keywords bold and blue at the start of a line), compact tables, `<#>` notes as a plain box (`NOTE:` panels stay
+coloured), nesting tags as grey labels at the left edge, one paragraph per line of a description and
+`View name – Documentation` as the browser tab title. Element headings show the type small and grey in front of the name, the contents are numbered (the print order) and every entry jumps within the page, the page says how many elements it describes (*4 elements*), elements named in a description are blue monospace objects (`«Process»Pay`, linked to their Confluence page or ticket where they have one), section titles such as *Input parameters* are bold italic lines, and the `confluenceUrl` property is not printed. A `token` rule still sets its own colours.
+
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
 export of that model uses it instead of the preferences, on every computer and in CI (order: project file, then
 preferences, then the built-in defaults). The file adds to the built-in rules (the `INFO:`... panels, the `#risk`...
@@ -401,7 +410,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `recursive-reference`, `input-parameters`, `output`, `request`, `response`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `documentation`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `recursive-reference`, `input-parameters`, `output`, `request`, `response`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations

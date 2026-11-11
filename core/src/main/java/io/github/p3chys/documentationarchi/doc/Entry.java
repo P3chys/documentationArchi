@@ -23,6 +23,8 @@ public final class Entry {
     public final List<Link> contains = new ArrayList<>();
     /** Lines printed after the description, such as which role may use the element. */
     public final List<String> facts = new ArrayList<>();
+    /** For each of {@link #facts}: the role it names, shown as an object in HaF's look; null for none. */
+    public final List<String> factRoles = new ArrayList<>();
     /** Parts with a heading after the description, such as its input parameters. */
     public final List<Section> sections = new ArrayList<>();
     /** Where the heading links to, such as a work package's ticket; null for no link. */
@@ -34,36 +36,49 @@ public final class Entry {
      */
     public final List<Part> body = new ArrayList<>();
 
-    /** A piece of a description: text, or what a token writes in its place. */
+    /**
+     * A piece of a description: text, or what a token writes in its place. What a token writes within a line (a
+     * sentence, an object, a role) stands in the text of a TEXT part as {@link #marker}.
+     */
     public static final class Part {
         public enum Kind {
-            /** Description markup. */
+            /** Description markup, with {@link #inline} parts at their markers. */
             TEXT,
-            /** A line printed as it is, such as a role. */
-            PLAIN,
             /** "triggers «Process»Pay", with the relationship's description in grey and the other's business one. */
             SENTENCE,
             /** A heading and description markup under it, such as input parameters. */
             SECTION,
             /** A part composed into the element, described in full, indented. */
-            NESTED
+            NESTED,
+            /** "Available only for role DEV and higher.": {@link #text} the line with {@code {role}}, {@link #title} the role. */
+            ROLE,
+            /** A part already being described further out: {@link #title} its name. */
+            RECURSIVE,
+            /** An element named in the text: {@link #link}. */
+            OBJECT
         }
 
         public final Kind kind;
-        /** TEXT, SECTION: markup; PLAIN: the line; SENTENCE: the relationship's description, "" for none. */
+        /** TEXT, SECTION: markup; SENTENCE: the relationship's description, "" for none; ROLE: the line. */
         public final String text;
         /** SENTENCE: how the relationship reads. */
         public final String verb;
-        /** SENTENCE: the other element; NESTED: the part. Its type is the short one: Process, not Business Process. */
+        /**
+         * SENTENCE, OBJECT: the other element; NESTED: the part. Its type is the short one (Process, not Business
+         * Process), null to show no type.
+         */
         public final Link link;
         /** SENTENCE: the other element's business description, null for none. */
         public final String note;
-        /** SECTION: the heading. */
+        /** SECTION: the heading; ROLE: the role; RECURSIVE: the name. */
         public final String title;
         /** NESTED: the part's own description. */
         public final List<Part> parts;
+        /** TEXT: the parts at the markers in its text, the first at {@code marker(0)}. */
+        public final List<Part> inline;
 
-        private Part(Kind kind, String text, String verb, Link link, String note, String title, List<Part> parts) {
+        private Part(Kind kind, String text, String verb, Link link, String note, String title, List<Part> parts,
+                List<Part> inline) {
             this.kind = kind;
             this.text = text;
             this.verb = verb;
@@ -71,26 +86,46 @@ public final class Entry {
             this.note = note;
             this.title = title;
             this.parts = parts;
+            this.inline = inline;
+        }
+
+        /** Where the inline part with this index stands in a TEXT part's text: characters no description has. */
+        public static String marker(int index) {
+            return "\ue000" + index + "\ue001";
         }
 
         public static Part text(String markup) {
-            return new Part(Kind.TEXT, markup, null, null, null, null, List.of());
+            return text(markup, List.of());
         }
 
-        public static Part plain(String line) {
-            return new Part(Kind.PLAIN, line, null, null, null, null, List.of());
+        public static Part text(String markup, List<Part> inline) {
+            return new Part(Kind.TEXT, markup, null, null, null, null, List.of(), List.copyOf(inline));
         }
 
         public static Part sentence(String verb, Link other, String description, String note) {
-            return new Part(Kind.SENTENCE, description == null ? "" : description, verb, other, note, null, List.of());
+            return new Part(Kind.SENTENCE, description == null ? "" : description, verb, other, note, null, List.of(),
+                    List.of());
         }
 
         public static Part section(String title, String markup) {
-            return new Part(Kind.SECTION, markup == null ? "" : markup, null, null, null, title, List.of());
+            return new Part(Kind.SECTION, markup == null ? "" : markup, null, null, null, title, List.of(), List.of());
         }
 
         public static Part nested(Link part, List<Part> parts) {
-            return new Part(Kind.NESTED, "", null, part, null, null, List.copyOf(parts));
+            return new Part(Kind.NESTED, "", null, part, null, null, List.copyOf(parts), List.of());
+        }
+
+        /** @param line the line with {@code {role}} where the role goes */
+        public static Part role(String line, String role) {
+            return new Part(Kind.ROLE, line, null, null, null, role, List.of(), List.of());
+        }
+
+        public static Part recursive(String name) {
+            return new Part(Kind.RECURSIVE, "", null, null, null, name, List.of(), List.of());
+        }
+
+        public static Part object(Link element) {
+            return new Part(Kind.OBJECT, "", null, element, null, null, List.of(), List.of());
         }
     }
 

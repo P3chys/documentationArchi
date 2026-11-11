@@ -12,6 +12,8 @@ public final class DocPage {
     public final String id;
     public final String title;
     public String documentation = "";
+    /** Where the title links to, such as a work package's Jira ticket; null for no link. */
+    public String titleUrl;
     public List<Property> properties = new ArrayList<>();
     /** The folder of the view below the model's Views folder; null at the top, and for pages that are no view. */
     public DocFolder folder;

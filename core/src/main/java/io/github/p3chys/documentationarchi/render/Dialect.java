@@ -23,6 +23,11 @@ interface Dialect {
     /** @param title heading of the panel, null for none */
     String panel(PanelStyle style, String title, String body);
 
+    /** A {@code <#>} note with {@code type style haf}: a plain box rather than a coloured panel. */
+    default String noteBox(String body) {
+        return panel(PanelStyle.NOTE, null, body);
+    }
+
     /** @param rule how SQL blocks look, null for as usual */
     String sql(String sql, Rule rule);
 

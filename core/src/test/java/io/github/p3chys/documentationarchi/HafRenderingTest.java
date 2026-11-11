@@ -80,46 +80,78 @@ class HafRenderingTest {
                 .contains("<a href=\"#e-d\">D</a>"); // no link of its own: its description here
     }
 
-    @Test
-    void tokensWriteSentencesSectionsAndNestedPartsInPlace() throws Exception {
+    /** An entry whose tokens wrote a sentence within a line, a sentence with a table, a section and a nested part. */
+    private static DocPage tokenPage() {
         DocPage page = new DocPage("v", "View");
         Entry entry = new Entry("a", "A", "Application Function", "ignored when there is a body", List.of(), List.of(),
                 List.of());
-        entry.body.add(Entry.Part.text("Before"));
-        entry.body.add(Entry.Part.sentence("triggers", new Link("b", "B", "Process"), "Line one\nLine two",
-                "Signs it."));
-        entry.body.add(Entry.Part.sentence("insert into", new Link("t", "[table ORDERS]", "DataObject"),
+        entry.body.add(Entry.Part.text("Reads the orders " + Entry.Part.marker(0) + " then " + Entry.Part.marker(1),
+                List.of(Entry.Part.sentence("read from", new Link("t", "[table ORDERS]"), "only active rows", null),
+                        Entry.Part.sentence("triggers", new Link("b", "B", "Process"), "", "Signs it."))));
+        entry.body.add(Entry.Part.sentence("insert into", new Link("t", "[table ORDERS]"),
                 "Rows:\n<tbl>\nA | B |\n1 | 2 |\n</tbl>", null));
         entry.body.add(Entry.Part.section("Input parameters", "- id"));
-        entry.body.add(Entry.Part.nested(new Link("p", "Part", "Function"), List.of(Entry.Part.text("Inner"),
-                Entry.Part.plain("[recursive reference: A]"))));
+        entry.body.add(Entry.Part.nested(new Link("p", "Part", "Function"), List.of(
+                Entry.Part.text("Inner " + Entry.Part.marker(0), List.of(Entry.Part.recursive("A"))),
+                Entry.Part.role("Available only for role {role} and higher.", "OPE"),
+                Entry.Part.nested(new Link("q", "Deeper", "Function"), List.of(Entry.Part.text("Deep"))))));
         entry.body.add(Entry.Part.text("<sql>select\nID\nfrom [table ORDERS]</sql>"));
         page.entries.add(entry);
         page.entries.add(new Entry("b", "B", "Business Process", "", List.of(), List.of(), List.of()));
+        return page;
+    }
 
-        String html = html(new Doc("Model", List.of(page)));
+    @Test
+    void tokensWriteSentencesWithinTheLineAndBlocksOfTheirOwn() throws Exception {
+        String html = html(new Doc("Model", List.of(tokenPage())));
         String grey = "<span style=\"color: rgb(107,119,140);\">";
+        String dark = "<span style=\"color: rgb(68,84,111);\">";
 
         assertThat(html).doesNotContain("ignored when")
-                .contains("<p>Before</p><p>triggers «Process»<a href=\"#e-b\">B</a> <em>" + grey
-                        + "(Signs it.)</span></em></p><p>" + grey + "Line one<br/>Line two</span></p>")
-                .contains("<p>insert into «DataObject»[table ORDERS]</p><p>" + grey + "Rows:</span></p>"
+                .contains("<p>Reads the orders read from [table ORDERS] " + dark + "only active rows</span> then triggers "
+                        + "«Process»<a href=\"#e-b\">B</a> <em>" + grey + "(Signs it.)</span></em></p>")
+                .contains("<p>insert into [table ORDERS]</p><p>" + grey + "Rows:</span></p>"
                         + "<table><tbody><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></tbody></table>")
                 .contains("<h4>Input parameters</h4><ul><li>id</li></ul>")
-                .contains("<div style=\"margin-left: 20px; border-left: 2px solid rgb(223,225,230); padding-left: 10px;\">"
-                        + "<p><strong>«Function»Part</strong></p><p>Inner</p><p>[recursive reference: A]</p></div>")
+                .contains("<div style=\"border-left: 3px solid rgb(0,85,204); background-color: rgb(247,248,255); "
+                        + "padding: 10px 10px 10px 16px; margin: 10px 0;\"><p><strong>«Function»Part</strong></p>"
+                        + "<p>Inner <em><span style=\"color: rgb(136,136,136);\">[recursive reference: A]</span></em></p>"
+                        + "<p>Available only for role OPE and higher.</p>"
+                        + "<div style=\"border-left: 3px solid rgb(0,119,170); background-color: rgb(245,255,253);")
                 .contains("<strong>select</strong>");
     }
 
     @Test
-    void hafTypeStyleWritesTheShortTypeRightBeforeTheName() throws Exception {
-        DocPage page = new DocPage("v", "View");
-        page.contents.add(new Link("a", "Pay", "Business Process: Broker"));
-        page.entries.add(new Entry("a", "Pay", "Business Process: Broker", "", List.of(), List.of(), List.of()));
-        new Exporter(new Doc("Model", List.of(page)), KeywordRules.parseFile("type style haf"))
-                .export(folder, EnumSet.of(Format.HTML));
+    void hafLookWritesObjectsCountsAndNumberedContents() throws Exception {
+        DocPage page = tokenPage();
+        page.contents.add(new Link("a", "A", "Application Function"));
+        page.contents.add(new Link("b", "B", "Business Process: Broker"));
+        Entry a = page.entries.get(0);
+        a.facts.add("Available only for role VIEW and higher.");
+        a.factRoles.add("VIEW");
+        Doc doc = new Doc("Model", List.of(page));
+        doc.external.put("b", "https://wiki.example.com/b");
+        new Exporter(doc, KeywordRules.parseFile("type style haf")).export(folder, EnumSet.of(Format.HTML));
+        String html = Files.readString(folder.resolve("html/index.html"));
+        String code = "<code style=\"color: rgb(0,85,204);\">";
 
-        assertThat(Files.readString(folder.resolve("html/index.html")))
-                .contains("<li>«Process»<a href=\"#e-a\">Pay</a></li>").doesNotContain("&lt;&lt;");
+        assertThat(html).contains("<p class=\"count\" style=\"color: rgb(136,136,136); font-size: 13px;\">2 elements</p>")
+                .doesNotContain("<h2>Elements</h2>").doesNotContain("&lt;&lt;")
+                // the contents jump within the page, the type grey inside the link
+                .contains("<ol><li><a href=\"#e-a\"><span style=\"color: rgb(136,136,136); font-size: 12px; font-weight: "
+                        + "normal; margin-right: 5px;\">«Function»</span>A</a></li><li><a href=\"#e-b\">")
+                // a reference goes to the Confluence page, as one object
+                .contains("triggers <a href=\"https://wiki.example.com/b\">" + code + "«Process»B</code></a>")
+                .contains("read from " + code + "[table ORDERS]</code>")
+                .contains("<p><strong><em>Input parameters</em></strong></p>")
+                .contains("<p>Available only for role " + code + "VIEW</code> and higher.</p>")
+                .contains("<h3><span style=\"color: rgb(136,136,136); font-size: 13px; font-weight: normal; margin-right: "
+                        + "6px;\">«Function»</span>Part</h3>");
+    }
+
+    @Test
+    void hafLookHidesTheConfluenceUrlProperty() {
+        assertThat(KeywordRules.parseFile("type style haf").hidesProperty("confluenceUrl")).isTrue();
+        assertThat(KeywordRules.defaults().hidesProperty("confluenceUrl")).isFalse();
     }
 }

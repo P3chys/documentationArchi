@@ -60,6 +60,13 @@ final class StorageDialect implements Dialect {
         return macro(style.name().toLowerCase(Locale.ROOT), heading + "<ac:rich-text-body>" + body + "</ac:rich-text-body>");
     }
 
+    /** HaF's note as a plain styled box; Confluence keeps the inline style of a div. */
+    @Override
+    public String noteBox(String body) {
+        return "<div style=\"border: 1px solid rgb(165,173,186); padding: 8px 12px; color: rgb(98,111,134); "
+                + "font-style: italic;\">" + body + "</div>";
+    }
+
     @Override
     public String sql(String sql, Rule rule) {
         // CDATA keeps the SQL as it is; only its own end marker has to be split

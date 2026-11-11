@@ -107,6 +107,12 @@ final class HtmlDialect implements Dialect {
         return "<div class=\"panel " + style.name().toLowerCase(Locale.ROOT) + "\">" + heading + body + "</div>";
     }
 
+    /** HaF's note: a plain box, see {@code .note-box} in style.css. */
+    @Override
+    public String noteBox(String body) {
+        return "<div class=\"note-box\">" + body + "</div>";
+    }
+
     @Override
     public String sql(String sql, Rule rule) {
         return sql(sql, rule, KeywordRules.defaults());
@@ -128,6 +134,10 @@ final class HtmlDialect implements Dialect {
     private static final Pattern SQL_KEYWORD = Pattern.compile("(?i)^([ \\t]*)((?:SELECT|FROM|WHERE|AND|OR|ORDER[ \\t]+BY"
             + "|GROUP[ \\t]+BY|HAVING|JOIN|LEFT[ \\t]+JOIN|RIGHT[ \\t]+JOIN|INNER[ \\t]+JOIN|OUTER[ \\t]+JOIN|ON|UNION"
             + "|INSERT[ \\t]+INTO|VALUES|UPDATE|SET|DELETE[ \\t]+FROM|WITH|CASE|WHEN|THEN|ELSE|END|INTO))(?![\\p{L}\\p{N}_])");
+    /** With HaF's look only the first word of a line counts, and and/or never do. */
+    private static final Pattern SQL_KEYWORD_HAF = Pattern.compile("(?i)^([ \\t]*)(select|from|where|update|set|insert|into"
+            + "|values|delete|join|left|right|inner|outer|on|group|order|having|union|with|case|when|then|else|end)"
+            + "(?![\\p{L}\\p{N}_])");
     private static final Pattern SQL_TOKEN = Pattern.compile("(?<constant>" + RichText.CONSTANT + ")"
             + "|(?<variable>\\{[^{}\\n]+})|(?<table>\\[[^\\[\\]\\n]+])");
 
@@ -138,7 +148,7 @@ final class HtmlDialect implements Dialect {
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
             out.append(i > 0 ? "\n" : "");
-            Matcher keyword = SQL_KEYWORD.matcher(line);
+            Matcher keyword = (rules.hafTypes() ? SQL_KEYWORD_HAF : SQL_KEYWORD).matcher(line);
             if (keyword.find()) {
                 out.append(keyword.group(1)).append("<strong>").append(Xml.escape(keyword.group(2))).append("</strong>");
                 line = line.substring(keyword.end());

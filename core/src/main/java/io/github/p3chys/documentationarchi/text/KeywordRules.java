@@ -3,6 +3,7 @@ package io.github.p3chys.documentationarchi.text;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,12 +77,15 @@ public final class KeywordRules {
 
     /** Coloured tokens in descriptions, with how they look when no rule says otherwise. */
     public enum Token {
-        TABLE("#0747a6"), CONSTANT("#006644"), VARIABLE("#6554c0");
+        TABLE("#0747a6", "#0055cc", false), CONSTANT("#006644", "#ae4787", false), VARIABLE("#6554c0", "#216e4e", true);
 
         public final TextStyle builtIn;
+        /** The look with {@code type style haf}, for a token no rule sets. */
+        public final TextStyle haf;
 
-        Token(String colour) {
+        Token(String colour, String hafColour, boolean hafItalic) {
             builtIn = new TextStyle(colour, null, 100, false, false, false, false);
+            haf = new TextStyle(hafColour, null, 100, false, hafItalic, false, false);
         }
     }
 
@@ -551,6 +555,8 @@ public final class KeywordRules {
     private final Set<String> pdfOff = new HashSet<>();
     private boolean htmlSingleFile;
     private final Map<Token, TextStyle> tokens = new LinkedHashMap<>();
+    /** The tokens a {@code token} rule sets. */
+    private final Set<Token> ruledTokens = EnumSet.noneOf(Token.class);
     private final TextStyle[] headings = new TextStyle[HEADING_LEVELS + 1];
     private final List<TextStyle> styles = new ArrayList<>();
     private Rule sql;
@@ -586,7 +592,11 @@ public final class KeywordRules {
                 case DEFAULTS: break; // only says how a rules file is read
                 case PANEL: panels.put(rule.keyword.toLowerCase(Locale.ROOT), rule.panel); break;
                 case TAG: tags.put(rule.keyword.toLowerCase(Locale.ROOT), rule.tag); break;
-                case TOKEN: tokens.put(Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT)), rule.style); break;
+                case TOKEN:
+                    Token ruled = Token.valueOf(rule.keyword.toUpperCase(Locale.ROOT));
+                    tokens.put(ruled, rule.style);
+                    ruledTokens.add(ruled);
+                    break;
                 case HEADING: headings[Integer.parseInt(rule.keyword)] = rule.style; break;
                 case SQL: sql = rule; break;
                 case JIRA: jira = rule.keyword; break;
@@ -598,6 +608,13 @@ public final class KeywordRules {
                 case CATALOG: catalogs.add(rule.catalog); break;
                 case INDEX: indexes.add(Token.valueOf(rule.keyword.substring(0, rule.keyword.length() - 1).toUpperCase(Locale.ROOT))); break;
                 default: texts.add(rule);
+            }
+        }
+        if (hafTypes) {
+            for (Token token : Token.values()) {
+                if (!ruledTokens.contains(token)) {
+                    tokens.put(token, token.haf);
+                }
             }
         }
         fixedTexts = new Texts(language, replaced);
@@ -961,6 +978,11 @@ public final class KeywordRules {
         return tokens.get(token);
     }
 
+    /** Whether the token has HaF's look: {@code type style haf} and no {@code token} rule for it. */
+    public boolean hafToken(Token token) {
+        return hafTypes && !ruledTokens.contains(token);
+    }
+
     /** How headings of a level look, null for unchanged. */
     public TextStyle heading(int level) {
         return level >= 1 && level <= HEADING_LEVELS ? headings[level] : null;
@@ -1058,6 +1080,9 @@ public final class KeywordRules {
     /** Whether properties with this key are never printed: a {@code hide property} rule matches it. */
     public boolean hidesProperty(String key) {
         String k = key == null ? "" : key.toLowerCase(Locale.ROOT);
+        if (hafTypes && k.strip().equals("confluenceurl")) { // HaF prints no properties; the links use this one
+            return true;
+        }
         for (String hidden : hiddenProperties) {
             if (hidden.endsWith("*") ? k.startsWith(hidden.substring(0, hidden.length() - 1)) : k.equals(hidden)) {
                 return true;

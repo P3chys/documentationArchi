@@ -40,6 +40,8 @@ public final class RichText {
 
     public enum InlineKind {
         TEXT, BREAK, URL, TAG, STYLED, TABLE, CONSTANT, VARIABLE, ASSET, BOLD, ITALIC, LINK, REF,
+        /** Code inside a line: {@code <code>x</code>} with other text around it. */
+        CODE,
         /** A picture at a web address, from {@code <ass>}. */
         IMAGE_URL,
         /** An {@code <ass>} path that is absolute or leaves the assets folder. */
@@ -103,6 +105,10 @@ public final class RichText {
         public final List<Block> children;
         /** How many nesting tags (a line of only {@code <name>}) are open where the block stands, 0 for none. */
         public int indent;
+        /** A nesting tag line itself, such as {@code <for each order>}. */
+        public boolean tagLine;
+        /** A panel written as {@code <#>} note, not one of the {@code NOTE:} kind. */
+        public boolean note;
 
         Block(PanelStyle style, String title, List<Inline> inlines, String sql) {
             this(style, title, inlines, sql, null, null, null, false, null, List.of());
@@ -156,7 +162,8 @@ public final class RichText {
     private static final Set<String> KNOWN_TAGS = Set.of("sql", "tbl", "code", "ass");
     /** A constant: capitals, digits, _ ( ) and : in single quotes, with a capital; not the apostrophes of don't or the '90s. */
     public static final String CONSTANT = "(?<![\\p{L}\\p{N}'])'(?=[A-Z0-9_():]*[A-Z])[A-Z0-9_():]+'(?![\\p{L}\\p{N}])";
-    private static final Pattern INLINE = Pattern.compile("(?i:<ass>)(?<assTag>[^<]*\\S[^<]*)(?i:</ass>)"
+    private static final Pattern INLINE = Pattern.compile("(?i:<code>)(?<inlineCode>[^\\n]*?)(?i:</code>)"
+            + "|(?i:<ass>)(?<assTag>[^<]*\\S[^<]*)(?i:</ass>)"
             + "|(?<url>https?://[^\\s<>\"]+)"
             + "|\\[\\[\\s*(?i:asset):(?<asset>[^\\]|\\n]+)(?:\\|(?<assetLabel>[^\\]\\n]*))?]]"
             + "|(?<![\\p{L}\\p{N}_/:])(?i:asset):(?<bareAsset>[^\\s<>\"\\[\\]|]+)"
@@ -183,6 +190,9 @@ public final class RichText {
         Nesting nesting = new Nesting();
         int done = 0;
         while (m.find()) {
+            if (m.group("code") != null && m.group("fenced") == null && m.group("lang") == null && inlineCode(source, m)) {
+                continue; // in a sentence: stays text, see INLINE
+            }
             text(source.substring(done, m.start()), rules, blocks, nesting);
             int from = blocks.size();
             if (m.group("sql") != null) {
@@ -193,11 +203,13 @@ public final class RichText {
                 List<Block> children = parse(m.group("longNote"), rules);
                 if (!children.isEmpty()) {
                     blocks.add(Block.panel(PanelStyle.NOTE, null, List.of(), children));
+                    blocks.get(blocks.size() - 1).note = true;
                 }
             } else if (m.group("note") != null) {
                 if (!m.group("note").isBlank()) {
                     String note = m.group("note").strip();
                     blocks.add(Block.panel(PanelStyle.NOTE, null, inlines(note, rules), inner(note, rules)));
+                    blocks.get(blocks.size() - 1).note = true;
                 }
             } else {
                 boolean fenced = m.group("fenced") != null;
@@ -220,9 +232,27 @@ public final class RichText {
         return blocks;
     }
 
+    /**
+     * Whether a {@code <code>...</code>} without a language is only a piece of a line: closed on its own line, with
+     * other text before it or after it on that line. Alone on its line it is a block.
+     */
+    private static boolean inlineCode(String source, Matcher m) {
+        if (!m.group().toLowerCase(Locale.ROOT).endsWith("</code>") || m.group("code").indexOf('\n') >= 0) {
+            return false;
+        }
+        int lineStart = source.lastIndexOf('\n', m.start() - 1) + 1;
+        int lineEnd = source.indexOf('\n', m.end());
+        String line = source.substring(lineStart, lineEnd < 0 ? source.length() : lineEnd);
+        return !line.isBlank() && !line.strip().equals(m.group().strip());
+    }
+
     /** How many nesting tags are open; the lines of a description are indented by it. */
     private static final class Nesting {
         int level;
+    }
+
+    private static void tagLine(List<Block> blocks, int from) {
+        blocks.subList(from, blocks.size()).forEach(b -> b.tagLine = true);
     }
 
     private static void indent(List<Block> blocks, int from, int level) {
@@ -255,11 +285,13 @@ public final class RichText {
             } else if (m.group("close") == null) {
                 from = blocks.size();
                 paragraph(new ArrayList<>(List.of(tag)), rules, blocks);
+                tagLine(blocks, from);
                 indent(blocks, from, nesting.level++);
             } else {
                 nesting.level = Math.max(0, nesting.level - 1);
                 from = blocks.size();
                 paragraph(new ArrayList<>(List.of(tag)), rules, blocks);
+                tagLine(blocks, from);
                 indent(blocks, from, nesting.level);
             }
         }
@@ -429,9 +461,15 @@ public final class RichText {
         paragraph(paragraph, rules, blocks);
     }
 
+    /** A paragraph of the lines; with {@code type style haf} one paragraph for each line. */
     private static void paragraph(List<String> lines, KeywordRules rules, List<Block> blocks) {
         if (!lines.isEmpty()) {
-            blocks.add(new Block(null, null, inlines(String.join("\n", lines), rules), null));
+            if (rules.hafTypes()) {
+                lines.stream().filter(l -> !l.isBlank())
+                        .forEach(l -> blocks.add(new Block(null, null, inlines(l, rules), null)));
+            } else {
+                blocks.add(new Block(null, null, inlines(String.join("\n", lines), rules), null));
+            }
             lines.clear();
         }
     }
@@ -524,7 +562,11 @@ public final class RichText {
             TagColour colour = keyword != null ? rules.tag(keyword) : null;
             InlineKind token = m.group("table") != null ? InlineKind.TABLE : m.group("constant") != null ? InlineKind.CONSTANT
                     : m.group("variable") != null ? InlineKind.VARIABLE : null;
-            if (m.group("assTag") != null) {
+            if (m.group("inlineCode") != null) {
+                addText(inlines, text.substring(done, m.start()), rules);
+                inlines.add(new Inline(InlineKind.CODE, m.group("inlineCode"), null));
+                done = m.end();
+            } else if (m.group("assTag") != null) {
                 addText(inlines, text.substring(done, m.start()), rules);
                 inlines.add(assetTag(m.group("assTag")));
                 done = m.end();

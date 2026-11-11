@@ -28,3 +28,12 @@ pre.sql { font-family: "DejaVu Sans Mono"; font-size: 9px; }
 h4 { font-size: 11px; }
 .panel, pre.sql { page-break-inside: avoid; }
 pre.code { font-family: "DejaVu Sans Mono"; font-size: 9px; }
+code { font-family: "DejaVu Sans Mono"; font-size: 9px; }
+/* HaF's look on paper: its sizes scaled to the PDF's 10px text */
+body.haf h1 { font-size: 18px; }
+body.haf pre.sql, body.haf pre.code { font-family: "DejaVu Sans Mono"; font-size: 9px; }
+body.haf pre.sql strong { font-size: 8px; }
+body.haf p.tag-line { font-size: 10px; }
+body.haf table.md { font-size: 9px; }
+body.haf table.md th { font-size: 8px; }
+.note-box { page-break-inside: avoid; }

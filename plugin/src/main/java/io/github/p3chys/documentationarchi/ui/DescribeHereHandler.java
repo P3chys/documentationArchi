@@ -42,7 +42,7 @@ public class DescribeHereHandler extends AbstractHandler {
                     "Select the elements in a view that its page should describe.");
             return null;
         }
-        WorkPackageHandler.execute(view.getArchimateModel(), HomeView.toggle(view, elements));
+        ModelCommands.execute(view.getArchimateModel(), HomeView.toggle(view, elements));
         return null;
     }
 }

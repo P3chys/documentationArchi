@@ -43,7 +43,7 @@ function, with screenshots.
 
 ## Export documentation
 
-Right-click in the **Models** tree, or in a view (ArchiMate, sketch or canvas), and choose **Export Documentation...**.
+Right-click in the **Models** tree, or in a view (ArchiMate, sketch or canvas), and choose **Documentation > Export...**.
 What you right-clicked decides what is exported:
 
 | Selected | Exported |
@@ -91,7 +91,7 @@ on, and its relationships to elements outside the view, grouped by type.
 
 - An element is described once, on the first page that shows it. Later pages link to that description, and links
   work in all three formats.
-- To choose the page yourself, select the elements in a view, right-click and choose **Describe Here**: the export
+- To choose the page yourself, select the elements in a view, right-click and choose **Documentation > Describe Here**: the export
   then describes them on that view's page whenever the view is part of the export (otherwise on the first page, as
   usual). **Describe Here** on elements already described there takes it back, and **Undo** does too. It is kept in
   the model as a `doc:home` property of the element (the view's id), which the export never shows.
@@ -131,7 +131,7 @@ on, and its relationships to elements outside the view, grouped by type.
 See how a description comes out without exporting: **Window > Documentation Preview** opens a view that shows the
 selected element, relationship or view as the HTML export shows it, using the same formatting rules (including the
 model's `documentation.rules`) and the same pictures and assets. Right-click anything in the **Models** tree or in a
-view and choose **Show in Documentation Preview** to open it on that object.
+view and choose **Documentation > Show in Preview** to open it on that object.
 
 - A view shows its whole page, with its picture; an element its description, saying which page it is on; a
   relationship the descriptions of the elements at both ends; the model its overview page.
@@ -146,7 +146,7 @@ view and choose **Show in Documentation Preview** to open it on that object.
 ## Print order
 
 Elements are described in alphabetical order unless you set an order. Right-click a view (in the Models tree or in
-the view) and choose **Print Order...**. Move elements with the buttons, **Alt+Up / Alt+Down** or by dragging, then
+the view) and choose **Documentation > Print Order...**. Move elements with the buttons, **Alt+Up / Alt+Down** or by dragging, then
 **OK**. **Remove Order** goes back to alphabetical.
 
 The order is kept in the model, the way modellers often do it by hand: a Grouping called `PrintOrder` on the view,
@@ -219,46 +219,48 @@ A work package is an ArchiMate **Work Package** element named after its Jira tic
 an element to it says that the element changes within that ticket, and exporting the work package gives the
 developers a specification of just those elements.
 
-**Link elements:** select one or more elements (in the Models tree or in a view), right-click, **Link to Work
-Package...**. Tick the work packages that change them, untick to take them off, or type a new ticket key under
-**New work package** (it is created in *Implementation & Migration*). A grey tick means only some of the selected
-elements are linked; it stays as it is unless you click it. **Undo** takes the change back.
+**Everything in one window:** right-click anything in a model and choose **Documentation > Work Packages...**. It
+lists every work package with the number of elements it changes and how many of them no export shows as they are
+now (see below). Select one or more to see their elements, then **Export...** them or **Show in Model Tree**. Every
+change in the window is made at once and **Undo** takes it back, so there is only **Close**.
+
+**Link elements:** select one or more elements (in the Models tree or in a view) first, then open the same window
+from their menu. Tick the work packages that change them, untick to take them off, or type a new ticket key under
+**New work package** and press **Add and Link** (it is created in *Implementation & Migration*). A grey tick means
+only some of the selected elements are linked; it stays as it is unless you click it. Set the **Jira address** in
+**Preferences > Documentation Export > General** and every ticket links to Jira.
 
 The links are plain associations between the element and the work package, either way round, so you can also draw
 them yourself. An element can be in several work packages, and the model can have as many as you need.
 
-**Export a work package:** right-click it and choose **Export Documentation...** (several selected work packages go
+**Export a work package:** right-click it and choose **Documentation > Export...** (several selected work packages go
 into one export). The export holds:
 - a first page named after the ticket, with the work package's description and properties (the specification) and
   the list of the elements it changes,
 - the views that show any of these elements, each with its full picture but describing only those elements,
 - the elements that are on no view.
 
-**Overview:** right-click anything in a model and choose **Work Packages...**. It lists every work package with the
-number of elements it changes and how many of them no export shows as they are now (see below). Select one or more
-to see their elements, then **Export...** them or **Show in Model Tree**.
-
 In every export, an element's description ends with the work packages that change it (*Work packages: RBWDP-20025*)
 instead of listing the links among its relationships. A whole-model export has a *Work packages* page describing each
 ticket with the elements it changes.
 
-**Kind of change:** in **Link to Work Package...** choose the **Kind of change** (*new*, *change*, *remove*). It
-becomes the name of the link, so you can also write it on a link you draw yourself, and the documentation shows it
+**Kind of change:** with elements selected, choose the **Kind of change** (*new*, *change*, *remove*) before ticking.
+It becomes the name of the link, so you can also write it on a link you draw yourself, and the documentation shows it
 next to the ticket and the element: *Work packages: RBWDP-20025 (new)*. *(not said)* leaves the links as they are.
 
-**Closing a ticket:** when a ticket is done, select it in **Work Packages...** and press **Close**. The work package
-stays in the model with its links, but the dialogs, the *Work packages* page and the elements' descriptions no
-longer list it; exporting it directly still gives its specification. Tick **Show closed work packages** to see them
-and **Reopen** one. Closing sets the property `doc:closed` on the work package, and **Undo** takes it back.
+**Marking a ticket done:** when a ticket is done, select it and press **Mark Done**. The work package stays in the
+model with its links, but the window, the *Work packages* page and the elements' descriptions no longer list it;
+exporting it directly still gives its specification. Tick **Show work packages marked done** to see them and
+**Reopen** one. It sets the property `doc:closed` on the work package, and **Undo** takes it back.
 
-**What changed without a ticket:** **Changed Since Publish...** in **Work Packages...** finds the elements that the
-documentation shows differently from what was published (see *Publishing*) and that no open work package changes
-yet, and opens **Link to Work Package...** on them, with the kind of change it found: *new* for an element added
-since, *change* for one that says something else.
+**What changed without a ticket:** **Changed Since Publish...** finds the elements that the documentation shows
+differently from what was published (see *Publishing*) and that no open work package changes yet, and lists them in
+the same window, ready to tick, with the kind of change it found: *new* for an element added since, *change* for one
+that says something else.
 
 ## Check Documentation
 
-Right-click anything in a model and choose **Check Documentation...** to list problems without exporting:
+Right-click anything in a model and choose **Documentation > Check...** to list problems without exporting:
 
 - elements and views without a description,
 - elements that are on no view (work packages are not expected on one),
@@ -356,8 +358,10 @@ described (a relationship, to the element it is described with).
 
 **Views and work packages:** untick **Show the views an element appears on** or **Show the work packages that change an element** in **Preferences > Documentation Export** to leave the *Views: ...* or *Work packages: ...* line out of every element's description. The ticks belong to your computer and apply to every export from it, whichever rules file the model has; to leave them out for everyone, put an `entry` line without `views` or `workpackages` in `documentation.rules`.
 
-**Tools > Documentation Formatting...** (the same list as **Preferences > Documentation Export**) lists everything you
-can change:
+**Tools > Documentation > Settings...** (the same page as **Preferences > Documentation Export**) has two tabs. **General**
+holds the **Jira address**, the language, the element type style, the work package export, the assets folder, the PDF
+and HTML layout, the properties and labels to leave out, and the change marks. **Formatting** lists everything whose
+look you can change:
 
 - **Page parts:** the colour, size and effects of headings (levels 1–4), of the `[table]`, `'constant'` and `{variable}`
   tokens, and of SQL blocks, including Confluence's code theme and line numbers. **Reset** restores the default.
@@ -367,7 +371,7 @@ can change:
   - *Panel:* a line starting with `keyword:` becomes an info, note, tip or warning panel.
 
   Each style editor shows a live preview.
-- **Edit as Text...** shows all rules as text, one per line, to copy between computers or change many at once:
+- **Edit All as Text...** shows all rules as text, one per line, to copy between computers or change many at once:
 
 ```
 panel warning Open question     a line "Open question: ..." becomes a warning panel
@@ -430,7 +434,7 @@ Keep pictures and documents in a folder called `Assets` next to the `.archimate`
 them into the documentation from any description, note or property value.
 
 **The easy way:** right-click an element, relationship, view, note or the model (in the Models tree or in a view),
-choose **Add Asset...**, and pick one or more files.
+choose **Documentation > Add Asset...**, and pick one or more files.
 - Files from elsewhere are copied into `Assets`, which is created if it's missing. The same file picked again is
   reused; a different file with the same name gets `-2`.
 - A `[[asset:...]]` line per file is added at the end of the description.
@@ -630,6 +634,18 @@ just check       # everything: tests + plugin
 CI builds and tests `core` on Linux, Windows and macOS, and builds and tests the plugin on Linux against a pinned Archi
 (5.11.0); the built `.archiplugin` is kept as a workflow artifact. Archi 4.9 keeps its settings and dropins in `Archi4`:
 `gradlew :plugin:installDev -ParchiData=Archi4`.
+
+**From issue to release:**
+
+1. Assigning an issue creates its branch from `main` (`fix/35-...` for a bug, `docs/...` for documentation, otherwise
+   `feat/...`), links it to the issue and comments the `git switch` command. For an issue assigned earlier, run the
+   *Issue branch* workflow by hand.
+2. The pull request says `Closes #<issue>`. A `release:patch`, `release:minor` or `release:major` label releases a new
+   version when it is merged; the *Release* check on the PR shows which version. Its `## Release notes` section
+   becomes the release notes (without it, GitHub generates them from the merged PRs).
+3. Merging builds and tests the plugin, commits the new version in `gradle.properties` to `main`, tags `v<version>`
+   and publishes the release with the `.archiplugin`. A PR that raised `gradle.properties` itself releases that version,
+   label or not. Without either, nothing is released; the *Release* workflow can also be run by hand on `main`.
 
 **Windows: don't use PowerShell 7 from the Microsoft Store for `just install` or to start Archi.** Store apps run in a
 sandbox that redirects writes to `%APPDATA%` (where Archi keeps dropins and settings) to a private copy, so Archi

@@ -34,17 +34,19 @@ This guide explains every function of the plugin: where to find it, what it need
 
 ## 1. At a glance
 
+Every right-click command is in the **Documentation** submenu of the context menu.
+
 | Function | Where | What it takes | What it gives |
 |----------|-------|---------------|---------------|
 | [Export Documentation...](#5-export-documentation) | Right-click in the Models tree or in a view | A model, folder, views, elements, relationships or work packages; a target folder; the formats | HTML pages, a PDF and Confluence pages in a folder named after the model |
 | [Print Order...](#7-print-order) | Right-click a view (tree or view editor) | A view | The order in which the export describes the view's elements, saved in the model |
-| [Link to Work Package...](#8-work-packages-jira-tickets) | Right-click elements | One or more elements | Links between the elements and Jira-ticket work packages |
-| [Work Packages...](#8-work-packages-jira-tickets) | Right-click anything in a model | A model | An overview of all work packages, what they change and what isn't exported yet |
+| [Work Packages...](#8-work-packages-jira-tickets) | Right-click anything in a model | A model; selected elements to link | All work packages, what they change and what isn't exported yet; ticks link the selected elements |
 | [Insert Reference...](#10-formatting-descriptions) | Right-click one object | One element, relationship, view, note or the model; the element or view to refer to | A `[[ref:id]]` link at the end of the description, showing the target's current name |
 | [Describe Here](#element-descriptions) | Right-click elements in an ArchiMate view | Elements of the view | The export describes them on this view's page instead of the first that shows them |
 | [Add Asset...](#12-assets-pictures-and-files) | Right-click one object | One element, relationship, view, note or the model; files from disk | The files copied into `Assets`, and a link to them in the description |
 | [Change marks](#9-change-marks-in-the-models-tree) | Models tree (automatic) | Nothing – it watches the model | Dots showing what no export reflects yet |
-| [Documentation Formatting...](#11-documentation-formatting-changing-the-look) | **Tools** menu, **Preferences > Documentation Export** | Your choice of colours, sizes and keywords | How headings, tokens, SQL, labels and panels look in every export |
+| [Settings...](#11-documentation-formatting-changing-the-look) | **Tools > Documentation**, the **Documentation** submenu, **Preferences > Documentation Export** | The Jira address, language, layout; colours, sizes and keywords | What every export holds and how it looks |
+| [User Guide](#4-where-the-functions-are) | **Tools > Documentation**, the **Documentation** submenu | – | This guide, in the web browser |
 | [Command line export](#14-command-line-and-automation) | Archi's command line | A model file and a folder | The same documentation, for CI and scheduled builds |
 
 ---
@@ -77,8 +79,8 @@ This guide explains every function of the plugin: where to find it, what it need
 
 After the restart:
 
-- right-click the model in the **Models** tree – the menu ends with **Export Documentation...**;
-- the **Tools** menu has **Documentation Formatting...**;
+- right-click the model in the **Models** tree – the menu ends with a **Documentation** submenu;
+- the **Tools** menu has **Documentation > Settings...** and **User Guide**;
 - the preferences (**Edit > Preferences...**; on macOS in the **Archi** application menu) have a
   **Documentation Export** page.
 
@@ -101,7 +103,7 @@ print orders and work-package links are ordinary ArchiMate elements and relation
 ## 3. Quick start
 
 1. Open a model and save it (the plugin looks for assets next to the `.archimate` file).
-2. Right-click the model in the **Models** tree and choose **Export Documentation...**.
+2. Right-click the model in the **Models** tree and choose **Documentation > Export...**.
 3. Pick a folder, keep **HTML**, **PDF** and **Confluence** ticked, and click **Export**.
 4. When the export finishes, click **Open Folder** and open `html/index.html` or the PDF.
 
@@ -112,38 +114,24 @@ and publishing.
 
 ## 4. Where the functions are
 
-The plugin adds its commands to the end of the context menus of the **Models** tree and of the view editors, to the
-**Tools** menu, and to the preferences. Its entries are highlighted in the menus below; they appear only when the
-selection fits.
+Everything the plugin adds to a context menu is in one **Documentation** submenu, at the end of the context menus of
+the **Models** tree and of the view editors. It also adds **Tools > Documentation** (**Settings...** and
+**User Guide**), **Window > Documentation Preview**, and a page to the preferences. The submenu only shows what fits
+the selection, in four groups:
 
-<table>
-<tr>
-<td align="center"><img src="images/menu-tree-model.png" width="343" alt="Models tree menu on the model"></td>
-<td align="center"><img src="images/menu-tree-element.png" width="343" alt="Models tree menu on an element"></td>
-<td align="center"><img src="images/menu-tree-view.png" width="361" alt="Models tree menu on a view"></td>
-</tr>
-</table>
-
-<table>
-<tr>
-<td align="center" valign="top"><img src="images/menu-diagram.png" width="409" alt="View editor menu on an element"></td>
-<td align="center" valign="top"><img src="images/menu-tools.png" width="354" alt="Tools menu"></td>
-</tr>
-</table>
-
-| Command | Models tree | ArchiMate view | Sketch / Canvas view | Shown when |
-|---------|:-----------:|:--------------:|:--------------------:|------------|
-| Export Documentation... | ✓ | ✓ | ✓ | anything in a model is selected |
-| Add Asset... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
-| Print Order... | ✓ | ✓ | – | one view (tree), or objects of the view (editor) |
-| Link to Work Package... | ✓ | ✓ | – | the selection holds elements |
-| Work Packages... | ✓ | ✓ | – | anything in a model is selected |
-| Check Documentation... | ✓ | ✓ | – | anything in a model is selected |
-| Describe Here | – | ✓ | – | the selection holds elements |
-| Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
-| Show in Documentation Preview | ✓ | ✓ | ✓ | anything in a model is selected |
-| Documentation Formatting... | **Tools** menu | | | always |
-| Documentation Preview | **Window** menu | | | always |
+| Group | Command | Models tree | ArchiMate view | Sketch / Canvas view | Shown when |
+|-------|---------|:-----------:|:--------------:|:--------------------:|------------|
+| Export and check | Export... | ✓ | ✓ | ✓ | anything in a model is selected |
+| | Export Profile | ✓ | – | – | the model's rules have [profiles](#export-profiles) |
+| | Show in Preview | ✓ | ✓ | ✓ | anything in a model is selected |
+| | Check... | ✓ | ✓ | – | anything in a model is selected |
+| Work | Work Packages... | ✓ | ✓ | – | anything in a model is selected; with elements selected it links them |
+| | Print Order... | ✓ | ✓ | – | one view (tree), or objects of the view (editor) |
+| Descriptions | Add Asset... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
+| | Insert Reference... | ✓ | ✓ | ✓ | exactly one element, relationship, view, note or the model |
+| | Describe Here | – | ✓ | – | the selection holds elements |
+| Help | Settings... | ✓ | ✓ | ✓ | always: opens **Preferences > Documentation Export** |
+| | User Guide | ✓ | ✓ | ✓ | always: opens this guide in the web browser |
 
 ---
 
@@ -352,7 +340,7 @@ page, and their elements stay clickable at that size.
 ### Documentation Preview
 
 To see how a description comes out without running an export, open **Window > Documentation Preview**, or right-click
-anything in the Models tree or in a view and choose **Show in Documentation Preview**. The view shows the selected
+anything in the Models tree or in a view and choose **Documentation > Show in Preview**. The view shows the selected
 object as the HTML export shows it – the same reading of the model, the same formatting rules (the model's
 `documentation.rules` if it has one, otherwise your preferences) and the same pictures and assets:
 
@@ -412,39 +400,16 @@ and its links never appear in the export or its pictures. **Edit > Undo** takes 
 
 A work package is an ArchiMate **Work Package** element named after a Jira ticket, such as `RBWDP-20025`. Linking
 an element to it says *this element changes in that ticket*. Exporting the work package gives developers a
-specification of just those elements.
+specification of just those elements. Set the **Jira address** in
+[Preferences > Documentation Export > General](#general-settings) and every ticket links to Jira.
 
-### Link to Work Package
+Everything about work packages happens in one window: right-click anything in a model and choose
+**Documentation > Work Packages...**. Every change in it is made at once and **Edit > Undo** takes it back, so the
+window has nothing to confirm – just **Close** it when you are done.
 
-**What it takes:** one or more elements (in the Models tree or in a view).
+<p align="center"><img src="images/work-packages.png" width="985" alt="Work Packages window"></p>
 
-**What it gives:** association relationships between the elements and the work packages you tick.
-
-<p align="center"><img src="images/link-work-package.png" width="795" alt="Link to Work Package dialog with two elements selected"></p>
-
-- The table lists every work package of the model, how many elements it changes and the first line of its
-  description.
-- **Tick** a work package to link all selected elements to it; **untick** it to take them off.
-- A **grey tick** (shown as **–**) means only some of the selected elements are linked. It stays as it is unless you
-  click it, which links all of them.
-- **New work package** creates one and links the selected elements to it. It goes into the *Implementation &
-  Migration* folder. The name must start with the ticket key – capital letters, a dash and a number, such as
-  `RBWDP-20040` – and may go on with a title; otherwise the dialog says so and **OK** is disabled. Typing the name of
-  a work package that already exists links to that one.
-
-<p align="center"><img src="images/link-work-package-new.png" width="781" alt="Creating a new work package"></p>
-
-**Edit > Undo** takes the whole change back. The links are plain associations in either direction, so you can draw
-them yourself too. An element can be in several work packages.
-
-### Work Packages overview
-
-**What it takes:** a right-click on anything in the model.
-
-**What it gives:** every work package, what it changes and what no export shows as it is now – with export and
-navigation from there.
-
-<p align="center"><img src="images/work-packages.png" width="985" alt="Work Packages overview"></p>
+### See what the tickets change
 
 - **Elements** – how many elements the work package changes.
 - **Not exported** – how many of them changed since the last export that showed them, or were never exported (see
@@ -454,25 +419,47 @@ navigation from there.
 - **Export...** (or a double-click) exports the selected work packages.
 - **Show in Model Tree** selects the chosen elements – or, if none are chosen, the work packages – in the Models tree.
 
-### Kind of change, closing a ticket, changes without a ticket
+### Link elements
 
-**Kind of change:** in **Link to Work Package...** choose the **Kind of change** (*new*, *change*, *remove*). It
-becomes the name of the link, so you can also write it on a link you draw yourself, and the documentation shows it
-next to the ticket and the element: *Work packages: RBWDP-20025 (new)*. *(not said)* leaves the links as they are.
+Select the elements first (in the Models tree or in a view), then right-click them and choose
+**Documentation > Work Packages...**. The window now has a tick in front of every work package:
 
-**Closing a ticket:** when a ticket is done, select it in **Work Packages...** and press **Close**. The work package
-stays in the model with its links, but the dialogs, the *Work packages* page and the elements' descriptions no
-longer list it; exporting it directly still gives its specification. Tick **Show closed work packages** to see them
-and **Reopen** one. Closing sets the property `doc:closed` on the work package, and **Undo** takes it back.
+<p align="center"><img src="images/link-work-package.png" width="795" alt="Work Packages window with two elements selected"></p>
 
-**What changed without a ticket:** **Changed Since Publish...** in **Work Packages...** finds the elements that the
-documentation shows differently from what was published (see *Publishing*) and that no open work package changes
-yet, and opens **Link to Work Package...** on them, with the kind of change it found: *new* for an element added
-since, *change* for one that says something else.
+- **Tick** a work package to link all selected elements to it; **untick** it to take them off.
+- A **grey tick** (shown as **–**) means only some of the selected elements are linked. It stays as it is unless you
+  click it, which links all of them.
+- **New work package** – type the ticket and press **Add and Link** (or Enter): the work package is created in the
+  *Implementation & Migration* folder and the selected elements are linked to it. Opened without elements selected,
+  the button is **Add** and only creates it. The name must start with the ticket key – capital letters, a dash and a
+  number, such as `RBWDP-20040` – and may go on with a title; otherwise the window says so and the button is
+  disabled. Typing the name of a work package that already exists links to that one.
+- **Kind of change** (*new*, *change*, *remove*) names the links you tick. Choosing one also renames the links of the
+  work packages already ticked. *(not said)* leaves the links as they are.
+
+<p align="center"><img src="images/link-work-package-new.png" width="781" alt="Creating a new work package"></p>
+
+The links are plain associations in either direction, so you can draw them yourself too, and write the kind of
+change as the link's name. The documentation shows it next to the ticket and the element:
+*Work packages: RBWDP-20025 (new)*. An element can be in several work packages.
+
+### Mark a ticket done
+
+When a ticket is done, select it and press **Mark Done**. The work package stays in the model with its links, but
+the window, the *Work packages* page and the elements' descriptions no longer list it; exporting it directly still
+gives its specification. Tick **Show work packages marked done** to see them and **Reopen** one. Marking sets the
+property `doc:closed` on the work package, and **Undo** takes it back.
+
+### What changed without a ticket
+
+**Changed Since Publish...** finds the elements that the documentation shows differently from what was published
+(see *Publishing*) and that no open work package changes yet, and lists them in the same window, ready to tick, with
+the kind of change it found: *new* for an element added since, *change* for one that says something else.
 
 ### Export a work package
 
-Right-click one or more work packages and choose **Export Documentation...**, or use **Export...** in the overview.
+Right-click one or more work packages and choose **Documentation > Export...**, or use **Export...** in the
+Work Packages window.
 
 <p align="center"><img src="images/export-dialog-work-package.png" width="549" alt="Export dialog for a work package"></p>
 
@@ -540,7 +527,7 @@ goes. The file is text and is written in the same order each time; it is not mea
 ## Check Documentation
 
 Problems in the documentation are otherwise found only by reading the output. Right-click anything in a model and
-choose **Check Documentation...**: it lists what it finds, grouped by kind with counts, and exports nothing.
+choose **Documentation > Check...**: it lists what it finds, grouped by kind with counts, and exports nothing.
 
 - elements and views without a description,
 - elements that are on no view (work packages are not expected on one),
@@ -635,17 +622,37 @@ is exported as shown in [Element descriptions](#element-descriptions).
 
 ## 11. Documentation Formatting (changing the look)
 
-**Where:** **Tools > Documentation Formatting...**, or **Preferences > Documentation Export** (the same page, shown
-inside the preferences).
+**Where:** **Tools > Documentation > Settings...**, **Documentation > Settings...** in any context menu, or
+**Preferences > Documentation Export** (the same page). It has two tabs, **General** and **Formatting**.
 
-**What it takes:** your choice of colours, sizes, effects and keywords.
+**What it gives:** the settings of every later export, in all three formats. They are kept in Archi's preferences on
+your computer, not in the model – **Save as Project Rules...** at the bottom writes them next to a model so everyone
+gets the same (see [Project rules](#project-rules)). **Edit All as Text...** shows the settings of both tabs as
+[rule lines](#edit-as-text), with the ones no tab shows (profiles, catalogs, fixed texts, page sections).
 
-**What it gives:** the look of every later export, in all three formats. The settings are kept in Archi's
-preferences on your computer, not in the model.
+### General settings
+
+| Setting | What it does | Rule line |
+|---------|--------------|-----------|
+| **Jira address** | Work packages named after a ticket link to this address followed by the ticket key, e.g. `https://jira.example.com/browse/` | `jira <address>` |
+| **Language** | The language of the fixed texts of the output (English or Czech) | `language cs` |
+| **Element types** | `<<Business Process>> Pay` as Archi names them, or `«Process»Pay` as HaF writes them | `type style haf` |
+| **Work package export** | A page per view and element, or one page: the ticket, then each element it changes | `workpackage one-page` |
+| **Assets folder** | Where `[[asset:name]]` files are read from; empty: `Assets` next to the model | `assets <folder>` |
+| **PDF** | Cover page, table of contents and landscape pages for wide views | `pdf cover off` ... |
+| **HTML** | One self-contained file per page | `html single-file` |
+| **Show the views / work packages** | The *Views: ...* and *Work packages: ...* lines of every element's description | this computer only |
+| **Hide properties** | Property keys never printed, separated by commas; `*` at the end matches any ending | `hide property <key>` |
+| **Leave out labels** | Views, elements and relationships labelled `#draft` stay out of every export | `exclude label draft` |
+| **Mark what no export shows yet** | The [change marks](#9-change-marks-in-the-models-tree) in the Models tree, and whether layout-only changes count | this computer only |
+
+The two *Show the ...* ticks and the change marks belong to your computer and apply to every export from it,
+whichever rules file the model has; to leave the views or work packages out for everyone, put an `entry` line
+without `views` or `workpackages` in `documentation.rules`.
+
+### Formatting
 
 <p align="center"><img src="images/preferences.png" width="1003" alt="Preferences > Documentation Export"></p>
-
-**Views and work packages:** untick **Show the views an element appears on** or **Show the work packages that change an element** in **Preferences > Documentation Export** to leave the *Views: ...* or *Work packages: ...* line out of every element's description. The ticks belong to your computer and apply to every export from it, whichever rules file the model has; to leave them out for everyone, put an `entry` line without `views` or `workpackages` in `documentation.rules`.
 
 The list holds everything whose look can change:
 
@@ -654,10 +661,7 @@ The list holds everything whose look can change:
   the default shown in the *Formatting* column.
 - **Keywords** – panels, labels and text styles. **Add Keyword...**, **Edit...**, **Remove**, **Move Up** and
   **Move Down** manage them. Double-click a row to edit it.
-- **Edit as Text...** – all rules as text, see [below](#edit-as-text).
-- **Mark in the model tree what no export shows yet** – switches the [change marks](#9-change-marks-in-the-models-tree)
-  on or off.
-- **Restore Defaults** brings back the built-in keywords and page-part looks.
+- **Restore Defaults** brings back the built-in keywords and page-part looks, and the usual general settings.
 
 ### Add or edit a keyword
 
@@ -693,7 +697,7 @@ background or larger size in every version; the editors say so where it matters.
 
 ### Edit as Text
 
-Shows all rules as text, one per line – to copy them to another computer or change many at once. Lines starting with
+**Edit All as Text...**, at the bottom of the preference page, shows all rules as text, one per line – to copy them to another computer or change many at once. Lines starting with
 `#` are explanations and are not kept. An invalid line is reported at the top and **OK** stays disabled until it's
 fixed.
 
@@ -712,7 +716,7 @@ sql background=#f4f5f7 theme=midnight linenumbers
 ### Project rules
 
 To make everyone (and the CI build) format a model the same way, keep the rules next to the model: a file named
-`documentation.rules` in the folder of the `.archimate` file, in the same text format as **Edit as Text...**. When it
+`documentation.rules` in the folder of the `.archimate` file, in the same text format as **Edit All as Text...**. When it
 exists, every export of that model uses it instead of the preferences; without it the preferences apply, and without
 those the built-in defaults.
 
@@ -987,7 +991,7 @@ Missing assets are logged as errors, and with `--documentation.strict` they fail
 | Work packages and their links | in the model (Work Package elements, associations) | yes, with the model |
 | Describe Here | in the model (the element's `doc:home` property) | yes, with the model |
 | Asset files | the `Assets` folder next to the model file | yes, if you share the folder |
-| Formatting and keywords | Archi's preferences on your computer | no – use **Edit as Text...** to copy them |
+| Settings, formatting and keywords | Archi's preferences on your computer | no – use **Edit All as Text...** or **Save as Project Rules...** |
 | Project rules (`documentation.rules`) | next to the model file | yes, if you share the folder |
 | Export folder and formats | Archi's preferences on your computer | no |
 | What each export showed (change marks) | Archi's settings folder, per model, per computer | no – exporting never changes the model |
@@ -1001,7 +1005,7 @@ Missing assets are logged as errors, and with `--documentation.strict` they fail
 |---------|----------|
 | The menu entries don't appear | Restart Archi after installing. Check **Help > Manage Plug-ins...** lists documentationArchi. On Windows, don't start Archi from PowerShell 7 from the Microsoft Store (see [Installation](#2-installation)). |
 | *Save the model first: its assets are kept in the Assets folder next to the model file.* | **Add Asset...** needs the model saved to a file. Save it and try again. |
-| *The work package ... changes no elements yet.* | Link elements to it with **Link to Work Package...** first. |
+| *The work package ... changes no elements yet.* | Link elements to it in **Work Packages...** first (select the elements, then open it). |
 | *Select the elements a work package changes (work packages themselves can't be linked).* | Select ordinary elements, not work packages. |
 | *The selection spans several models.* | Select objects of one model only. |
 | *The view shows no elements to order.* | The view holds only notes, groups or references; there is nothing for the print order. |

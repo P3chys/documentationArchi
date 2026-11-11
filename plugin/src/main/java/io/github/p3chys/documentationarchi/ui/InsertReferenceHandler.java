@@ -49,7 +49,7 @@ public class InsertReferenceHandler extends AbstractHandler {
         if (dialog.open() != Window.OK || dialog.getFirstResult() == null) {
             return null;
         }
-        WorkPackageHandler.execute(model, References.add(target, (IArchimateModelObject) dialog.getFirstResult()));
+        ModelCommands.execute(model, References.add(target, (IArchimateModelObject) dialog.getFirstResult()));
         return null;
     }
 }

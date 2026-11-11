@@ -8,14 +8,14 @@
             description="Set the order in which the documentation export describes the elements of the view"/>
       <command id="io.github.p3chys.documentationarchi.addAsset" name="Add Asset..."
             description="Copy files into the model's Assets folder and refer to them in the description"/>
-      <command id="io.github.p3chys.documentationarchi.linkWorkPackage" name="Link to Work Package..."
-            description="Link the selected elements to the work packages (Jira tickets) that change them"/>
       <command id="io.github.p3chys.documentationarchi.workPackages" name="Work Packages..."
-            description="The work packages (Jira tickets) of the model, the elements they change, and their export"/>
+            description="The work packages (Jira tickets) of the model: link the selected elements to them, see what they change, export them"/>
       <command id="io.github.p3chys.documentationarchi.checkDocumentation" name="Check Documentation..."
             description="List what is missing or wrong in the documentation of the model, without exporting"/>
-      <command id="io.github.p3chys.documentationarchi.keywordStyles" name="Documentation Formatting..."
-            description="How the documentation export formats headings, tokens, SQL and keywords"/>
+      <command id="io.github.p3chys.documentationarchi.keywordStyles" name="Documentation Settings..."
+            description="The settings of the documentation export: Jira address, language, layout, formatting and keywords"/>
+      <command id="io.github.p3chys.documentationarchi.userGuide" name="Documentation User Guide"
+            description="Open the user guide of the documentation export in the web browser"/>
       <command id="io.github.p3chys.documentationarchi.describeHere" name="Describe Here"
             description="Describe the selected elements on this view's page of the documentation export"/>
       <command id="io.github.p3chys.documentationarchi.insertReference" name="Insert Reference..."
@@ -26,12 +26,12 @@
       <handler commandId="io.github.p3chys.documentationarchi.export" class="io.github.p3chys.documentationarchi.ui.ExportHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.printOrder" class="io.github.p3chys.documentationarchi.ui.PrintOrderHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.addAsset" class="io.github.p3chys.documentationarchi.ui.AddAssetHandler"/>
-      <handler commandId="io.github.p3chys.documentationarchi.linkWorkPackage" class="io.github.p3chys.documentationarchi.ui.WorkPackageHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.workPackages" class="io.github.p3chys.documentationarchi.ui.WorkPackagesHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.checkDocumentation" class="io.github.p3chys.documentationarchi.ui.CheckDocumentationHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.keywordStyles" class="io.github.p3chys.documentationarchi.ui.KeywordStylesHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.describeHere" class="io.github.p3chys.documentationarchi.ui.DescribeHereHandler"/>
       <handler commandId="io.github.p3chys.documentationarchi.insertReference" class="io.github.p3chys.documentationarchi.ui.InsertReferenceHandler"/>
+      <handler commandId="io.github.p3chys.documentationarchi.userGuide" class="io.github.p3chys.documentationarchi.ui.UserGuideHandler"/>
    </extension>
 
    <extension point="org.eclipse.core.expressions.definitions">
@@ -80,105 +80,126 @@
       </definition>
    </extension>
 
+   <!-- Everything of the plugin in one "Documentation" submenu of each context menu, in groups: export and check,
+        work packages and print order, writing descriptions, settings and help -->
    <extension point="org.eclipse.ui.menus">
       <menuContribution locationURI="menu:tools?after=additions">
-         <command commandId="io.github.p3chys.documentationarchi.keywordStyles"/>
+         <menu id="io.github.p3chys.documentationarchi.menu.tools" label="Documentation">
+            <command commandId="io.github.p3chys.documentationarchi.keywordStyles" label="Settings..."/>
+            <command commandId="io.github.p3chys.documentationarchi.userGuide" label="User Guide"/>
+         </menu>
       </menuContribution>
       <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
-         <command commandId="io.github.p3chys.documentationarchi.export">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
-         <dynamic id="io.github.p3chys.documentationarchi.exportProfiles" class="io.github.p3chys.documentationarchi.ui.ExportProfileMenu">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </dynamic>
-      </menuContribution>
-      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
-         <command commandId="io.github.p3chys.documentationarchi.addAsset">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
-         <command commandId="io.github.p3chys.documentationarchi.printOrder">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.archimateView"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
-         <command commandId="io.github.p3chys.documentationarchi.linkWorkPackage">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.elements"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.workPackages">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.checkDocumentation">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
+         <menu id="io.github.p3chys.documentationarchi.menu.tree" label="Documentation">
+            <visibleWhen><or><reference definitionId="io.github.p3chys.documentationarchi.exportable"/><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></or></visibleWhen>
+            <command commandId="io.github.p3chys.documentationarchi.export" label="Export...">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <dynamic id="io.github.p3chys.documentationarchi.exportProfiles" class="io.github.p3chys.documentationarchi.ui.ExportProfileMenu"/>
+            <command commandId="io.github.p3chys.documentationarchi.preview.show" label="Show in Preview">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.checkDocumentation" label="Check...">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <separator name="work" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.workPackages">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.printOrder">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.archimateView"/></visibleWhen>
+            </command>
+            <separator name="describe" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.addAsset">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.insertReference">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <separator name="help" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.keywordStyles" label="Settings..."/>
+            <command commandId="io.github.p3chys.documentationarchi.userGuide" label="User Guide"/>
+         </menu>
       </menuContribution>
       <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.addAsset">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.export">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.printOrder">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.linkWorkPackage">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.workPackages">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.checkDocumentation">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.describeHere">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.elements"/></visibleWhen>
-         </command>
+         <menu id="io.github.p3chys.documentationarchi.menu.diagram" label="Documentation">
+            <visibleWhen><or><reference definitionId="io.github.p3chys.documentationarchi.exportable"/><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></or></visibleWhen>
+            <command commandId="io.github.p3chys.documentationarchi.export" label="Export...">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.preview.show" label="Show in Preview">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.checkDocumentation" label="Check...">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <separator name="work" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.workPackages">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.printOrder">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <separator name="describe" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.addAsset">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.insertReference">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.describeHere">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.elements"/></visibleWhen>
+            </command>
+            <separator name="help" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.keywordStyles" label="Settings..."/>
+            <command commandId="io.github.p3chys.documentationarchi.userGuide" label="User Guide"/>
+         </menu>
       </menuContribution>
       <menuContribution locationURI="popup:SketchEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.addAsset">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.export">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
+         <menu id="io.github.p3chys.documentationarchi.menu.sketch" label="Documentation">
+            <visibleWhen><or><reference definitionId="io.github.p3chys.documentationarchi.exportable"/><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></or></visibleWhen>
+            <command commandId="io.github.p3chys.documentationarchi.export" label="Export...">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.preview.show" label="Show in Preview">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <separator name="describe" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.addAsset">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.insertReference">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <separator name="help" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.keywordStyles" label="Settings..."/>
+            <command commandId="io.github.p3chys.documentationarchi.userGuide" label="User Guide"/>
+         </menu>
       </menuContribution>
       <menuContribution locationURI="popup:CanvasEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.addAsset">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
-         <command commandId="io.github.p3chys.documentationarchi.export">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
-         <command commandId="io.github.p3chys.documentationarchi.insertReference">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.insertReference">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:SketchEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.insertReference">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:CanvasEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.insertReference">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
-         </command>
+         <menu id="io.github.p3chys.documentationarchi.menu.canvas" label="Documentation">
+            <visibleWhen><or><reference definitionId="io.github.p3chys.documentationarchi.exportable"/><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></or></visibleWhen>
+            <command commandId="io.github.p3chys.documentationarchi.export" label="Export...">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.preview.show" label="Show in Preview">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
+            </command>
+            <separator name="describe" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.addAsset">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <command commandId="io.github.p3chys.documentationarchi.insertReference">
+               <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.assetTarget"/></visibleWhen>
+            </command>
+            <separator name="help" visible="true"/>
+            <command commandId="io.github.p3chys.documentationarchi.keywordStyles" label="Settings..."/>
+            <command commandId="io.github.p3chys.documentationarchi.userGuide" label="User Guide"/>
+         </menu>
       </menuContribution>
    </extension>
 
-   <!-- Documentation Preview: the view, opened from the Window menu like Archi's own views, and from context menus -->
+   <!-- Documentation Preview: the view, opened from the Window menu like Archi's own views, and from the Documentation submenu -->
    <extension point="org.eclipse.ui.views">
       <view id="io.github.p3chys.documentationarchi.preview" name="Documentation Preview"
             class="io.github.p3chys.documentationarchi.ui.PreviewView" restorable="true"/>
@@ -196,26 +217,6 @@
    <extension point="org.eclipse.ui.menus">
       <menuContribution locationURI="menu:window?after=show_view_append">
          <command commandId="io.github.p3chys.documentationarchi.preview.open"/>
-      </menuContribution>
-      <menuContribution locationURI="popup:com.archimatetool.editor.treeModelView?after=additions">
-         <command commandId="io.github.p3chys.documentationarchi.preview.show">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:ArchimateDiagramEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.preview.show">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:SketchEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.preview.show">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
-      </menuContribution>
-      <menuContribution locationURI="popup:CanvasEditorContextMenuProvider?after=group_export">
-         <command commandId="io.github.p3chys.documentationarchi.preview.show">
-            <visibleWhen><reference definitionId="io.github.p3chys.documentationarchi.exportable"/></visibleWhen>
-         </command>
       </menuContribution>
    </extension>
 

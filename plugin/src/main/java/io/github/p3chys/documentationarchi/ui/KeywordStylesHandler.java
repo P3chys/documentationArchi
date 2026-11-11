@@ -5,7 +5,7 @@ import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.ui.dialogs.PreferencesUtil;
 import org.eclipse.ui.handlers.HandlerUtil;
 
-/** Tools > Documentation Formatting...: the formatting list of the preferences, on its own. */
+/** Documentation > Settings... (Tools menu and the Documentation submenus): the preferences of the export, on their own. */
 public class KeywordStylesHandler extends AbstractHandler {
 
     @Override

@@ -90,17 +90,32 @@ class HafConventionsTest {
     private static List<String> parts(List<Part> parts) {
         List<String> out = new ArrayList<>();
         for (Part p : parts) {
-            switch (p.kind) {
-                case SENTENCE:
-                    out.add("SENTENCE " + p.verb + " «" + p.link.type + "»" + p.link.label + " | " + p.text
-                            + " | " + p.note);
-                    break;
-                case SECTION: out.add("SECTION " + p.title + ": " + p.text); break;
-                case NESTED: out.add("NESTED «" + p.link.type + "»" + p.link.label + " " + parts(p.parts)); break;
-                default: out.add(p.kind + " " + p.text);
-            }
+            out.add(part(p));
         }
         return out;
+    }
+
+    /** One part as short text; a TEXT part with what stands at its markers in braces. */
+    private static String part(Part p) {
+        switch (p.kind) {
+            case SENTENCE:
+                return "SENTENCE " + p.verb + " " + type(p) + p.link.label + " | " + p.text + " | " + p.note;
+            case SECTION: return "SECTION " + p.title + ": " + p.text;
+            case NESTED: return "NESTED " + type(p) + p.link.label + " " + parts(p.parts);
+            case ROLE: return "ROLE " + p.text.replace("{role}", p.title);
+            case RECURSIVE: return "RECURSIVE " + p.title;
+            case OBJECT: return "OBJECT " + type(p) + p.link.label;
+            default:
+                String text = p.text;
+                for (int i = 0; i < p.inline.size(); i++) {
+                    text = text.replace(Part.marker(i), "{" + part(p.inline.get(i)) + "}");
+                }
+                return "TEXT " + text;
+        }
+    }
+
+    private static String type(Part p) {
+        return p.link.type == null ? "" : "«" + p.link.type + "»";
     }
 
     @Test
@@ -145,11 +160,9 @@ class HafConventionsTest {
 
         Entry pay = entry(read(), "Pay");
 
-        assertThat(parts(pay.body)).containsExactly("TEXT First",
-                "SENTENCE triggers «Process»Sign |  | null",
-                "TEXT then",
-                "SENTENCE triggers «Event»Paid | When done | null",
-                "TEXT not " + A + A + "0099" + A + A);
+        // sentences stay on their line
+        assertThat(parts(pay.body)).containsExactly("TEXT First\n{SENTENCE triggers «Process»Sign |  | null}\n"
+                + "then {SENTENCE triggers «Event»Paid | When done | null}\nnot " + A + A + "0099" + A + A);
         assertThat(pay.documentation).isEqualTo("First\n[[ref:" + next.getId() + "]]\nthen [[ref:" + event.getId()
                 + "]]\nnot " + A + A + "0099" + A + A);
         assertThat(pay.relations).isEmpty(); // both go out and are said
@@ -172,12 +185,27 @@ class HafConventionsTest {
         Entry pay = entry(read(), "Pay");
 
         assertThat(parts(pay.body)).containsExactly(
-                "SENTENCE use «Service»Payments |  | Moves [[ref:" + data.getId() + "]] money.",
-                "SENTENCE influences «Goal»Grow |  | null",
-                "SENTENCE flows from «Object»Order |  | null",
+                "TEXT {SENTENCE use «Service»Payments |  | Moves [[ref:" + data.getId() + "]] money.}\n"
+                        + "{SENTENCE influences «Goal»Grow |  | null}\n{SENTENCE flows from «Object»Order |  | null}",
+                // a table in the description makes it a block of its own
                 "SENTENCE aggregation «Object»Order | <tbl>\nA | B |\n1 | 2 |\n</tbl> | null");
         // incoming relationships said by a token stay listed, outgoing ones don't
         assertThat(pay.relations).extracting(r -> r.other.label).containsExactly("Payments", "Order");
+    }
+
+    @Test
+    void relationshipNamesThatAreOnlyATokenAreNotPrinted() {
+        IArchimateElement process = element(F.createBusinessProcess(), "Pay");
+        IArchimateElement next = element(F.createBusinessProcess(), "Sign");
+        IArchimateElement other = element(F.createBusinessProcess(), "Archive");
+        relate(F.createTriggeringRelationship(), process, next, " " + A + A + "TRIG1" + A + A + " ");
+        relate(F.createFlowRelationship(), process, other, A + "ACC" + A);
+        relate(F.createFlowRelationship(), next, other, "nightly");
+
+        Doc doc = read();
+
+        assertThat(entry(doc, "Pay").relations).extracting(r -> r.name).containsExactly("", "");
+        assertThat(entry(doc, "Sign").relations).extracting(r -> r.name).containsExactly("nightly", "");
     }
 
     @Test
@@ -208,10 +236,10 @@ class HafConventionsTest {
         Entry entry = entry(read(), "Whole");
 
         assertThat(parts(entry.body)).containsExactly("TEXT Steps:",
-                "NESTED «Function»Part [TEXT Does a step, then, PLAIN [recursive reference: Whole], "
-                        + "PLAIN Available only for role OPE and higher., "
-                        + "SENTENCE read from «DataObject»[table ORDERS] |  | null]",
-                "TEXT Uses [[ref:" + data.getId() + "]].");
+                "NESTED «Function»Part [TEXT Does a step, then {RECURSIVE Whole}, "
+                        + "ROLE Available only for role OPE and higher., SENTENCE read from [table ORDERS] |  | null]",
+                "TEXT Uses {OBJECT «DataObject»Data}.");
+        assertThat(entry.documentation).endsWith("Uses [[ref:" + data.getId() + "]].");
         assertThat(entry.relations).extracting(r -> r.other.label).containsExactly("Part"); // BACK comes in
     }
 
@@ -243,8 +271,8 @@ class HafConventionsTest {
                 "TEXT <sql>select\nID,\ncoalesce(a, b)\nfrom [table ORDERS]\nwhere STATE = 'NEW'</sql>",
                 "TEXT <sql>update [table ORDERS]\nset STATE = 'DONE'\nwhere ID = {id}</sql>",
                 "TEXT <sql>select * from ORDERS where STATE = 'OPEN'</sql>\nfor the screen",
-                "SENTENCE insert into «DataObject»[table ORDERS] | one row | null",
-                "SENTENCE write into «DataObject»[table ORDERS] |  | null");
+                // an access's object without its type: its name says it
+                "TEXT {SENTENCE insert into [table ORDERS] | one row | null}\n{SENTENCE write into [table ORDERS] |  | null}");
         assertThat(load.relations).isEmpty();
         List<Relation> incoming = entry(doc, "[table ORDERS]").relations;
         assertThat(incoming).extracting(r -> r.verb).containsExactly("is read by", "is written by", "is written by",
@@ -292,7 +320,8 @@ class HafConventionsTest {
 
         Entry entry = entry(read(), "Screen");
 
-        assertThat(parts(entry.body)).containsExactly("TEXT Admins:", "PLAIN Available only for role ADMIN.");
+        assertThat(parts(entry.body)).containsExactly("TEXT Admins: {ROLE Available only for role ADMIN.}");
+        assertThat(entry.factRoles).containsExactly("VIEW", "AUDITOR");
         assertThat(entry.facts).containsExactly("Available only for role VIEW and higher.",
                 "Available only for role AUDITOR.");
         assertThat(entry.relations).isEmpty();
@@ -322,7 +351,7 @@ class HafConventionsTest {
         assertThat(entry(doc, "Core").relations).extracting(r -> r.verb)
                 .containsExactly("provides", "publishes", "generates", "implements");
         assertThat(entry(doc, "Quotes").relations).extracting(r -> r.verb)
-                .containsExactly("is used by", "is provided by", "is published by");
+                .containsExactly("is used by", "is provided by", "is published on"); // HaF's wording
         Entry quote = entry(doc, "Quote");
         assertThat(quote.relations).extracting(r -> r.verb + "|" + r.note).containsExactly(
                 "triggers|Signs the contract.", "composed of|null", "is implemented by|null", "use|Gives prices.");

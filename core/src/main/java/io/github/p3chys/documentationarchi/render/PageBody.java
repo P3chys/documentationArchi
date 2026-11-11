@@ -53,6 +53,7 @@ final class PageBody {
         for (String name : rules.pageSections()) {
             switch (name) {
                 case "description": section(() -> {
+                    count();
                     description(page.documentation);
                     page.tables.forEach(this::table);
                 }); break;
@@ -78,7 +79,7 @@ final class PageBody {
                     for (Entry entry : page.entries) {
                         section(() -> {
                             int i = page.entries.indexOf(entry);
-                            if (i == 0) {
+                            if (i == 0 && !rules.hafTypes()) {
                                 out.append(heading(2, t("elements")));
                             }
                             String group = page.groups.get(entry.id);
@@ -141,16 +142,18 @@ final class PageBody {
             return;
         }
         String group = null;
+        // in HaF's look numbered: the numbers are the print order
+        String list = rules.hafTypes() ? "ol" : "ul";
         for (int i = 0; i < page.contents.size(); i++) {
             Link l = page.contents.get(i);
             String in = page.groups.get(l.id);
             if (i == 0 || !Objects.equals(in, group)) {
-                out.append(i == 0 ? "" : "</ul>").append(in != null ? heading(3, in) : "").append("<ul>");
+                out.append(i == 0 ? "" : "</" + list + ">").append(in != null ? heading(3, in) : "").append("<" + list + ">");
             }
             group = in;
-            out.append("<li>").append(link(l)).append("</li>");
+            out.append("<li>").append(contentsLink(l)).append("</li>");
         }
-        out.append("</ul>");
+        out.append("</").append(list).append(">");
     }
 
     /**
@@ -233,9 +236,12 @@ final class PageBody {
                     } else {
                         parts(entry.body);
                     }
-                    entry.facts.forEach(f -> out.append("<p>").append(Xml.escape(f)).append("</p>"));
+                    for (int i = 0; i < entry.facts.size(); i++) {
+                        String role = i < entry.factRoles.size() ? entry.factRoles.get(i) : null;
+                        out.append("<p>").append(role(entry.facts.get(i), role)).append("</p>");
+                    }
                     for (Entry.Section section : entry.sections) {
-                        out.append(heading(4, section.title));
+                        sectionTitle(section.title);
                         description(section.text);
                     }
                     break;
@@ -267,35 +273,151 @@ final class PageBody {
     private void parts(List<Entry.Part> parts) {
         for (Entry.Part p : parts) {
             switch (p.kind) {
-                case TEXT: description(p.text); break;
-                case PLAIN: out.append("<p>").append(Xml.escape(p.text)).append("</p>"); break;
-                case SECTION:
-                    out.append(heading(4, p.title));
-                    description(p.text);
-                    break;
-                case SENTENCE:
-                    out.append("<p>").append(Xml.escape(p.verb)).append(" ").append(haf(p.link));
-                    if (p.note != null) {
-                        out.append(" ").append(noteMarkup(p.note));
+                case TEXT:
+                    List<Entry.Part> was = inline;
+                    inline = p.inline;
+                    try {
+                        description(p.text);
+                    } finally {
+                        inline = was;
                     }
-                    out.append("</p>");
+                    break;
+                case SECTION: sectionTitle(p.title); description(p.text); break;
+                case SENTENCE:
+                    out.append("<p>").append(sentence(p, false)).append("</p>");
                     greyDescription(p.text);
                     break;
                 case NESTED:
-                    out.append("<div style=\"margin-left: 20px; border-left: 2px solid rgb(223,225,230); padding-left: 10px;\">")
-                            .append("<p><strong>").append(haf(p.link)).append("</strong></p>");
-                    parts(p.parts);
-                    out.append("</div>");
+                    nested(p);
                     break;
-                default:
+                default: out.append("<p>").append(inline(p)).append("</p>"); // a role or remark on a line of its own
             }
         }
     }
 
-    /** «Process»Pay, the name a link to where it is documented. */
-    private String haf(Link link) {
+    /** The bar and background of a part described in place, by its depth, as HaF colours them. */
+    private static final String[] BARS = {"0,85,204", "0,119,170", "0,153,136", "0,119,68"};
+    private static final String[] TINTS = {"247,248,255", "245,255,253", "245,255,248", "248,255,245"};
+
+    /** A part composed into the element, described in full: its heading (not a link, it is described here), indented. */
+    private void nested(Entry.Part p) {
+        int level = depth++ % BARS.length;
+        out.append("<div style=\"border-left: 3px solid rgb(").append(BARS[level]).append("); background-color: rgb(")
+                .append(TINTS[level]).append("); padding: 10px 10px 10px 16px; margin: 10px 0;\">");
+        String type = p.link.type == null ? "" : typeSpan(p.link.type, 6, 13);
+        if (rules.hafTypes()) {
+            out.append("<h3>").append(type).append(Xml.escape(p.link.label)).append("</h3>");
+        } else {
+            out.append("<p><strong>\u00ab").append(Xml.escape(p.link.type == null ? "" : p.link.type)).append("\u00bb")
+                    .append(Xml.escape(p.link.label)).append("</strong></p>");
+        }
+        try {
+            parts(p.parts);
+        } finally {
+            depth--;
+        }
+        out.append("</div>");
+    }
+
+    /** How deep the part being written is inside parts described in place. */
+    private int depth;
+    /** The parts at the markers of the text being written, see {@link Entry.Part#marker}. */
+    private List<Entry.Part> inline = List.of();
+
+    /** A section such as "Input parameters": in HaF's look a bold italic line, else a heading. */
+    private void sectionTitle(String title) {
+        out.append(rules.hafTypes() ? "<p><strong><em>" + Xml.escape(title) + "</em></strong></p>" : heading(4, title));
+    }
+
+    /** What a token writes within a line. */
+    private String inline(Entry.Part p) {
+        switch (p.kind) {
+            case SENTENCE: return sentence(p, true);
+            case OBJECT: return object(p.link);
+            case RECURSIVE:
+                return "<em><span style=\"color: rgb(136,136,136);\">[" + Xml.escape(t("recursive-reference")
+                        .replace("{name}", p.title)) + "]</span></em>";
+            case ROLE: return role(p.text.replace("{role}", p.title), p.title);
+            default: return "";
+        }
+    }
+
+    /**
+     * "triggers «Process»Pay": the verb, the other element as an object, its business description in parentheses;
+     * within a line, the relationship's description after it in grey.
+     */
+    private String sentence(Entry.Part p, boolean withDescription) {
+        StringBuilder s = new StringBuilder(Xml.escape(p.verb)).append(" ").append(object(p.link));
+        if (p.note != null) {
+            s.append(" ").append(noteMarkup(p.note));
+        }
+        if (withDescription && !p.text.isBlank()) {
+            boolean was = grey;
+            grey = false;
+            try {
+                s.append(" ").append(darkGrey(inlines(RichText.inlines(p.text.strip(), rules))));
+            } finally {
+                grey = was;
+            }
+        }
+        return s.toString();
+    }
+
+    /** A line naming a role, the role as an object in HaF's look. */
+    private String role(String line, String role) {
+        int at = role == null ? -1 : line.indexOf(role);
+        if (at < 0 || !rules.hafTypes()) {
+            return Xml.escape(line);
+        }
+        return Xml.escape(line.substring(0, at)) + code(Xml.escape(role)) + Xml.escape(line.substring(at + role.length()));
+    }
+
+    /**
+     * An element named in a description: in HaF's look «Process»Pay as one blue monospace object, linked where it is
+     * documented; else the type in front of the linked name. An access's object has no type: its name says it.
+     */
+    private String object(Link link) {
         String type = link.type == null ? "" : "\u00ab" + Xml.escape(link.type) + "\u00bb";
+        if (rules.hafTypes()) {
+            return target(link.id, code(type + Xml.escape(link.label)));
+        }
         return type + target(link.id, Xml.escape(link.label));
+    }
+
+    /** Monospace in HaF's object blue; inline, so Confluence keeps it. */
+    private static String code(String markup) {
+        return "<code style=\"color: rgb(0,85,204);\">" + markup + "</code>";
+    }
+
+    /** A relationship's description written with it: HaF's darker grey. */
+    private static String darkGrey(String markup) {
+        return "<span style=\"color: rgb(68,84,111);\">" + markup + "</span>";
+    }
+
+    /** Text with the parts a token writes within the line at their markers. */
+    private String text(String text) {
+        if (inline.isEmpty() || text.indexOf('\ue000') < 0) {
+            return Xml.escape(text);
+        }
+        StringBuilder s = new StringBuilder();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\ue000(\\d+)\ue001").matcher(text);
+        int done = 0;
+        while (m.find()) {
+            int index = Integer.parseInt(m.group(1));
+            s.append(Xml.escape(text.substring(done, m.start()))).append(index < inline.size() ? inline(inline.get(index)) : "");
+            done = m.end();
+        }
+        return s.append(Xml.escape(text.substring(done))).toString();
+    }
+
+    /** "7 elements" under the title of a page that describes elements, in HaF's look. */
+    private void count() {
+        int n = page.entries.size();
+        if (rules.hafTypes() && n > 0) {
+            String text = n == 1 ? t("element-count-one") : t("element-count").replace("{count}", String.valueOf(n));
+            out.append("<p class=\"count\" style=\"color: rgb(136,136,136); font-size: 13px;\">").append(Xml.escape(text))
+                    .append("</p>");
+        }
     }
 
     /** A relationship's description in grey: its text lines grey, a table in it as a table. */
@@ -409,7 +531,32 @@ final class PageBody {
     }
 
     private String link(Link link) {
+        if (rules.hafTypes() && link.type != null) { // the grey type inside the link, as HaF has it
+            return target(link.id, typeSpan(shortType(link.type), 5, 12) + Xml.escape(link.label));
+        }
         return (link.type != null ? type(link.type) : "") + target(link.id, Xml.escape(link.label));
+    }
+
+    /**
+     * An entry of a page's contents: always to where the element is described in this export, so the list of a page
+     * jumps within it; to its Confluence page or ticket only when the export describes it nowhere.
+     */
+    private String contentsLink(Link link) {
+        Doc.Location to = doc.locate(link.id);
+        if (to == null) {
+            return link(link);
+        }
+        String name = Xml.escape(link.label);
+        if (rules.hafTypes() && link.type != null) {
+            return dialect.link(to, page, typeSpan(shortType(link.type), 5, 12) + name);
+        }
+        return (link.type != null ? type(link.type) : "") + dialect.link(to, page, name);
+    }
+
+    /** HaF's grey «Type» in front of a name: small, normal weight, a gap after it. */
+    private static String typeSpan(String shortType, int gap, int size) {
+        return "<span style=\"color: rgb(136,136,136); font-size: " + size + "px; font-weight: normal; margin-right: "
+                + gap + "px;\">\u00ab" + Xml.escape(shortType) + "\u00bb</span>";
     }
 
     /**
@@ -431,7 +578,7 @@ final class PageBody {
      */
     private String type(String type) {
         if (rules.hafTypes()) {
-            return "\u00ab" + Xml.escape(shortType(type)) + "\u00bb";
+            return typeSpan(shortType(type), 6, 13);
         }
         return "<small><span style=\"color: rgb(107,119,140);\">&lt;&lt;" + Xml.escape(type) + "&gt;&gt;</span></small> ";
     }
@@ -528,7 +675,7 @@ final class PageBody {
                     // inline styles, not CSS classes: they are what Confluence keeps in storage format
                     s.append(dialect.styled(Xml.escape(i.text), i.style));
                     break;
-                default: s.append(Xml.escape(i.text));
+                default: s.append(text(i.text));
             }
         }
         return s.toString();

@@ -120,6 +120,9 @@ final class ModelReader {
      */
     private static final Pattern TOKEN = Pattern.compile(ACUTE + ACUTE + "([^" + ACUTE + "\\n]+)" + ACUTE + ACUTE
             + "|" + ACUTE + "([^" + ACUTE + "\\n]+)" + ACUTE + "|(?<!`)``([^`\\n]+)``(?!`)|(?<!`)`([^`\\n]+)`(?!`)");
+    /** A relationship name that is only a token. */
+    private static final Pattern TOKEN_NAME = Pattern.compile("^\\s*(?:" + ACUTE + ACUTE + "[^" + ACUTE + "]+" + ACUTE
+            + ACUTE + "|" + ACUTE + "[^" + ACUTE + "]+" + ACUTE + ")\\s*$");
     /** HaF's business description: between a leading Description: and Technically:. */
     private static final Pattern BUSINESS = Pattern.compile("(?is)^\\s*description\\s*:\\s*(.+?)(?=technically\\s*:?)");
     private static final Pattern AUTH = Pattern.compile("(?i)^\\s*\\[auth]\\s*(\\S.*?)\\s*$");
@@ -505,7 +508,10 @@ final class ModelReader {
             page = new DocPage("work-packages", selection.title());
             describe(new ArrayList<>(workPackages), List.of(), page);
         }
-        List<IArchimateElement> ordered = ordered(changed, null);
+        // by name: print orders belong to views, and HaF lists a work package's elements alphabetically
+        List<IArchimateElement> ordered = changed.stream().filter(e -> !isPrintOrder(e) && !(e instanceof IJunction))
+                .sorted(Comparator.comparing(ModelReader::label, String.CASE_INSENSITIVE_ORDER))
+                .collect(Collectors.toList());
         ordered.forEach(e -> page.contents.add(link(e)));
         describe(ordered, ordered, page);
         return doc(selection.title(), List.of(page));
@@ -750,7 +756,7 @@ final class ModelReader {
         Body body = body(element, used, new LinkedHashSet<>(List.of(element)));
         Set<IArchimateRelationship> said = new HashSet<>();
         used.stream().filter(r -> r.getSource() == element).forEach(said::add);
-        List<String> facts = roles(element, used, said);
+        List<String> roles = roles(element, used, said);
         List<Entry.Section> sections = parameters(element, used, said);
         List<Relation> relations = new ArrayList<>();
         // links to PrintOrder are left out, those of work packages are listed apart
@@ -789,7 +795,10 @@ final class ModelReader {
         if (body.tokens) {
             entry.body.addAll(body.parts);
         }
-        entry.facts.addAll(facts);
+        for (String role : roles) {
+            entry.facts.add(roleTemplate(role).replace("{role}", role));
+            entry.factRoles.add(role);
+        }
         entry.sections.addAll(sections);
         entry.headingUrl = jira(element);
         nesting(element, entry);
@@ -819,6 +828,7 @@ final class ModelReader {
         Body body = new Body();
         String text = lines(element.getDocumentation());
         StringBuilder pending = new StringBuilder();
+        List<Entry.Part> inline = new ArrayList<>();
         Matcher m = TOKEN.matcher(text);
         int done = 0;
         while (m.find()) {
@@ -834,27 +844,47 @@ final class ModelReader {
             exported.add(r);
             body.text.append(before).append(reference(other));
             Entry.Part part = part(element, r, outgoing, other, within);
-            if (part == null) { // just the name, where the token is
-                pending.append(before).append(reference(other));
+            body.tokens = true;
+            if (inline(part)) { // stays on its line, as HaF writes it
+                pending.append(before).append(Entry.Part.marker(inline.size()));
+                inline.add(part);
                 continue;
             }
-            body.tokens = true;
             pending.append(before);
-            flush(pending, body.parts);
+            flush(pending, inline, body.parts);
             body.parts.add(part);
         }
         body.text.append(text.substring(done));
         pending.append(text.substring(done));
-        flush(pending, body.parts);
+        flush(pending, inline, body.parts);
         return body;
     }
 
-    /** The text so far as a part, without the line ends around the token that follows or went before. */
-    private static void flush(StringBuilder pending, List<Entry.Part> parts) {
+    /**
+     * Whether a token's part stays within its line: a sentence whose description is no more than lines of text, a
+     * role, an object; SQL, parameters, parts described in full and descriptions with tables are blocks of their own.
+     */
+    private static boolean inline(Entry.Part part) {
+        switch (part.kind) {
+            case ROLE: case RECURSIVE: case OBJECT: return true;
+            case SENTENCE:
+                String d = part.text.toLowerCase(Locale.ROOT);
+                return !d.contains("<tbl") && !d.contains("<sql") && !d.contains("```") && !d.contains("<code")
+                        && !d.contains("<#>") && !d.contains("\n\n");
+            default: return false;
+        }
+    }
+
+    /**
+     * The text so far as a part, with the inline parts at their markers, and without the line ends around the block
+     * that follows or went before.
+     */
+    private static void flush(StringBuilder pending, List<Entry.Part> inline, List<Entry.Part> parts) {
         String text = pending.toString().replaceAll("^(?:[ \\t]*\\n)+", "").stripTrailing();
         if (!text.isBlank()) {
-            parts.add(Entry.Part.text(text));
+            parts.add(Entry.Part.text(text, inline));
         }
+        inline.clear();
         pending.setLength(0);
     }
 
@@ -863,19 +893,19 @@ final class ModelReader {
         return concept instanceof IArchimateElement ? "[[ref:" + concept.getId() + "]]" : label(concept);
     }
 
-    /** What a token writes for the relationship; null for just the other element's name. */
+    /** What a token writes for the relationship. */
     private Entry.Part part(IArchimateElement element, IArchimateRelationship r, boolean outgoing,
             IArchimateConcept other, Set<IArchimateElement> within) {
         String role = role(r, other);
         if (role != null) {
-            return Entry.Part.plain(roleLine(role));
+            return Entry.Part.role(roleTemplate(role), role);
         }
         if (r instanceof ICompositionRelationship) {
             if (!outgoing || other.eClass() != element.eClass()) {
-                return null;
+                return Entry.Part.object(shortLink(other)); // its name, where the token is
             }
             if (within.contains(other)) {
-                return Entry.Part.plain("[" + t("recursive-reference").replace("{name}", label(other)) + "]");
+                return Entry.Part.recursive(label(other));
             }
             return nested((IArchimateElement) other, within);
         }
@@ -893,7 +923,7 @@ final class ModelReader {
         deeper.add(part);
         Set<IArchimateRelationship> used = new HashSet<>();
         List<Entry.Part> parts = new ArrayList<>(body(part, used, deeper).parts);
-        roles(part, used, new HashSet<>()).forEach(line -> parts.add(Entry.Part.plain(line)));
+        roles(part, used, new HashSet<>()).forEach(role -> parts.add(Entry.Part.role(roleTemplate(role), role)));
         for (IArchimateRelationship r : part.getSourceRelationships()) {
             if (r instanceof IAccessRelationship && !used.contains(r) && !exclusion.excludedWithEnds(r)) {
                 exported.add(r);
@@ -922,8 +952,9 @@ final class ModelReader {
         if (sql != null) {
             return Entry.Part.text(sql);
         }
-        return Entry.Part.sentence(label + " " + t(reads(kind) ? "access-from" : "access-into"), shortLink(target),
-                lines(r.getDocumentation()), null);
+        // the name of a data object says what it is: [table ORDERS]
+        return Entry.Part.sentence(label + " " + t(reads(kind) ? "access-from" : "access-into"),
+                new Link(target.getId(), label(target)), lines(r.getDocumentation()), null);
     }
 
     private static boolean reads(String kind) {
@@ -950,9 +981,10 @@ final class ModelReader {
      * The SQL an access builds, as one {@code <sql>} block; null for none. A {@code select} of a {@code [select]}
      * element: that element's query, then the access's description. A {@code select} with {@code <sellist>}:
      * {@code select}, the lines of the list as written, {@code from <target>}, the other lines of the description; an
-     * {@code update} with {@code <updList>} the same with {@code update <target>} first.
+     * {@code update} with {@code <updList>} the same with {@code update <target>} first. In HaF's look the stored
+     * query of a {@code [select]} element is a plain block, copied as written.
      */
-    static String accessSql(IArchimateRelationship relationship) {
+    String accessSql(IArchimateRelationship relationship) {
         if (!(relationship instanceof IAccessRelationship)) {
             return null;
         }
@@ -965,7 +997,8 @@ final class ModelReader {
             if (query.isEmpty()) {
                 return null;
             }
-            String block = query.toLowerCase(Locale.ROOT).contains("<sql>") ? query : "<sql>" + query + "</sql>";
+            String block = query.toLowerCase(Locale.ROOT).contains("<sql>") ? query
+                    : rules.hafTypes() ? "```\n" + query + "\n```" : "<sql>" + query + "</sql>";
             return description.isBlank() ? block : block + "\n" + description.strip();
         }
         Pattern list = kind.equals("select") ? SELLIST : kind.equals("update") ? UPDLIST : null;
@@ -1043,16 +1076,19 @@ final class ModelReader {
         return m != null && m.matches() ? m.group(1) : null;
     }
 
-    /** "Available only for role DEV and higher.", or without "and higher" for ADMIN and roles HaF doesn't rank. */
-    private String roleLine(String role) {
+    /**
+     * "Available only for role {role} and higher.", or without "and higher" for ADMIN and roles HaF doesn't rank; the
+     * role goes where {@code {role}} is.
+     */
+    private String roleTemplate(String role) {
         String upper = role.toUpperCase(Locale.ROOT);
         boolean higher = ROLES.contains(upper) && !upper.equals(ROLES.get(ROLES.size() - 1));
-        return t(higher ? "role-and-higher" : "role-only").replace("{role}", role);
+        return t(higher ? "role-and-higher" : "role-only");
     }
 
     /**
-     * A line per association to a Business Role named {@code [auth] ROLE} that no token wrote in already. None of
-     * them is listed among the relationships.
+     * The role of each association to a Business Role named {@code [auth] ROLE} that no token wrote in already. None
+     * of them is listed among the relationships.
      */
     private List<String> roles(IArchimateElement element, Set<IArchimateRelationship> used,
             Set<IArchimateRelationship> said) {
@@ -1065,7 +1101,7 @@ final class ModelReader {
                 said.add(r);
                 exported.add(r);
                 if (!used.contains(r)) {
-                    lines.add(roleLine(role));
+                    lines.add(role);
                 }
             }
         }
@@ -1099,7 +1135,7 @@ final class ModelReader {
     }
 
     /** The relationship's description; an access's with the SQL it builds. */
-    static String documentation(IArchimateRelationship r) {
+    String documentation(IArchimateRelationship r) {
         String sql = accessSql(r);
         return sql != null ? sql : lines(r.getDocumentation());
     }
@@ -1200,7 +1236,9 @@ final class ModelReader {
         }
         exported.add(r);
         String text = documentation(r);
-        to.add(new Relation(outgoing, typeName(r), r.getName(), text,
+        // a name that is only a token (˝˝0035˝˝) is for the descriptions, not for readers
+        String name = r.getName() == null || TOKEN_NAME.matcher(r.getName()).matches() ? "" : r.getName();
+        to.add(new Relation(outgoing, typeName(r), name, text,
                 others.stream().map(ModelReader::link).collect(Collectors.toList()), junction,
                 others.stream().noneMatch(inside::contains), verb(r, outgoing),
                 others.size() == 1 ? note(r, others.get(0)) : null));
@@ -1268,6 +1306,9 @@ final class ModelReader {
                         : target.endsWith("Process") || target.endsWith("Function") ? "implements" : null;
             } else if (source.endsWith("Interface") && target.endsWith("Service")) {
                 verb = "publishes";
+            }
+            if (verb != null && !outgoing && source.endsWith("Interface")) {
+                return t("published-on"); // HaF's wording: the service is published on the interface
             }
             return verb == null ? null : t(outgoing ? verb : PASSIVE.get(verb));
         }

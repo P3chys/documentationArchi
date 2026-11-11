@@ -1058,6 +1058,9 @@ public final class KeywordRules {
     /** Whether properties with this key are never printed: a {@code hide property} rule matches it. */
     public boolean hidesProperty(String key) {
         String k = key == null ? "" : key.toLowerCase(Locale.ROOT);
+        if (hafTypes && k.strip().equals("confluenceurl")) { // HaF prints no properties; the links use this one
+            return true;
+        }
         for (String hidden : hiddenProperties) {
             if (hidden.endsWith("*") ? k.startsWith(hidden.substring(0, hidden.length() - 1)) : k.equals(hidden)) {
                 return true;

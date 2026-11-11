@@ -99,4 +99,15 @@ class PageTemplateTest {
         assertThat(KeywordRules.parse(rules.format()).pageSections()).containsExactly("picture", "notes");
         assertThat(KeywordRules.defaults().pageSections()).isEqualTo(KeywordRules.PAGE_SECTIONS);
     }
+
+    @Test
+    void aPartCanBeLeftOutOfWhateverOrderTheRulesGive() {
+        KeywordRules rules = KeywordRules.defaults().withoutEntryPart("views").withoutEntryPart("workpackages");
+        assertThat(rules.entryParts()).containsExactly("description", "properties", "relations", "other");
+
+        KeywordRules ordered = KeywordRules.parse("entry views description").withoutEntryPart("views");
+        assertThat(ordered.entryParts()).containsExactly("description");
+        // the last part stays: an element is never described with nothing
+        assertThat(KeywordRules.parse("entry views").withoutEntryPart("views").entryParts()).containsExactly("views");
+    }
 }

@@ -354,6 +354,8 @@ described (a relationship, to the element it is described with).
 
 ## Changing how things look
 
+**Views and work packages:** untick **Show the views an element appears on** or **Show the work packages that change an element** in **Preferences > Documentation Export** to leave the *Views: ...* or *Work packages: ...* line out of every element's description. The ticks belong to your computer and apply to every export from it, whichever rules file the model has; to leave them out for everyone, put an `entry` line without `views` or `workpackages` in `documentation.rules`.
+
 **Tools > Documentation Formatting...** (the same list as **Preferences > Documentation Export**) lists everything you
 can change:
 

@@ -1067,6 +1067,17 @@ public final class KeywordRules {
         return of(all);
     }
 
+    /** These rules without one part of an element's description ({@link #ENTRY_PARTS}), the others in their order. */
+    public KeywordRules withoutEntryPart(String part) {
+        List<String> parts = new ArrayList<>(entryParts);
+        if (!parts.remove(part) || parts.isEmpty()) {
+            return this;
+        }
+        List<Rule> all = new ArrayList<>(rules);
+        all.add(Rule.entry(parts));
+        return of(all);
+    }
+
     /** The fixed texts of the output: the language of the rules, with the replacements. */
     public Texts texts() {
         return fixedTexts;

@@ -645,6 +645,8 @@ preferences on your computer, not in the model.
 
 <p align="center"><img src="images/preferences.png" width="1003" alt="Preferences > Documentation Export"></p>
 
+**Views and work packages:** untick **Show the views an element appears on** or **Show the work packages that change an element** in **Preferences > Documentation Export** to leave the *Views: ...* or *Work packages: ...* line out of every element's description. The ticks belong to your computer and apply to every export from it, whichever rules file the model has; to leave them out for everyone, put an `entry` line without `views` or `workpackages` in `documentation.rules`.
+
 The list holds everything whose look can change:
 
 - **Page parts** – the `[table]`, `'constant'` and `{variable}` tokens, headings 1–4 and SQL blocks. They are always

@@ -450,43 +450,69 @@ final class PageBody {
         out.append("</p>");
     }
 
+    /** The relationships to elements of the view: a compact list, one line each where the description allows. */
     private void relationTable(List<Relation> relations) {
         if (relations.isEmpty()) {
             return;
         }
-        out.append("<table><tbody><tr><th>").append(Xml.escape(t("relationship"))).append("</th><th>")
-                .append(Xml.escape(t("element"))).append("</th><th>").append(Xml.escape(t("description")))
-                .append("</th></tr>");
-        for (Relation r : relations) {
-            out.append("<tr><td>").append(arrow(r));
-            if (r.verb != null) { // the type stays, smaller, as the information it is
-                out.append(Xml.escape(r.verb)).append("<br/>").append(grey(Xml.escape(r.type)));
-            } else {
-                out.append(Xml.escape(r.type));
-            }
-            if (!r.name.isEmpty()) {
-                out.append("<br/>").append(Xml.escape(r.name));
-            }
-            out.append("</td><td>").append(others(r)).append("</td><td>");
-            description(r.documentation);
-            note(r);
-            out.append("</td></tr>");
-        }
-        out.append("</tbody></table>");
+        out.append("<ul class=\"relations\">");
+        relations.forEach(r -> relation(r, true));
+        out.append("</ul>");
     }
 
+    /** The relationships of one type to elements elsewhere, under the type. */
     private void relationGroup(String type, List<Relation> relations) {
-        out.append("<p><strong>").append(Xml.escape(type)).append("</strong></p><ul>");
-        for (Relation r : relations) {
-            out.append("<li>").append(arrow(r)).append(r.verb == null ? "" : Xml.escape(r.verb) + " ").append(others(r));
-            if (!r.name.isEmpty()) {
-                out.append(" (").append(Xml.escape(r.name)).append(")");
-            }
-            description(r.documentation);
-            note(r);
-            out.append("</li>");
-        }
+        out.append("<p><strong>").append(Xml.escape(type)).append("</strong></p><ul class=\"relations\">");
+        relations.forEach(r -> relation(r, false));
         out.append("</ul>");
+    }
+
+    /**
+     * One relationship on one line: "→ triggers «Process» Pay", then its type and name small and grey, the other's
+     * business description, and the relationship's description after a dash. A description with more than a line of
+     * text (SQL, a table, a list) goes under it.
+     *
+     * @param withType whether the type is said: not under a heading that says it already
+     */
+    private void relation(Relation r, boolean withType) {
+        out.append("<li>").append(arrow(r));
+        String says = r.verb != null ? r.verb : withType ? r.type : null;
+        out.append(says == null ? "" : Xml.escape(says) + " ").append(others(r));
+        List<String> about = new ArrayList<>();
+        if (withType && r.verb != null) { // the type stays, smaller, as the information it is
+            about.add(r.type);
+        }
+        if (!r.name.isEmpty()) {
+            about.add(r.name);
+        }
+        if (!about.isEmpty()) {
+            out.append(" <small>").append(grey(Xml.escape(String.join(" \u00b7 ", about)))).append("</small>");
+        }
+        if (r.note != null) {
+            out.append(" ").append(noteMarkup(r.note));
+        }
+        String line = oneLine(r.documentation);
+        if (line == null) {
+            description(r.documentation);
+        } else if (!line.isEmpty()) {
+            out.append(" \u2013 ").append(line);
+        }
+        out.append("</li>");
+    }
+
+    /** A description that is one paragraph of text, as inline markup; "" for none; null when it needs blocks. */
+    private String oneLine(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        List<RichText.Block> blocks = RichText.parse(text, rules);
+        if (blocks.size() != 1) {
+            return null;
+        }
+        RichText.Block b = blocks.get(0);
+        boolean plain = b.sql == null && b.code == null && b.items == null && b.rows == null && b.style == null
+                && b.children.isEmpty() && b.indent == 0 && !b.tagLine && !b.note;
+        return plain ? inlines(b.inlines) : null;
     }
 
     /** The element at the other end; through a junction, all of them, joined by its "and" or "or". */
@@ -594,13 +620,13 @@ final class PageBody {
         if (properties.isEmpty()) {
             return;
         }
-        out.append("<table><tbody><tr><th>").append(Xml.escape(t("property"))).append("</th><th>")
-                .append(Xml.escape(t("value"))).append("</th></tr>");
+        // a compact list: "Owner: Team C" on a line each
+        out.append("<ul class=\"properties\">");
         for (Property p : properties) {
-            out.append("<tr><td>").append(Xml.escape(p.key)).append("</td><td>")
-                    .append(inlines(RichText.inlines(p.value, rules))).append("</td></tr>");
+            out.append("<li><strong>").append(Xml.escape(p.key)).append(":</strong> ")
+                    .append(inlines(RichText.inlines(p.value, rules))).append("</li>");
         }
-        out.append("</tbody></table>");
+        out.append("</ul>");
     }
 
     private void description(String text) {

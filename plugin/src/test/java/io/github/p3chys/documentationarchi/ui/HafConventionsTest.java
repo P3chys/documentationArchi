@@ -381,6 +381,11 @@ class HafConventionsTest {
         assertThat(doc.notes).hasSize(1).allMatch(n -> n.contains("Short"));
         assertThat(entry(doc, "RBWDP-20025").headingUrl).isEqualTo("https://jira.example.com/browse/RBWDP-20025");
         assertThat(entry(doc, "RBWDP-20025 portal").headingUrl).isNull();
+        // the Confluence page is the heading's link, not a property row
+        Entry described = entry(doc, "Sjednání smlouvy");
+        assertThat(described.headingUrl).isEqualTo(doc.external.get(process.getId()));
+        assertThat(described.properties).isEmpty();
+        assertThat(entry(doc, "Script").headingUrl).isNull();
     }
 
     @Test

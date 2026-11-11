@@ -44,15 +44,15 @@ class LanguageTest {
 
     @Test
     void englishIsTheDefault() throws Exception {
-        assertThat(html("")).contains("<h2>Contents</h2>", "<h2>Notes</h2>", "<h2>Elements</h2>", "<th>Property</th><th>Value</th>",
-                "<th>Relationship</th><th>Element</th><th>Description</th>", "Views: ", "[missing asset: none.png]",
+        assertThat(html("")).contains("<h2>Contents</h2>", "<h2>Notes</h2>", "<h2>Elements</h2>",
+                "<ul class=\"properties\"><li><strong>k:</strong> v</li></ul>", "<li>→ Serving Relationship <a href=\"#e-b\">B</a></li>", "Views: ", "[missing asset: none.png]",
                 "[missing reference: zzz]", "Generated 2026-01-02 03:04 from Model");
     }
 
     @Test
     void czechIsChosenWithOneLine() throws Exception {
         assertThat(html("language cs")).contains("<h2>Obsah</h2>", "<h2>Poznámky</h2>", "<h2>Prvky</h2>",
-                "<th>Vlastnost</th><th>Hodnota</th>", "<th>Vztah</th><th>Prvek</th><th>Popis</th>", "Pohledy: ",
+                "<li>→ Serving Relationship <a href=\"#e-b\">B</a></li>", "Pohledy: ",
                 "[chybějící příloha: none.png]", "Vygenerováno 2026-01-02 03:04 z Model").doesNotContain("Contents");
     }
 

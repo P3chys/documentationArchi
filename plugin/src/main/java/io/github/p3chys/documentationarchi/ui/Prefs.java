@@ -17,6 +17,8 @@ final class Prefs {
     private static final String FORMAT = "format.";
     private static final String MARKS = "marks";
     private static final String IGNORE_LAYOUT = "marks.ignoreLayout";
+    private static final String SHOW_VIEWS = "entry.views";
+    private static final String SHOW_WORK_PACKAGES = "entry.workPackages";
 
     private Prefs() {
     }
@@ -26,6 +28,8 @@ final class Prefs {
         store.setDefault(KEYWORDS, KeywordRules.DEFAULTS);
         store.setDefault(FOLDER, System.getProperty("user.home"));
         store.setDefault(MARKS, true);
+        store.setDefault(SHOW_VIEWS, true);
+        store.setDefault(SHOW_WORK_PACKAGES, true);
         for (Format format : Format.values()) {
             store.setDefault(FORMAT + format.name().toLowerCase(Locale.ROOT), true);
         }
@@ -72,6 +76,42 @@ final class Prefs {
 
     static void ignoreLayout(boolean ignore) {
         store().setValue(IGNORE_LAYOUT, ignore);
+    }
+
+    /** Whether an element's description says which views show it ("Views: ..."). */
+    static boolean showViews() {
+        return store().getBoolean(SHOW_VIEWS);
+    }
+
+    static void showViews(boolean show) {
+        store().setValue(SHOW_VIEWS, show);
+    }
+
+    /** Whether an element's description says which work packages change it ("Work packages: ..."). */
+    static boolean showWorkPackages() {
+        return store().getBoolean(SHOW_WORK_PACKAGES);
+    }
+
+    static void showWorkPackages(boolean show) {
+        store().setValue(SHOW_WORK_PACKAGES, show);
+    }
+
+    /**
+     * The rules of an export with what these preferences leave out of every element's description, whichever rules
+     * file the export uses: they are this computer's choice. Outside Archi (in tests) the rules as they are.
+     */
+    static KeywordRules applied(KeywordRules rules) {
+        if (org.osgi.framework.FrameworkUtil.getBundle(Prefs.class) == null) {
+            return rules;
+        }
+        KeywordRules applied = rules;
+        if (!showViews()) {
+            applied = applied.withoutEntryPart("views");
+        }
+        if (!showWorkPackages()) {
+            applied = applied.withoutEntryPart("workpackages");
+        }
+        return applied;
     }
 
     static Set<Format> formats() {

@@ -84,9 +84,10 @@ don't have the line.
 
 Each view gets a page with, in this order: the view's description, the list of its elements (with their types), its
 picture, its properties, the text of its notes, the views it refers to, and then each element described in full.
-That means its description, its properties, its relationships to other elements of the view (in a table, with each
-relationship's own description), the views it appears on, and its relationships to elements outside the view,
-grouped by type.
+That means its description, its properties (a short list, *Owner: Team C*), its relationships to other elements of
+the view (a compact list, one line each: *→ triggers «Process» Pay*, the relationship's type and name small and grey,
+its description after a dash; a description with SQL, a table or a list goes under the line), the views it appears
+on, and its relationships to elements outside the view, grouped by type.
 
 - An element is described once, on the first page that shows it. Later pages link to that description, and links
   work in all three formats.
@@ -174,7 +175,7 @@ Models written for HaF, the earlier documentation scripts, use these conventions
 
   Relationships going out that a token wrote in are not listed again; incoming ones stay. A token no relationship has
   stays as written. Check Documentation reports both kinds of broken tokens.
-- **How relationships read:** the relationship column says what it does, with the type (and specialization) under
+- **How relationships read:** each relationship line says what it does, with the type (and specialization) under
   it: *triggers* / *is triggered by*, *is used by* / *use* (serving), *composed of* / *is a part of*, *associated
   with*, *realizes*, *influences*, *flows to* / *flows from*, and for an assignment from a component *provides* (a
   service), *publishes* (an interface), *generates* (an event), *implements* (a process or function), from an
@@ -202,7 +203,8 @@ Models written for HaF, the earlier documentation scripts, use these conventions
   `<url>#id-<PageTitle>-<«Type»Name>`, Confluence's anchor of its heading (spaces and `-` left out, `+` and `%20` out
   of the title, other than ASCII percent-encoded, the type without Business/Application/Technology). An address with
   a `#` is used as it is; one that names the page only by its id (`.../pages/12345`) links to the page, and the export
-  says so once. Only `http(s)` addresses are used.
+  says so once. Only `http(s)` addresses are used. The element's own heading links there too, and the property itself
+  is never printed.
 - **Jira:** with the rule line `jira https://jira.example.com/browse/`, a work package named exactly like a ticket
   (`RBWDP-20025`, not `RBWDP-20025 portal`) has its heading and every link to it go to the ticket.
 - **Looks:** the rule line `type style haf` shows types as HaF does, `«Process»Pay` instead of
@@ -351,6 +353,8 @@ elements and relationships whose description, notes or property values carry it,
 described (a relationship, to the element it is described with).
 
 ## Changing how things look
+
+**Views and work packages:** untick **Show the views an element appears on** or **Show the work packages that change an element** in **Preferences > Documentation Export** to leave the *Views: ...* or *Work packages: ...* line out of every element's description. The ticks belong to your computer and apply to every export from it, whichever rules file the model has; to leave them out for everyone, put an `entry` line without `views` or `workpackages` in `documentation.rules`.
 
 **Tools > Documentation Formatting...** (the same list as **Preferences > Documentation Export**) lists everything you
 can change:

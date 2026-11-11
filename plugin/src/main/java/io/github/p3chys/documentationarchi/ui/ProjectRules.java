@@ -47,7 +47,7 @@ final class ProjectRules {
      */
     static KeywordRules resolve(IArchimateModel model, Path override, Supplier<KeywordRules> preferences) {
         Path file = override != null ? override : exists(model) ? file(model) : null;
-        return file == null ? preferences.get() : read(file);
+        return Prefs.applied(file == null ? preferences.get() : read(file));
     }
 
     static KeywordRules read(Path file) {

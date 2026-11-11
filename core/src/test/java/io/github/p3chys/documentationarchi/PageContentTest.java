@@ -47,7 +47,7 @@ class PageContentTest {
         page.entries.add(new Entry("b", "B", "Process", "", List.of(), List.of(), List.of()));
         page.entries.add(new Entry("c", "C", "Process", "", List.of(), List.of(), List.of()));
 
-        assertThat(html(page)).contains("<td><a href=\"#e-b\">B</a> or <a href=\"#e-c\">C</a></td>")
+        assertThat(html(page)).contains("<li>→ Triggering Relationship <a href=\"#e-b\">B</a> or <a href=\"#e-c\">C</a></li>")
                 .contains("<li>← X and Y");
     }
 

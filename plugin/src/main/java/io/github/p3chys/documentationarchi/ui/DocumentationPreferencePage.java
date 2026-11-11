@@ -67,6 +67,8 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     private Button down;
     private Button marks;
     private Button ignoreLayout;
+    private Button showViews;
+    private Button showWorkPackages;
     private Label projectLine;
     /** False until the list is changed: saved rules that could not be loaded are not overwritten by an empty list. */
     private boolean changed;
@@ -127,6 +129,16 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         ignoreLayout.setText("&Ignore layout-only changes (moved boxes, bend points, sizes, fonts, colours)");
         ignoreLayout.setSelection(Prefs.ignoreLayout());
         GridDataFactory.fillDefaults().span(2, 1).indent(16, 0).applyTo(ignoreLayout);
+
+        showViews = new Button(c, SWT.CHECK);
+        showViews.setText("Show the &views an element appears on (\"Views: ...\") in every export");
+        showViews.setSelection(Prefs.showViews());
+        GridDataFactory.fillDefaults().span(2, 1).indent(0, 8).applyTo(showViews);
+
+        showWorkPackages = new Button(c, SWT.CHECK);
+        showWorkPackages.setText("Show the &work packages that change an element (\"Work packages: ...\") in every export");
+        showWorkPackages.setSelection(Prefs.showWorkPackages());
+        GridDataFactory.fillDefaults().span(2, 1).applyTo(showWorkPackages);
 
         try {
             load(KeywordRules.parse(Prefs.keywords()));
@@ -413,6 +425,8 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         load(KeywordRules.parse(Prefs.defaultKeywords()));
         marks.setSelection(true);
         ignoreLayout.setSelection(false);
+        showViews.setSelection(true);
+        showWorkPackages.setSelection(true);
         setErrorMessage(null);
         super.performDefaults();
     }
@@ -422,6 +436,8 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         if (changed) {
             Prefs.keywords(all().format());
         }
+        Prefs.showViews(showViews.getSelection());
+        Prefs.showWorkPackages(showWorkPackages.getSelection());
         if (marks.getSelection() != Prefs.marks() || ignoreLayout.getSelection() != Prefs.ignoreLayout()) {
             Prefs.marks(marks.getSelection());
             Prefs.ignoreLayout(ignoreLayout.getSelection());

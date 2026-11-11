@@ -503,6 +503,9 @@ public final class Exporter {
     /** The page title as the h1 of HTML and PDF; in Confluence it is the page's own title, which has no style. */
     private String title(DocPage page, Dialect dialect) {
         String title = Xml.escape(page.title);
+        if (page.titleUrl != null && page.titleUrl.matches("(?i)https?://\\S+")) { // a work package's ticket
+            title = "<a href=\"" + Xml.escape(page.titleUrl) + "\">" + title + "</a>";
+        }
         return rules.heading(1) == null ? title : dialect.styled(title, rules.heading(1));
     }
 

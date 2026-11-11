@@ -476,6 +476,7 @@ final class ModelReader {
             IWorkPackage wp = workPackages.get(0);
             first = new DocPage(wp.getId(), label(wp));
             first.documentation = wp.getDocumentation();
+            first.titleUrl = jira(wp);
             first.properties = properties(wp.getProperties());
             ordered(changed, null).forEach(e -> first.contents.add(link(e)));
             WorkPackages.links(wp).values().forEach(exported::addAll);
@@ -501,6 +502,7 @@ final class ModelReader {
             IWorkPackage wp = workPackages.get(0);
             page = new DocPage(wp.getId(), label(wp));
             page.documentation = wp.getDocumentation();
+            page.titleUrl = jira(wp);
             page.properties = properties(wp.getProperties());
             WorkPackages.links(wp).values().forEach(exported::addAll);
             exported.add(wp);

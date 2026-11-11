@@ -67,3 +67,5 @@ pre code { font-size: inherit; }
 .haf table.md th { background: #f0f0ec; font-size: 11px; font-weight: bold; }
 .haf .note-box { border: 1px solid #a5adba; padding: 8px 12px; margin: 10px 0; color: #626f86; font-style: italic; }
 .haf .note-box p { margin: 4px 0; }
+.haf h3 { font-size: 19px; font-weight: 500; } /* an element: medium, the grey type before it */
+.haf ol a, .haf code a, .haf a code { text-decoration: none; } /* contents and objects: blue, no underline */

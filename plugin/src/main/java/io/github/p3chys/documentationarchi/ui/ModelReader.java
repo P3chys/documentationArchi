@@ -592,19 +592,13 @@ final class ModelReader {
             }
             if (o instanceof IArchimateElement && !exclusion.excluded(o)) {
                 IArchimateElement element = (IArchimateElement) o;
-                String url = jira(element);
-                for (IProperty p : element.getProperties()) {
-                    String page = p.getValue() == null ? "" : p.getValue().strip();
-                    if (url == null && p.getKey() != null && CONFLUENCE_URL.equalsIgnoreCase(p.getKey().strip())
-                            && page.matches("(?i)https?://\\S+")) {
-                        url = confluence(page, element);
-                        if (url.equals(page) && !page.contains("#") && !warned[0]) {
-                            warned[0] = true;
-                            doc.notes.add("Some " + CONFLUENCE_URL + " values (such as of \"" + label(element)
-                                    + "\") name the page by its id only: links to those elements go to the page, "
-                                    + "not to the element on it.");
-                        }
-                    }
+                String url = external(element);
+                String page = confluencePage(element);
+                if (url != null && url.equals(page) && !page.contains("#") && !warned[0]) {
+                    warned[0] = true;
+                    doc.notes.add("Some " + CONFLUENCE_URL + " values (such as of \"" + label(element)
+                            + "\") name the page by its id only: links to those elements go to the page, "
+                            + "not to the element on it.");
                 }
                 if (url != null) {
                     doc.external.put(element.getId(), url);
@@ -612,6 +606,28 @@ final class ModelReader {
             }
         });
         return doc;
+    }
+
+    /** Where the element is documented outside the export: its Jira ticket, else its Confluence page; null if nowhere. */
+    private String external(IArchimateElement element) {
+        String ticket = jira(element);
+        if (ticket != null) {
+            return ticket;
+        }
+        String page = confluencePage(element);
+        return page == null ? null : confluence(page, element);
+    }
+
+    /** The element's {@value #CONFLUENCE_URL} property, when it is a web address; null otherwise. */
+    private static String confluencePage(IArchimateElement element) {
+        for (IProperty p : element.getProperties()) {
+            String page = p.getValue() == null ? "" : p.getValue().strip();
+            if (p.getKey() != null && CONFLUENCE_URL.equalsIgnoreCase(p.getKey().strip())
+                    && page.matches("(?i)https?://\\S+")) {
+                return page;
+            }
+        }
+        return null;
     }
 
     /** The ticket of a work package named after one, when the rules say where tickets are; null otherwise. */
@@ -802,7 +818,7 @@ final class ModelReader {
             entry.factRoles.add(role);
         }
         entry.sections.addAll(sections);
-        entry.headingUrl = jira(element);
+        entry.headingUrl = external(element); // its ticket or Confluence page, instead of a property row
         nesting(element, entry);
         return entry;
     }

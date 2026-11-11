@@ -237,9 +237,9 @@ class ExporterTest {
 
         export(Format.HTML);
 
-        assertThat(Files.readString(folder.resolve("html/index.html"))).containsSubsequence("<table>", ">B</a>", "</table>",
+        assertThat(Files.readString(folder.resolve("html/index.html"))).containsSubsequence("<ul class=\"relations\">", ">B</a>", "</ul>",
                 "Views: ", "<h4>Other related elements</h4>", "<strong>Serving</strong>", "X", "Z",
-                "<strong>Flow</strong>", "Y", " (data)");
+                "<strong>Flow</strong>", "Y", ">data</span></small>");
     }
 
     @Test

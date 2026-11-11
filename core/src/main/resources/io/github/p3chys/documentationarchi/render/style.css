@@ -69,3 +69,8 @@ pre code { font-size: inherit; }
 .haf .note-box p { margin: 4px 0; }
 .haf h3 { font-size: 19px; font-weight: 500; } /* an element: medium, the grey type before it */
 .haf ol a, .haf code a, .haf a code { text-decoration: none; } /* contents and objects: blue, no underline */
+
+/* relationships and properties: compact lists, a line each */
+ul.relations, ul.properties { margin: 4px 0 10px; padding-left: 20px; }
+ul.relations li, ul.properties li { margin: 2px 0; }
+ul.relations li > p, ul.relations li > pre, ul.relations li > table { margin: 4px 0; }

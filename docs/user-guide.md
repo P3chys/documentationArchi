@@ -303,7 +303,7 @@ also its notes), in the order they are on the view. These texts are formatted li
 
 ### Element descriptions
 
-Each element is described with its description, its properties, a table of its relationships to other elements of
+Each element is described with its description, its properties, a compact list of its relationships to other elements of
 the view (with each relationship's own description), the views it appears on, its work packages, and its
 relationships to elements outside the view, grouped by type.
 
@@ -828,7 +828,7 @@ entry description properties relations views workpackages other
 `page` lists the sections of a view's page to print, in this order: the view's description, the list of its elements
 (`contents`), the picture, the view's properties, the texts of the notes, the related views (`related`; on the Labels
 page, its labels) and the described elements (`elements`). `entry` does the same for one element's description: its
-description, properties, `relations` (part of, contains, the elements a work package changes, and the table of
+description, properties, `relations` (part of, contains, the elements a work package changes, and the list of
 relationships), the views it is on, its work packages and the relationships to elements outside the view (`other`).
 A section or part you leave out is not printed (leave out `elements` and the links to the elements lead nowhere). An
 unknown or repeated name is an error, reported with its line. Without the lines the output is as it always was.

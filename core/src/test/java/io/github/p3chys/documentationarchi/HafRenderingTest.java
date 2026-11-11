@@ -42,10 +42,11 @@ class HafRenderingTest {
 
         String html = html(new Doc("Model", List.of(page)));
 
-        assertThat(html).contains("<td>→ triggers<br/><span style=\"color: rgb(107,119,140);\">Triggering Relationship: "
-                + "Sync</span><br/>go</td>")
-                .contains("<p><em><span style=\"color: rgb(107,119,140);\">(Signs the <em>contract</em>.)</span></em></p>")
-                .contains("<li>← use X<p><em><span style=\"color: rgb(107,119,140);\">(Gives prices.)</span></em></p></li>");
+        // one line each: verb, element, type and name small and grey, the business description in parentheses
+        assertThat(html).contains("<li>→ triggers <a href=\"#e-b\">B</a> <small><span style=\"color: rgb(107,119,140);\">"
+                + "Triggering Relationship: Sync · go</span></small> <em><span style=\"color: rgb(107,119,140);\">"
+                + "(Signs the <em>contract</em>.)</span></em></li>")
+                .contains("<li>← use X <em><span style=\"color: rgb(107,119,140);\">(Gives prices.)</span></em></li>");
     }
 
     @Test
@@ -150,8 +151,10 @@ class HafRenderingTest {
     }
 
     @Test
-    void hafLookHidesTheConfluenceUrlProperty() {
+    void theConfluenceUrlPropertyIsNeverPrinted() {
+        // the heading links there instead, in any look
         assertThat(KeywordRules.parseFile("type style haf").hidesProperty("confluenceUrl")).isTrue();
-        assertThat(KeywordRules.defaults().hidesProperty("confluenceUrl")).isFalse();
+        assertThat(KeywordRules.defaults().hidesProperty("ConfluenceURL")).isTrue();
+        assertThat(KeywordRules.defaults().hidesProperty("owner")).isFalse();
     }
 }

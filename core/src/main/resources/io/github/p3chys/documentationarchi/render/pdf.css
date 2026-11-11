@@ -37,3 +37,8 @@ body.haf p.tag-line { font-size: 10px; }
 body.haf table.md { font-size: 9px; }
 body.haf table.md th { font-size: 8px; }
 .note-box { page-break-inside: avoid; }
+
+/* relationships and properties: compact lists, a line each */
+ul.relations, ul.properties { margin: 4px 0 10px; padding-left: 20px; }
+ul.relations li, ul.properties li { margin: 2px 0; }
+ul.relations li > p, ul.relations li > pre, ul.relations li > table { margin: 4px 0; }

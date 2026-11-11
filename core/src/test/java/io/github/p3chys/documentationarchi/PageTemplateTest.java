@@ -55,8 +55,8 @@ class PageTemplateTest {
     void withoutTheLinesTheOutputIsAsBefore() throws Exception {
         String usual = html("");
         inOrder(usual, "VIEWDOC", "<h2>Contents</h2>", "<h2>Notes</h2>", "ANOTE", "<h2>Related views</h2>",
-                "<h2>Elements</h2>", "ELEMDOC", "<th>Property</th>", "Serving Relationship", "Views: ", "Other related elements");
-        assertThat(usual).contains("<th>Property</th><th>Value</th></tr><tr><td>pk</td>");
+                "<h2>Elements</h2>", "ELEMDOC", "<strong>ek:</strong>", "Serving Relationship", "Views: ", "Other related elements");
+        assertThat(usual).contains("<ul class=\"properties\"><li><strong>pk:</strong> pv</li></ul>");
     }
 
     @Test
@@ -64,7 +64,7 @@ class PageTemplateTest {
         String page = html("page elements description notes");
 
         inOrder(page, "<h2>Elements</h2>", "VIEWDOC", "<h2>Notes</h2>");
-        assertThat(page).doesNotContain("<h2>Contents</h2>", "Related views", "<td>pk</td>");
+        assertThat(page).doesNotContain("<h2>Contents</h2>", "Related views", "<strong>pk:</strong>");
     }
 
     @Test
@@ -72,7 +72,7 @@ class PageTemplateTest {
         String page = html("entry views description");
 
         inOrder(page, "Views: ", "ELEMDOC");
-        assertThat(page).doesNotContain("<td>ek</td>", "Serving Relationship", "Other related elements");
+        assertThat(page).doesNotContain("<strong>ek:</strong>", "Serving Relationship", "Other related elements");
     }
 
     @Test

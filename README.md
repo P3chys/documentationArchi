@@ -631,6 +631,18 @@ CI builds and tests `core` on Linux, Windows and macOS, and builds and tests the
 (5.11.0); the built `.archiplugin` is kept as a workflow artifact. Archi 4.9 keeps its settings and dropins in `Archi4`:
 `gradlew :plugin:installDev -ParchiData=Archi4`.
 
+**From issue to release:**
+
+1. Assigning an issue creates its branch from `main` (`fix/35-...` for a bug, `docs/...` for documentation, otherwise
+   `feat/...`), links it to the issue and comments the `git switch` command. For an issue assigned earlier, run the
+   *Issue branch* workflow by hand.
+2. The pull request says `Closes #<issue>`. A `release:patch`, `release:minor` or `release:major` label releases a new
+   version when it is merged; the *Release* check on the PR shows which version. Its `## Release notes` section
+   becomes the release notes (without it, GitHub generates them from the merged PRs).
+3. Merging builds and tests the plugin, commits the new version in `gradle.properties` to `main`, tags `v<version>`
+   and publishes the release with the `.archiplugin`. A PR that raised `gradle.properties` itself releases that version,
+   label or not. Without either, nothing is released; the *Release* workflow can also be run by hand on `main`.
+
 **Windows: don't use PowerShell 7 from the Microsoft Store for `just install` or to start Archi.** Store apps run in a
 sandbox that redirects writes to `%APPDATA%` (where Archi keeps dropins and settings) to a private copy, so Archi
 would never see the plugin. Use Git Bash, cmd, Windows PowerShell, or PowerShell 7 installed with winget/MSI.

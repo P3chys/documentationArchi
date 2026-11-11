@@ -1,0 +1,40 @@
+name: Set up Archi
+description: >
+  Download a pinned Archi release (SHA-256 checked, cached) whose jars the plugin compiles and runs its tests against.
+inputs:
+  version:
+    description: Archi version
+    default: 5.11.0
+  tag:
+    description: Release tag on archimatetool/archi.io
+    default: "5_11"
+  sha256:
+    description: SHA-256 of Archi-Linux64-<version>.tgz
+    default: a13f4f058c16d8653c1307a145b9dd6bddd4226abc952f58c586c46d61db219e
+outputs:
+  home:
+    description: The Archi installation, for -ParchiHome
+    value: ${{ steps.home.outputs.home }}
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/archi
+        key: archi-linux64-${{ inputs.version }}
+    - if: steps.cache.outputs.cache-hit != 'true'
+      name: Download Archi ${{ inputs.version }}
+      shell: bash
+      env:
+        ARCHI_VERSION: ${{ inputs.version }}
+        ARCHI_TAG: ${{ inputs.tag }}
+        ARCHI_SHA256: ${{ inputs.sha256 }}
+      run: |
+        curl -fsSL --retry 3 -o archi.tgz \
+          "https://github.com/archimatetool/archi.io/releases/download/$ARCHI_TAG/Archi-Linux64-$ARCHI_VERSION.tgz"
+        echo "$ARCHI_SHA256  archi.tgz" | sha256sum -c -
+        mkdir -p ~/archi && tar xzf archi.tgz -C ~/archi && rm archi.tgz
+    - id: home
+      shell: bash
+      run: echo "home=$HOME/archi/Archi" >> "$GITHUB_OUTPUT"

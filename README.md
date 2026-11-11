@@ -627,7 +627,8 @@ just install     # copy the plugin into your Archi dropins folder (close Archi f
 just check       # everything: tests + plugin
 ```
 
-CI builds and tests `core` on Linux, Windows and macOS. Archi 4.9 keeps its settings and dropins in `Archi4`:
+CI builds and tests `core` on Linux, Windows and macOS, and builds and tests the plugin on Linux against a pinned Archi
+(5.11.0); the built `.archiplugin` is kept as a workflow artifact. Archi 4.9 keeps its settings and dropins in `Archi4`:
 `gradlew :plugin:installDev -ParchiData=Archi4`.
 
 **Windows: don't use PowerShell 7 from the Microsoft Store for `just install` or to start Archi.** Store apps run in a

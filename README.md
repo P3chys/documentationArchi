@@ -385,6 +385,12 @@ type style haf                  types as «Process»Pay
 workpackage one-page            a work package's export is one page
 ```
 
+**HaF look:** `type style haf` also switches the pages to HaF's look: thin grey lines between parts and elements,
+a 20px title, HaF's colours for `{variable}`, `'CONSTANT'` and `[table x]`, SQL and plain code in a light box
+(keywords bold and blue at the start of a line), compact tables, `<#>` notes as a plain box (`NOTE:` panels stay
+coloured), nesting tags as grey labels at the left edge, one paragraph per line of a description and
+`View name – Documentation` as the browser tab title. A `token` rule still sets its own colours.
+
 **Project rules:** put the same text in a file `documentation.rules` next to the model's `.archimate` file and every
 export of that model uses it instead of the preferences, on every computer and in CI (order: project file, then
 preferences, then the built-in defaults). The file adds to the built-in rules (the `INFO:`... panels, the `#risk`...
@@ -401,7 +407,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `recursive-reference`, `input-parameters`, `output`, `request`, `response`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `documentation`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `recursive-reference`, `input-parameters`, `output`, `request`, `response`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations

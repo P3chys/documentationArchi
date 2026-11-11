@@ -249,7 +249,7 @@ public final class Exporter {
             check(progress);
             String nav = single ? singleFileNav(aToZ, byType)
                     : page == doc.pages.get(0) ? "" : "<nav><a href=\"index.html\">" + Xml.escape(doc.title) + "</a></nav>";
-            Files.writeString(folder.resolve(page.slug() + ".html"), htmlPage(page.title,
+            Files.writeString(folder.resolve(page.slug() + ".html"), htmlPage(rules.hafTypes() ? page.title + " – " + rules.texts().get("documentation") : page.title,
                     single ? null : site.sidebar(page, null), css, nav + "<h1>" + title(page, dialect) + "</h1>"
                     + PageBody.render(doc, page, dialect, rules, used)
                     + (page == doc.pages.get(0) && version != null
@@ -281,12 +281,13 @@ public final class Exporter {
      * @param sidebar null in a single-file page, which has no sidebar and no scripts
      * @param css the style sheet to put in the page; null to link to style.css
      */
-    private static String htmlPage(String title, String sidebar, String css, String content) {
+    private String htmlPage(String title, String sidebar, String css, String content) {
         boolean single = sidebar == null;
+        String bodyClass = ((single ? "" : "site ") + (rules.hafTypes() ? "haf" : "")).strip();
         return "<!DOCTYPE html>\n<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/>"
                 + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>" + Xml.escape(title)
                 + "</title>" + (single ? "<style>" + css + "</style>" : "<link rel=\"stylesheet\" href=\"style.css\"/>")
-                + "</head><body" + (single ? "" : " class=\"site\"") + ">" + (single ? "" : sidebar) + "<main>" + content
+                + "</head><body" + (bodyClass.isEmpty() ? "" : " class=\"" + bodyClass + "\"") + ">" + (single ? "" : sidebar) + "<main>" + content
                 + "</main>" + (single ? "" : "<script src=\"" + HtmlSite.SEARCH + "\"></script><script src=\"nav.js\"></script>")
                 + "</body></html>\n";
     }
@@ -410,7 +411,7 @@ public final class Exporter {
         }
         return "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><meta charset=\"utf-8\"/><title>" + Xml.escape(doc.title)
                 + "</title><bookmarks>" + bookmarks + "</bookmarks><style>" + resource("style.css") + resource("pdf.css")
-                + margins() + (cover ? "" : firstPage()) + "</style></head><body>" + body + "</body></html>";
+                + margins() + (cover ? "" : firstPage()) + "</style></head><body" + (rules.hafTypes() ? " class=\"haf\"" : "") + ">" + body + "</body></html>";
     }
 
     /** The first page of the PDF: the title, the version line and the start of the description (the purpose). */

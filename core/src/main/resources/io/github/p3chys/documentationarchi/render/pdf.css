@@ -20,7 +20,7 @@ div.toc a::after { content: leader('.') target-counter(attr(href), page); }
 body { font-family: "DejaVu Sans"; font-size: 10px; max-width: none; padding: 0; margin: 0; }
 h1 { page-break-before: always; font-size: 18px; }
 h1:first-child { page-break-before: auto; }
-h2 { font-size: 14px; } h3 { font-size: 12px; page-break-after: avoid; }
+h2 { font-size: 14px; } h3 { font-size: 12px; }
 tr { page-break-inside: avoid; }
 span.diagram-links { display: block; position: relative; page-break-inside: avoid; }
 span.diagram-links a { position: absolute; display: block; }
@@ -46,3 +46,12 @@ ul.relations li > p, ul.relations li > pre, ul.relations li > table { margin: 4p
 /* compact tables, as on the web pages */
 table { width: auto; max-width: 100%; font-size: 9px; line-height: 1.3; }
 th, td { padding: 1px 4px; }
+
+/* what leads in to what follows never ends a page, it goes over with the start of it: headings, lines such as "Input
+   parameters" or "The steps:" (.lead-in, see PageBody), a panel's title, a folder in the contents. A table's header
+   row stays with its first row and is repeated on every page the table runs on. */
+h1, h2, h3, h4, h5, h6, .lead-in, p.panel-title, div.toc li.toc-folder > span { page-break-after: avoid; }
+div.toc li.toc-folder > span { display: block; }
+table { -fs-table-paginate: paginate; }
+/* a landscape page after another: its title starts a page too, h1:first-child above doesn't */
+div.landscape + div.landscape { page-break-before: always; }

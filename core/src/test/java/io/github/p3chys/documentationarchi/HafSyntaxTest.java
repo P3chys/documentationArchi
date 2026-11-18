@@ -109,7 +109,7 @@ class HafSyntaxTest {
         new Exporter(new Doc("Model", List.of(page)), rules).export(folder.resolve("out"), EnumSet.of(Format.HTML));
 
         assertThat(Files.readString(folder.resolve("out/html/index.html")))
-                .contains("<table><tbody><tr><th>from</th><th>to</th></tr><tr><td>x</td><td>y<br/>more</td></tr></tbody></table>")
+                .contains("<table><thead><tr><th>from</th><th>to</th></tr></thead><tbody><tr><td>x</td><td>y<br/>more</td></tr></tbody></table>")
                 .contains("<p>Maps:</p>").contains("<p>done</p>");
     }
 

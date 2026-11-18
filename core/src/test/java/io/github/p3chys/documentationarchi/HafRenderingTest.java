@@ -176,11 +176,11 @@ class HafRenderingTest {
         assertThat(html).doesNotContain("ignored when")
                 .contains("<p>Reads the orders read from [table ORDERS] " + dark + "only active rows</span> then triggers "
                         + "«Process»<a href=\"#e-b\">B</a> <em>" + grey + "(Signs it.)</span></em></p>")
-                .contains("<p>insert into [table ORDERS]</p><p>" + grey + "Rows:</span></p>"
-                        + "<table><tbody><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></tbody></table>")
+                .contains("<p>insert into [table ORDERS]</p><div class=\"lead-in\"><p>" + grey + "Rows:</span></p></div>"
+                        + "<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>")
                 .contains("<h4>Input parameters</h4><ul><li>id</li></ul>")
                 .contains("<div style=\"border-left: 3px solid rgb(0,85,204); background-color: rgb(247,248,255); "
-                        + "padding: 10px 10px 10px 16px; margin: 10px 0;\"><p><strong>«Function»Part</strong></p>"
+                        + "padding: 10px 10px 10px 16px; margin: 10px 0;\"><div class=\"lead-in\"><p><strong>«Function»Part</strong></p></div>"
                         + "<p>Inner <em><span style=\"color: rgb(136,136,136);\">[recursive reference: A]</span></em></p>"
                         + "<p>Available only for role OPE and higher.</p>"
                         + "<div style=\"border-left: 3px solid rgb(0,119,170); background-color: rgb(245,255,253);")

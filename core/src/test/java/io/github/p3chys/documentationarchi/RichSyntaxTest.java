@@ -156,7 +156,7 @@ class RichSyntaxTest {
         String html = export(Format.HTML, TEXT);
         assertThat(html).contains("<ul><li><strong>one</strong> and <em>two</em></li></ul>")
                 .contains("<ol><li><a href=\"https://x.org\">spec</a></li></ol>")
-                .contains("<table><tbody><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></tbody></table>")
+                .contains("<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>")
                 .contains("<pre class=\"code\">print(1)</pre>")
                 .contains("<a href=\"#e-a\">Portal</a>, <a href=\"#e-a\">it</a>, Old System, ")
                 .contains("[missing reference: nothing]");

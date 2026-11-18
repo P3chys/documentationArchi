@@ -98,9 +98,9 @@ final class PageBody {
 
     /** A table of a generated page: links, descriptions or property values per cell. */
     private void table(DocTable table) {
-        out.append("<table><tbody><tr>");
-        table.header.forEach(h -> out.append("<th>").append(Xml.escape(h)).append("</th>"));
-        out.append("</tr>");
+        StringBuilder header = new StringBuilder("<tr>");
+        table.header.forEach(h -> header.append("<th>").append(Xml.escape(h)).append("</th>"));
+        out.append("<table>").append(dialect.headerRow(header.append("</tr>").toString()));
         for (List<DocTable.Cell> row : table.rows) {
             out.append("<tr>");
             for (DocTable.Cell cell : row) {
@@ -125,7 +125,7 @@ final class PageBody {
             page.notes.forEach(this::description);
             for (ObjectText t : page.texts) {
                 if (!t.name.isBlank()) {
-                    out.append("<p><strong>").append(Xml.escape(t.name)).append("</strong></p>");
+                    out.append(dialect.keepWithNext("<p><strong>" + Xml.escape(t.name) + "</strong></p>"));
                 }
                 description(t.text);
             }
@@ -309,8 +309,8 @@ final class PageBody {
         if (rules.hafTypes()) {
             out.append("<h3>").append(type).append(Xml.escape(p.link.label)).append("</h3>");
         } else {
-            out.append("<p><strong>\u00ab").append(Xml.escape(p.link.type == null ? "" : p.link.type)).append("\u00bb")
-                    .append(Xml.escape(p.link.label)).append("</strong></p>");
+            out.append(dialect.keepWithNext("<p><strong>\u00ab" + Xml.escape(p.link.type == null ? "" : p.link.type)
+                    + "\u00bb" + Xml.escape(p.link.label) + "</strong></p>"));
         }
         try {
             parts(p.parts);
@@ -327,7 +327,8 @@ final class PageBody {
 
     /** A section such as "Input parameters": in HaF's look a bold italic line, else a heading. */
     private void sectionTitle(String title) {
-        out.append(rules.hafTypes() ? "<p><strong><em>" + Xml.escape(title) + "</em></strong></p>" : heading(4, title));
+        out.append(rules.hafTypes() ? dialect.keepWithNext("<p><strong><em>" + Xml.escape(title) + "</em></strong></p>")
+                : heading(4, title));
     }
 
     /** What a token writes within a line. */
@@ -462,7 +463,7 @@ final class PageBody {
 
     /** The relationships of one type to elements elsewhere, under the type. */
     private void relationGroup(String type, List<Relation> relations) {
-        out.append("<p><strong>").append(Xml.escape(type)).append("</strong></p><ul class=\"relations\">");
+        out.append(dialect.keepWithNext("<p><strong>" + Xml.escape(type) + "</strong></p>")).append("<ul class=\"relations\">");
         relations.forEach(r -> relation(r, false));
         out.append("</ul>");
     }
@@ -637,15 +638,49 @@ final class PageBody {
         out.append(blocks(RichText.parse(text, rules)));
     }
 
-    /** The blocks one after the other; two tables in a row get an empty paragraph between, or they would run together. */
+    /**
+     * The blocks one after the other; two tables in a row get an empty paragraph between, or they would run together.
+     * A block that leads in to the next one stays on the next one's page, see {@link #leadsIn}.
+     */
     private String blocks(List<RichText.Block> blocks) {
         StringBuilder s = new StringBuilder();
         RichText.Block before = null;
-        for (RichText.Block block : blocks) {
-            s.append(before != null && before.rows != null && block.rows != null ? "<p></p>" : "").append(block(block));
+        for (int i = 0; i < blocks.size(); i++) {
+            RichText.Block block = blocks.get(i);
+            RichText.Block next = i + 1 < blocks.size() ? blocks.get(i + 1) : null;
+            s.append(before != null && before.rows != null && block.rows != null ? "<p></p>" : "")
+                    .append(leadsIn(block, next) ? dialect.keepWithNext(block(block)) : block(block));
             before = block;
         }
         return s.toString();
+    }
+
+    /**
+     * Whether the block introduces the next one: a nesting tag that opens, or a line of text that is all bold or ends
+     * with a colon, such as "Input parameters" or "The steps:".
+     */
+    private static boolean leadsIn(RichText.Block block, RichText.Block next) {
+        if (next == null) {
+            return false;
+        }
+        if (block.tagLine) {
+            return next.indent > block.indent;
+        }
+        List<RichText.Inline> words = block.inlines.stream()
+                .filter(i -> i.kind != RichText.InlineKind.TEXT || !i.text.isBlank())
+                .collect(java.util.stream.Collectors.toList());
+        boolean text = block.sql == null && block.code == null && block.items == null && block.rows == null
+                && block.style == null && block.children.isEmpty() && !words.isEmpty();
+        return text && (words.stream().allMatch(PageBody::bold) || endsWithColon(words));
+    }
+
+    private static boolean bold(RichText.Inline inline) {
+        return inline.kind == RichText.InlineKind.BOLD || inline.kind == RichText.InlineKind.STYLED && inline.style.bold;
+    }
+
+    private static boolean endsWithColon(List<RichText.Inline> inlines) {
+        RichText.Inline last = inlines.get(inlines.size() - 1);
+        return last.children.isEmpty() ? last.text != null && last.text.strip().endsWith(":") : endsWithColon(last.children);
     }
 
     /**
@@ -673,15 +708,17 @@ final class PageBody {
         }
         if (block.rows != null) {
             int columns = block.rows.get(0).size();
-            s.append(rules.hafTypes() ? "<table class=\"md\"><tbody>" : "<table><tbody>");
+            s.append(rules.hafTypes() ? "<table class=\"md\">" : "<table>");
             for (List<List<RichText.Inline>> row : block.rows) {
-                String cell = row == block.rows.get(0) ? "th" : "td";
-                s.append("<tr>");
+                boolean header = row == block.rows.get(0);
+                StringBuilder tr = new StringBuilder("<tr>");
                 for (int i = 0; i < Math.max(columns, row.size()); i++) {
-                    s.append("<").append(cell).append(">").append(i < row.size() ? inlines(row.get(i)) : "")
+                    String cell = header ? "th" : "td";
+                    tr.append("<").append(cell).append(">").append(i < row.size() ? inlines(row.get(i)) : "")
                             .append("</").append(cell).append(">");
                 }
-                s.append("</tr>");
+                tr.append("</tr>");
+                s.append(header ? dialect.headerRow(tr.toString()) : tr);
             }
             return s.append("</tbody></table>").toString();
         }

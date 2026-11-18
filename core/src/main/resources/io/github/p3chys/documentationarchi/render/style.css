@@ -26,6 +26,8 @@ p.letters a { margin-right: 6px; font-weight: bold; }
   aside.sidebar { position: static; max-height: 40vh; border-right: 0; border-bottom: 1px solid #dfe1e6; margin-bottom: 12px; }
 }
 @media print { aside.sidebar { display: none; } body.site { display: block; } }
+/* printed pages, as in the PDF (see pdf.css): what leads in to what follows stays with it */
+@media print { h1, h2, h3, h4, h5, h6, .lead-in, .panel-title { break-after: avoid; } tr { break-inside: avoid; } }
 footer.version { margin-top: 32px; font-size: 85%; color: #6b778c; }
 /* compact: as wide as the content, small padding and line height */
 table { border-collapse: collapse; margin: 6px 0; width: auto; max-width: 100%; font-size: 13px; line-height: 1.3; }

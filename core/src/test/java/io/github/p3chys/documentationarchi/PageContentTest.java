@@ -57,7 +57,7 @@ class PageContentTest {
         page.texts.add(new ObjectText("Goal", "Sell more #todo"));
         page.texts.add(new ObjectText("", "No name"));
 
-        assertThat(html(page)).contains("<h2>Notes</h2><p><strong>Goal</strong></p><p>Sell more <span class=\"tag yellow\">"
+        assertThat(html(page)).contains("<h2>Notes</h2><div class=\"lead-in\"><p><strong>Goal</strong></p></div><p>Sell more <span class=\"tag yellow\">"
                 + "TODO</span></p><p>No name</p>");
     }
 

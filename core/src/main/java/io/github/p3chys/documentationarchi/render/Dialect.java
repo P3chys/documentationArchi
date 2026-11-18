@@ -41,6 +41,19 @@ interface Dialect {
     /** @param language as written in the description, null for none */
     String code(String code, String language);
 
+    /**
+     * A block that leads in to the one after it, such as a bold line or a line ending with a colon: on paper the two
+     * stay on one page. As it is where nothing is printed.
+     */
+    default String keepWithNext(String block) {
+        return block;
+    }
+
+    /** A table's header row and the start of its body, after the opening table tag. */
+    default String headerRow(String row) {
+        return "<tbody>" + row;
+    }
+
     /** Markup in a style: bold, italic and underline as tags, the rest as one inline style. */
     default String styled(String escapedText, TextStyle style) {
         StringBuilder css = new StringBuilder();

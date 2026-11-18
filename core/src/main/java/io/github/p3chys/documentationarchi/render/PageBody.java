@@ -588,14 +588,18 @@ final class PageBody {
 
     /**
      * A link to where an element or view is documented: its Confluence page or Jira ticket when it has one, else its
-     * description in this export; the label alone when there is neither.
+     * description in this export; the label alone when there is neither. With {@link Doc#localFirst} the other way
+     * round: its description here, the Confluence page or ticket only when the export describes it nowhere.
      */
     private String target(String id, String escapedLabel) {
+        Doc.Location to = doc.locate(id);
+        if (to != null && doc.localFirst) {
+            return dialect.link(to, page, escapedLabel);
+        }
         String url = doc.external.get(id);
         if (url != null) {
             return external(url, escapedLabel);
         }
-        Doc.Location to = doc.locate(id);
         return to == null ? escapedLabel : dialect.link(to, page, escapedLabel);
     }
 
@@ -702,8 +706,14 @@ final class PageBody {
                 case BREAK: s.append("<br/>"); break;
                 case TAG: s.append(dialect.tag(i.text, i.colour)); break;
                 case URL:
+                    Doc.Location here = within(i.text);
                     String url = Xml.escape(i.text);
-                    s.append("<a href=\"").append(url).append("\">").append(url).append("</a>");
+                    if (here != null) { // as a reference: by the element's current name
+                        String id = doc.idOfUrl(i.text);
+                        s.append(dialect.link(here, page, Xml.escape(doc.names.getOrDefault(id, i.text))));
+                    } else {
+                        s.append("<a href=\"").append(url).append("\">").append(url).append("</a>");
+                    }
                     break;
                 case ASSET: s.append(asset(i)); break;
                 case BAD_ASSET: s.append(unsupportedAsset(i)); break;
@@ -711,7 +721,12 @@ final class PageBody {
                 case BOLD: s.append("<strong>").append(inlines(i.children)).append("</strong>"); break;
                 case ITALIC: s.append("<em>").append(inlines(i.children)).append("</em>"); break;
                 case LINK:
-                    s.append("<a href=\"").append(Xml.escape(i.text)).append("\">").append(Xml.escape(i.label)).append("</a>");
+                    Doc.Location to = within(i.text);
+                    if (to != null) {
+                        s.append(dialect.link(to, page, Xml.escape(i.label)));
+                    } else {
+                        s.append("<a href=\"").append(Xml.escape(i.text)).append("\">").append(Xml.escape(i.label)).append("</a>");
+                    }
                     break;
                 case REF: s.append(reference(i)); break;
                 case CODE: s.append("<code>").append(Xml.escape(i.text)).append("</code>"); break;
@@ -751,6 +766,18 @@ final class PageBody {
             case CONSTANT: return "'" + dialect.styled(inner, token.style) + "'";
             default: return "<code>" + dialect.styled(text, token.style) + "</code>";
         }
+    }
+
+    /**
+     * Where this export describes the element whose Confluence page or ticket the address is, in a work package's
+     * export ({@link Doc#localFirst}); null to link to the address as written.
+     */
+    private Doc.Location within(String url) {
+        if (!doc.localFirst) {
+            return null;
+        }
+        String id = doc.idOfUrl(url);
+        return id == null ? null : doc.locate(id);
     }
 
     /**

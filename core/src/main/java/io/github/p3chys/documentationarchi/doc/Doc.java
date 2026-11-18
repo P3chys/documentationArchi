@@ -1,5 +1,7 @@
 package io.github.p3chys.documentationarchi.doc;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,9 +61,17 @@ public final class Doc {
      * this export's own description.
      */
     public final Map<String, String> external = new HashMap<>();
+    /**
+     * Links go to this export's own description first, to {@link #external} only for what it does not describe: a
+     * work package's export reads as one document.
+     */
+    public boolean localFirst;
     /** Things worth saying at the end of the export that are no error, each once. */
     public final List<String> notes = new ArrayList<>();
     private final Map<String, Location> locations = new HashMap<>();
+    /** {@link #external} by address, see {@link #idOfUrl}; made again whenever that has changed. */
+    private Map<String, String> byUrl;
+    private Map<String, String> byUrlOf;
 
     public Doc(String title, List<DocPage> pages) {
         this(title, pages, Assets.none());
@@ -120,6 +130,52 @@ public final class Doc {
     /** Where this view or element is documented, null if it is not part of the export. */
     public Location locate(String id) {
         return locations.get(id);
+    }
+
+    /**
+     * The element whose Confluence page or ticket ({@link #external}) this address is, so that a work package's
+     * export can link to its own description instead: null when it is none, or the address of several (a page
+     * without an anchor). Written differently, it is still the same address: http or https, the case of the host,
+     * path and anchor, percent-encoding, + or a space, a / at the end, spaces and dashes in the anchor.
+     */
+    public String idOfUrl(String url) {
+        String key = urlKey(url);
+        if (key == null) {
+            return null;
+        }
+        if (byUrl == null || !external.equals(byUrlOf)) {
+            byUrlOf = new HashMap<>(external);
+            byUrl = new HashMap<>();
+            Set<String> shared = new HashSet<>();
+            external.forEach((id, address) -> {
+                String k = urlKey(address);
+                if (k != null && byUrl.putIfAbsent(k, id) != null && !byUrl.get(k).equals(id)) {
+                    shared.add(k);
+                }
+            });
+            shared.forEach(byUrl::remove);
+        }
+        return byUrl.get(key);
+    }
+
+    /** An address written the same whichever way it was written, see {@link #idOfUrl}; null for no web address. */
+    static String urlKey(String url) {
+        if (url == null || !url.strip().matches("(?i)https?://\\S+")) {
+            return null;
+        }
+        String rest = url.strip().replaceFirst("(?i)^https?://", "");
+        int hash = rest.indexOf('#');
+        String anchor = hash < 0 ? "" : decode(rest.substring(hash + 1)).replaceAll("[\\s-]", "");
+        String address = decode(hash < 0 ? rest : rest.substring(0, hash)).replaceAll("/+(?=$|\\?)", "");
+        return (address + (anchor.isEmpty() ? "" : "#" + anchor)).toLowerCase(Locale.ROOT);
+    }
+
+    private static String decode(String text) {
+        try {
+            return URLDecoder.decode(text.replace("%20", "+"), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) { // a lone %: as it is
+            return text.replace('+', ' ');
+        }
     }
 
     /** A name safe for files on every platform and in URLs, whatever the view is called. */

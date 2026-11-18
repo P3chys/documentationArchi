@@ -488,7 +488,7 @@ final class ModelReader {
         }
         views.forEach(p -> first.relatedViews.add(new Link(p.id, p.title)));
         pages.add(0, first);
-        return doc(selection.title(), pages);
+        return localFirst(doc(selection.title(), pages));
     }
 
     /**
@@ -516,7 +516,13 @@ final class ModelReader {
                 .collect(Collectors.toList());
         ordered.forEach(e -> page.contents.add(link(e)));
         describe(ordered, ordered, page);
-        return doc(selection.title(), List.of(page));
+        return localFirst(doc(selection.title(), List.of(page)));
+    }
+
+    /** A work package's export links within itself first, to Confluence or Jira only for what it leaves out. */
+    private static Doc localFirst(Doc doc) {
+        doc.localFirst = true;
+        return doc;
     }
 
     /**

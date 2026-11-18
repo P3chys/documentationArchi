@@ -211,7 +211,8 @@ Models written for HaF, the earlier documentation scripts, use these conventions
   `<<Business Process>> Pay`; `workpackage one-page` exports a work package as one page, its description and then
   each element it changes described in full, sorted by name, under the title linked to the ticket.
 
-Elements with neither a Confluence page nor a ticket link to their description in the export.
+Elements with neither a Confluence page nor a ticket link to their description in the export. A work package export
+links to its own descriptions first, see [Work packages](#work-packages-jira-tickets).
 
 ## Work packages (Jira tickets)
 
@@ -239,6 +240,13 @@ into one export). The export holds:
   the list of the elements it changes,
 - the views that show any of these elements, each with its full picture but describing only those elements,
 - the elements that are on no view.
+
+A work package export links within itself: a link to an element it describes jumps to that description even when the
+element has a Confluence page or ticket, and only elements it leaves out link to Confluence or Jira. That holds for
+references and relationships, and for Confluence or Jira addresses pasted into descriptions: one that is exactly an
+exported element's address (with its heading's anchor; `http`/`https`, capitals, encoding, `+` or spaces aside) links
+to its description. A page without an anchor, by id or as a short link stays on Confluence. Other exports link to the
+Confluence page or ticket wherever there is one.
 
 In every export, an element's description ends with the work packages that change it (*Work packages: RBWDP-20025*)
 instead of listing the links among its relationships. A whole-model export has a *Work packages* page describing each

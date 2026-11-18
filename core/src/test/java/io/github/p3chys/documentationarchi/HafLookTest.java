@@ -164,8 +164,8 @@ class HafLookTest {
     void tablesInDescriptionsAreCompact() throws Exception {
         String html = body("<tbl>a | b |\n1 | 2</tbl>", HAF);
 
-        assertThat(html).contains("<table class=\"md\"><tbody><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr>");
-        assertThat(body("<tbl>a | b |\n1 | 2</tbl>", "type style default")).contains("<table><tbody>");
+        assertThat(html).contains("<table class=\"md\"><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr>");
+        assertThat(body("<tbl>a | b |\n1 | 2</tbl>", "type style default")).contains("<table><thead>");
     }
 
     @Test

@@ -338,6 +338,14 @@ switch each of these off (see [Edit as Text](#edit-as-text)); without the cover,
 the last line of the first page, as before. Large pictures are scaled to fit the
 page, and their elements stay clickable at that size.
 
+A page never ends with something that introduces what follows: a heading, an element's name, a bold line such as
+*Input parameters*, a line ending with a colon (*The steps:*), an opening nesting tag such as `<for each order>`, or a
+table's header row. It goes to the next page with the start of what it introduces. A table that runs over several
+pages repeats its header row at the top of each, and every view starts on a page of its own, landscape views too.
+Printing the HTML pages from Chrome or Edge keeps them together the same way. Confluence's own PDF export of the
+uploaded pages follows the space's PDF stylesheet instead; `h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }` there
+keeps headings with what follows.
+
 <p align="center"><img src="images/output-pdf.png" width="960" alt="Three pages of the exported PDF"></p>
 
 ### Documentation Preview

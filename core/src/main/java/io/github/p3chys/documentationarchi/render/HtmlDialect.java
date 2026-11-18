@@ -172,6 +172,18 @@ final class HtmlDialect implements Dialect {
         return "<pre class=\"code\">" + Xml.escape(code) + "</pre>";
     }
 
+    /** See {@code .lead-in} in pdf.css: on the block's outermost box, which an indent's division would otherwise be. */
+    @Override
+    public String keepWithNext(String block) {
+        return "<div class=\"lead-in\">" + block + "</div>";
+    }
+
+    /** In a thead: the PDF and printed pages repeat it on every page the table runs on, and keep it with a row. */
+    @Override
+    public String headerRow(String row) {
+        return "<thead>" + row + "</thead><tbody>";
+    }
+
     @Override
     public String tag(String label, TagColour colour) {
         return "<span class=\"tag " + colour.name().toLowerCase(Locale.ROOT) + "\">"

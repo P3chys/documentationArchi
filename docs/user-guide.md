@@ -299,6 +299,9 @@ relationships to elements outside the view, grouped by type.
 
 - An element is described **once**, on the first page that shows it. Later pages link to that description. Links
   work in all three formats.
+- **Documented elsewhere:** an element with a `confluenceUrl` property (its Confluence page), or a work package named
+  after a ticket when the **Jira address** is set, is linked there instead of to its description in the export. A
+  [work package export](#export-a-work-package) is the exception: it links within itself first.
 - **Describe Here** chooses that page yourself: select elements in a view, right-click, **Describe Here**. Whenever
   that view is part of an export, the elements are described on its page; when it isn't, the first page that shows
   them describes them as usual. **Describe Here** again on elements already described there takes it back;
@@ -469,6 +472,32 @@ The export holds:
   the elements it changes;
 - the views showing any of these elements – each with its full picture, but describing only those elements;
 - the elements that are on no view.
+
+**Links stay in the document.** A link to an element the export describes jumps to that description, even when the
+element has a Confluence page or a ticket; only an element the export leaves out is linked to its Confluence page or
+ticket. For example, when the work package changes *Process ABC* and *Process DEF*, and both, like *Process XYZ*,
+have a Confluence page:
+
+| In the description of | A link to | Goes to |
+|---|---|---|
+| Process ABC | Process DEF | Process DEF further down in this export |
+| Process DEF | Process XYZ | Process XYZ's Confluence page – the work package does not change it |
+
+It does not matter how the link is written:
+
+- a reference (`[[ref:...]]`, see [Insert Reference](#10-formatting-descriptions)) or a relationship;
+- a Confluence address pasted into the description – Process DEF's, with the anchor Confluence gives its heading
+  (`https://wiki.example.com/display/ARCH/Processes#id-Processes-«Process»ProcessDEF`). Pasted on its own, it shows
+  as *Process DEF*; as `[see DEF](address)` it keeps its label. It may be written another way – `http` or `https`, other capitals, encoded or not, with spaces or `+` – and still matches;
+- a work package's Jira address, such as `https://jira.example.com/browse/ABC-1`: it goes to the work package's page.
+
+An address stays a link to Confluence when it doesn't say which element it means: the page without an anchor (Process
+ABC and Process DEF are both on it), the page by its id (`.../pages/viewpage.action?pageId=12345`, `.../pages/12345`),
+a short link (`.../x/AbCd`), or an anchor written differently from the one the export makes from `confluenceUrl` (such
+as Confluence Cloud's).
+
+This applies to work package exports only; every other export links to the Confluence page or ticket wherever there
+is one. The heading of each element still links to its own Confluence page.
 
 In every export, an element's description ends with the work packages that change it, and a whole-model export has a
 *Work packages* page describing each ticket:

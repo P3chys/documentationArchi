@@ -81,6 +81,71 @@ class HafRenderingTest {
                 .contains("<a href=\"#e-d\">D</a>"); // no link of its own: its description here
     }
 
+    @Test
+    void aWorkPackageExportLinksWithinItselfFirstAndToConfluenceForTheRest() throws Exception {
+        DocPage page = new DocPage("wp", "ABC-1");
+        page.entries.add(new Entry("abc", "Process ABC", "Business Process", "See [[ref:def]].", List.of(), List.of(),
+                List.of()));
+        page.entries.add(new Entry("def", "Process DEF", "Business Process", "See [[ref:xyz]].", List.of(), List.of(),
+                List.of()));
+        Doc doc = new Doc("Model", List.of(page));
+        doc.names.put("def", "Process DEF");
+        doc.names.put("xyz", "Process XYZ");
+        doc.external.put("def", "https://wiki.example.com/def");
+        doc.external.put("xyz", "https://wiki.example.com/xyz");
+        doc.localFirst = true;
+
+        assertThat(html(doc)).contains("See <a href=\"#e-def\">Process DEF</a>.") // described here: no Confluence
+                .contains("See <a href=\"https://wiki.example.com/xyz\">Process XYZ</a>.") // not in the export
+                .doesNotContain("https://wiki.example.com/def");
+    }
+
+    private static final String PAGE = "https://wiki.example.com/display/ARCH/Processes";
+    private static final String DEF = PAGE + "#id-Processes-%C2%ABProcess%C2%BBProcessDEF";
+
+    /** ABC and DEF on one Confluence page, both in the export; XYZ on another, left out. */
+    private static Doc processes(String abcText, boolean workPackage) {
+        DocPage page = new DocPage("wp", "ABC-1");
+        page.entries.add(new Entry("abc", "Process ABC", "Business Process", abcText, List.of(), List.of(), List.of()));
+        page.entries.add(new Entry("def", "Process DEF", "Business Process", "", List.of(), List.of(), List.of()));
+        Doc doc = new Doc("Model", List.of(page));
+        doc.names.put("xyz", "Process XYZ");
+        doc.external.put("abc", PAGE + "#id-Processes-%C2%ABProcess%C2%BBProcessABC");
+        doc.external.put("def", DEF);
+        doc.external.put("xyz", "https://wiki.example.com/display/ARCH/Other#id-Other-%C2%ABProcess%C2%BBProcessXYZ");
+        doc.external.put("wp", "https://jira.example.com/browse/ABC-1");
+        doc.localFirst = workPackage;
+        return doc;
+    }
+
+    @Test
+    void aWorkPackageExportTurnsAddressesOfWhatItDescribesIntoLinksWithinIt() throws Exception {
+        String html = html(processes(String.join("\n\n",
+                "Bare " + DEF,
+                "Written another way http://WIKI.example.com/display/ARCH/Processes/#id-Processes-«Process»Process-DEF.",
+                "Labelled [see DEF](" + DEF + ")",
+                "Ticket https://jira.example.com/browse/ABC-1",
+                "Page only " + PAGE,
+                "By id https://wiki.example.com/pages/viewpage.action?pageId=12345",
+                "Left out https://wiki.example.com/display/ARCH/Other#id-Other-%C2%ABProcess%C2%BBProcessXYZ"), true));
+
+        assertThat(html).contains("Bare <a href=\"#e-def\">Process DEF</a>")
+                .contains("Written another way <a href=\"#e-def\">Process DEF</a>.")
+                .contains("Labelled <a href=\"#e-def\">see DEF</a>")
+                .contains("Ticket <a href=\"#\">ABC-1</a>") // the work package's own page, the top of this one
+                .contains("Page only <a href=\"" + PAGE + "\">" + PAGE + "</a>") // ABC and DEF both: which?
+                .contains("By id <a href=\"https://wiki.example.com/pages/viewpage.action?pageId=12345\">")
+                .contains("Left out <a href=\"https://wiki.example.com/display/ARCH/Other#id-Other-%C2%ABProcess");
+    }
+
+    @Test
+    void otherExportsKeepTheAddressesAsWritten() throws Exception {
+        String html = html(processes("Bare " + DEF + "\n\nLabelled [see DEF](" + DEF + ")", false));
+
+        assertThat(html).contains("Bare <a href=\"" + DEF + "\">" + DEF + "</a>")
+                .contains("Labelled <a href=\"" + DEF + "\">see DEF</a>");
+    }
+
     /** An entry whose tokens wrote a sentence within a line, a sentence with a table, a section and a nested part. */
     private static DocPage tokenPage() {
         DocPage page = new DocPage("v", "View");

@@ -289,6 +289,7 @@ public final class Published {
         Doc result = new Doc(doc.title, pages, doc.assets);
         result.names.putAll(doc.names);
         result.external.putAll(doc.external);
+        result.localFirst = doc.localFirst;
         result.notes.addAll(doc.notes);
         return result;
     }

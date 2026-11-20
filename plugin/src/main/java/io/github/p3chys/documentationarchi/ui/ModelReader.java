@@ -510,10 +510,8 @@ final class ModelReader {
             page = new DocPage("work-packages", selection.title());
             describe(new ArrayList<>(workPackages), List.of(), page);
         }
-        // by name: print orders belong to views, and HaF lists a work package's elements alphabetically
-        List<IArchimateElement> ordered = changed.stream().filter(e -> !isPrintOrder(e) && !(e instanceof IJunction))
-                .sorted(Comparator.comparing(ModelReader::label, String.CASE_INSENSITIVE_ORDER))
-                .collect(Collectors.toList());
+        // as the pages of the work package list them: by the numbers of the links to a PrintOrder, the rest by name
+        List<IArchimateElement> ordered = ordered(changed, null);
         ordered.forEach(e -> page.contents.add(link(e)));
         describe(ordered, ordered, page);
         return localFirst(doc(selection.title(), List.of(page)));

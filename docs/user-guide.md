@@ -603,7 +603,7 @@ status labels and code blocks).
 | `<sql>select ...</sql>` | an SQL code block |
 | `https://...` | a link |
 | `[[asset:file.png]]` | a picture or file from the Assets folder – see [Assets](#12-assets-pictures-and-files) |
-| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
+| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item; numbered items with blank lines between them stay one list while the numbers go on, and a list starts at the number written |
 | `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
 | `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
 | a `\| A \| B \|` line, then `\|---\|---\|`, then rows | a table with a header row; without the line of dashes the `\|` stays text |

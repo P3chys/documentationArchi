@@ -413,6 +413,29 @@ class HafConventionsTest {
         assertThat(read(KeywordRules.defaults(), List.of(wp)).pages).hasSizeGreaterThan(1);
     }
 
+    @Test
+    void workPackageOnOnePageKeepsThePrintOrder() {
+        IWorkPackage wp = element(F.createWorkPackage(), "RBWDP-9");
+        IArchimateElement marker = element(F.createGrouping(), "PrintOrder");
+        IArchimateElement alpha = element(F.createBusinessProcess(), "Alpha");
+        IArchimateElement beta = element(F.createBusinessProcess(), "Beta");
+        IArchimateElement gamma = element(F.createBusinessProcess(), "Gamma");
+        IArchimateElement delta = element(F.createBusinessProcess(), "Delta");
+        relate(F.createAssociationRelationship(), gamma, marker, "0001");
+        relate(F.createAssociationRelationship(), alpha, marker, "0002");
+        relate(F.createAssociationRelationship(), beta, marker, "0003");
+        for (IArchimateElement e : List.of(alpha, beta, gamma, delta)) {
+            relate(F.createAssociationRelationship(), wp, e, "");
+        }
+
+        Doc doc = read(KeywordRules.parseFile("workpackage one-page"), List.of(wp));
+
+        assertThat(doc.pages).singleElement().satisfies(p -> {
+            assertThat(p.contents).extracting(l -> l.label).containsExactly("Gamma", "Alpha", "Beta", "Delta");
+            assertThat(p.entries).extracting(e -> e.name).containsExactly("Gamma", "Alpha", "Beta", "Delta");
+        });
+    }
+
     private static void property(IArchimateElement element, String key, String value) {
         IProperty p = F.createProperty();
         p.setKey(key);

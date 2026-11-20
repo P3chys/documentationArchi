@@ -702,7 +702,8 @@ final class PageBody {
         StringBuilder s = new StringBuilder();
         if (block.items != null) {
             String list = block.numbered ? "ol" : "ul";
-            s.append("<").append(list).append(">");
+            s.append("<").append(list).append(block.numbered && block.start != 1 ? " start=\"" + block.start + "\"" : "")
+                    .append(">");
             block.items.forEach(item -> s.append("<li>").append(inlines(item)).append("</li>"));
             return s.append("</").append(list).append(">").toString();
         }

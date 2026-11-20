@@ -50,6 +50,43 @@ class RichSyntaxTest {
         assertThat(blocks.get(3).inlines.get(0).text).isEqualTo("after");
     }
 
+    @Test
+    void numberedItemsWithBlankLinesBetweenThemAreOneListWhileTheNumbersGoOn() {
+        List<Block> blocks = RichText.parse("Steps:\n\n1. a\n\n2. b\n\n\n3. c\n\n1. again\n\n- x\n\n- y", rules);
+
+        assertThat(blocks).hasSize(5);
+        assertThat(blocks.get(1).items).hasSize(3);
+        assertThat(blocks.get(1).start).isEqualTo(1);
+        assertThat(blocks.get(2).items).hasSize(1); // starting at 1 again: a list of its own
+        assertThat(blocks.get(3).numbered).isFalse(); // bullets stay apart, nothing to number
+        assertThat(blocks.get(4).numbered).isFalse();
+    }
+
+    @Test
+    void aNumberedListStartsAtItsWrittenNumber() {
+        List<Block> blocks = RichText.parse("1. a\n\nIn between\n\n2. b\n3. c", rules);
+
+        assertThat(blocks).hasSize(3);
+        assertThat(blocks.get(0).start).isEqualTo(1);
+        assertThat(blocks.get(2).start).isEqualTo(2);
+        assertThat(blocks.get(2).items).hasSize(2);
+    }
+
+    @Test
+    void numberedListsAreNotJoinedAcrossAPanel() {
+        List<Block> blocks = RichText.parse("1. a\nNOTE: careful\n\n2. b", rules);
+
+        assertThat(blocks).extracting(b -> b.items == null ? 0 : b.items.size()).containsExactly(1, 0, 1);
+    }
+
+    @Test
+    void htmlAndConfluenceNumberTheItemsOnAcrossBlankLines() throws Exception {
+        String text = "1. a\n\n2. b\n\nIn between\n\n3. c";
+        String list = "<ol><li>a</li><li>b</li></ol>";
+        assertThat(export(Format.HTML, text)).contains(list).contains("<ol start=\"3\"><li>c</li></ol>");
+        assertThat(export(Format.CONFLUENCE, text)).contains(list).contains("<ol start=\"3\"><li>c</li></ol>");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"-1 degrees", "-item", "1.5 million", "2026 was a year", "*note* first", "-- a comment"})
     void linesThatOnlyLookLikeItemsStayText(String text) {

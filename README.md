@@ -209,7 +209,7 @@ Models written for HaF, the earlier documentation scripts, use these conventions
   (`RBWDP-20025`, not `RBWDP-20025 portal`) has its heading and every link to it go to the ticket.
 - **Looks:** the rule line `type style haf` shows types as HaF does, `«Process»Pay` instead of
   `<<Business Process>> Pay`; `workpackage one-page` exports a work package as one page, its description and then
-  each element it changes described in full, sorted by name, under the title linked to the ticket.
+  each element it changes described in full, in print order (the rest by name), under the title linked to the ticket.
 
 Elements with neither a Confluence page nor a ticket link to their description in the export. A work package export
 links to its own descriptions first, see [Work packages](#work-packages-jira-tickets).
@@ -343,7 +343,7 @@ values. They look the same in HTML, the PDF and Confluence (as Confluence's own 
 | `[[asset:file.png]]`, `<ass>file.png</ass>` | a picture or file from the Assets folder, see [Assets](#assets-pictures-and-files) |
 | `<tbl>` ... `</tbl>` | a table of the lines starting with `\|`, the first its header; no line of dashes needed; a line without `\|` goes on in the last cell. HaF form: rows `a \| b \|` with no leading `\|`; a line not ending in `\|` goes on in the last cell on the next line |
 | a line of only `<name>` ... `</name>` | indents the lines in between by 20px per level; the tag lines are printed; `<section end>` ends all levels |
-| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item |
+| `- item`, `* item`, `1. item` at the start of a line | a bullet or numbered list; an indented line goes on with the item; numbered items with blank lines between them stay one list while the numbers go on, and a list starts at the number written |
 | `**bold**`, `*italic*` | bold, italic (a `*` with a space or a digit beside it, as in `select *` or `2*3`, stays a `*`) |
 | `[the spec](https://...)` | a link with that text (`[ORDERS]` alone stays a table name) |
 | a `\| A \| B \|` line, then `\|---\|---\|`, then rows | a table with a header row; without the line of dashes the `\|` stays text |

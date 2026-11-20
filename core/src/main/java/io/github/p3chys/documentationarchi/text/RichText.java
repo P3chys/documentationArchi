@@ -99,6 +99,8 @@ public final class RichText {
         /** The items of a list, each its text. */
         public final List<List<Inline>> items;
         public final boolean numbered;
+        /** The number of a numbered list's first item, as written: 1 unless the text says otherwise. */
+        public final int start;
         /** The rows of a table, the first one its header; each a list of cells. */
         public final List<List<List<Inline>>> rows;
         /** A panel holding lists or tables: its blocks, to show instead of {@link #inlines}. Empty otherwise. */
@@ -111,11 +113,12 @@ public final class RichText {
         public boolean note;
 
         Block(PanelStyle style, String title, List<Inline> inlines, String sql) {
-            this(style, title, inlines, sql, null, null, null, false, null, List.of());
+            this(style, title, inlines, sql, null, null, null, false, 1, null, List.of());
         }
 
         private Block(PanelStyle style, String title, List<Inline> inlines, String sql, String code, String language,
-                List<List<Inline>> items, boolean numbered, List<List<List<Inline>>> rows, List<Block> children) {
+                List<List<Inline>> items, boolean numbered, int start, List<List<List<Inline>>> rows,
+                List<Block> children) {
             this.style = style;
             this.title = title;
             this.inlines = inlines;
@@ -124,24 +127,25 @@ public final class RichText {
             this.language = language;
             this.items = items;
             this.numbered = numbered;
+            this.start = start;
             this.rows = rows;
             this.children = children;
         }
 
         static Block code(String code, String language) {
-            return new Block(null, null, List.of(), null, code, language, null, false, null, List.of());
+            return new Block(null, null, List.of(), null, code, language, null, false, 1, null, List.of());
         }
 
-        static Block list(List<List<Inline>> items, boolean numbered) {
-            return new Block(null, null, List.of(), null, null, null, items, numbered, null, List.of());
+        static Block list(List<List<Inline>> items, boolean numbered, int start) {
+            return new Block(null, null, List.of(), null, null, null, items, numbered, start, null, List.of());
         }
 
         static Block table(List<List<List<Inline>>> rows) {
-            return new Block(null, null, List.of(), null, null, null, null, false, rows, List.of());
+            return new Block(null, null, List.of(), null, null, null, null, false, 1, rows, List.of());
         }
 
         static Block panel(PanelStyle style, String title, List<Inline> inlines, List<Block> children) {
-            return new Block(style, title, inlines, null, null, null, null, false, null, children);
+            return new Block(style, title, inlines, null, null, null, null, false, 1, null, children);
         }
     }
 
@@ -386,6 +390,7 @@ public final class RichText {
     }
 
     private static void lines(String text, KeywordRules rules, List<Block> blocks) {
+        int from = blocks.size();
         StringBuilder current = new StringBuilder();
         PanelStyle style = null;
         String title = null;
@@ -405,6 +410,26 @@ public final class RichText {
             }
         }
         flush(blocks, style, title, current, rules);
+        joinNumbered(blocks, from);
+    }
+
+    /**
+     * Numbered lists with only blank lines between them are one list when the numbers go on, as in
+     * {@code 1. a}, blank line, {@code 2. b}: written that way so the items stand apart. Starting again at 1 makes
+     * another list. Of the blocks of one run of lines from {@code from} on, where nothing else can stand between two
+     * lists that are next to each other but blank lines.
+     */
+    private static void joinNumbered(List<Block> blocks, int from) {
+        for (int i = from + 1; i < blocks.size(); i++) {
+            Block before = blocks.get(i - 1);
+            Block list = blocks.get(i);
+            if (before.numbered && list.numbered && list.start == before.start + before.items.size()) {
+                List<List<Inline>> items = new ArrayList<>(before.items);
+                items.addAll(list.items);
+                blocks.set(i - 1, Block.list(items, true, before.start));
+                blocks.remove(i--);
+            }
+        }
     }
 
     private static void flush(List<Block> blocks, PanelStyle style, String title, CharSequence text, KeywordRules rules) {
@@ -440,6 +465,7 @@ public final class RichText {
             } else if (item.matches()) {
                 paragraph(paragraph, rules, blocks);
                 boolean numbered = item.group("number") != null;
+                int start = numbered ? Integer.parseInt(item.group("number")) : 1;
                 List<StringBuilder> items = new ArrayList<>();
                 for (; i < lines.length; i++) {
                     Matcher next = ITEM.matcher(lines[i]);
@@ -453,7 +479,7 @@ public final class RichText {
                 }
                 List<List<Inline>> list = new ArrayList<>();
                 items.forEach(s -> list.add(inlines(s.toString(), rules)));
-                blocks.add(Block.list(list, numbered));
+                blocks.add(Block.list(list, numbered, start));
             } else {
                 paragraph.add(lines[i++]);
             }

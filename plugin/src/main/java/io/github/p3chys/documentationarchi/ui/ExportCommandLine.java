@@ -115,6 +115,9 @@ public class ExportCommandLine extends AbstractCommandLineProvider {
                                     CommandLineSelection.names(line.getOptionValue(FOLDERS)),
                                     CommandLineSelection.names(line.getOptionValue(ELEMENTS)))
                             : Profiles.selection(model, rules, profile);
+            // no one to ask: those with the same number go by name, as the dialog offers
+            WorkPackages.clashes(selection.workPackages, selection.elements::contains).forEach(clash -> logMessage(
+                    "Same number on the links to the work package, exported in alphabetical order: " + clash));
             formats = line.hasOption(FORMATS) ? formats(line.getOptionValue(FORMATS))
                     : profile != null ? Profiles.formats(profile, EnumSet.allOf(Format.class))
                             : EnumSet.allOf(Format.class);

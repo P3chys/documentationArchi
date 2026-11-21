@@ -209,7 +209,8 @@ Models written for HaF, the earlier documentation scripts, use these conventions
   (`RBWDP-20025`, not `RBWDP-20025 portal`) has its heading and every link to it go to the ticket.
 - **Looks:** the rule line `type style haf` shows types as HaF does, `«Process»Pay` instead of
   `<<Business Process>> Pay`; `workpackage one-page` exports a work package as one page, its description and then
-  each element it changes described in full, in print order (the rest by name), under the title linked to the ticket.
+  each element it changes described in full, in the order of the numbers on its links (see *Order* under Work
+  packages), under the title linked to the ticket.
 
 Elements with neither a Confluence page nor a ticket link to their description in the export. A work package export
 links to its own descriptions first, see [Work packages](#work-packages-jira-tickets).
@@ -233,6 +234,12 @@ only some of the selected elements are linked; it stays as it is unless you clic
 
 The links are plain associations between the element and the work package, either way round, so you can also draw
 them yourself. An element can be in several work packages, and the model can have as many as you need.
+
+**Order:** start the name of an element's link with a number, `001`, `002`, `003`..., and the work package's export
+lists and describes its elements in that order, whatever views they are on (the views' own pages keep their print
+order). With a kind of change, write it after the number: `002 change`. Elements whose link has no number come
+after, by name. When two elements have the same number, the export asks whether to list those by name or to cancel
+so you can number them again; the command line lists them by name and says so.
 
 **Export a work package:** right-click it and choose **Documentation > Export...** (several selected work packages go
 into one export). The export holds:

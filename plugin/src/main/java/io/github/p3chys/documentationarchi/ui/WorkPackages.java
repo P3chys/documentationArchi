@@ -1,16 +1,22 @@
 package io.github.p3chys.documentationarchi.ui;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.ecore.EObject;
@@ -42,7 +48,8 @@ import io.github.p3chys.documentationarchi.doc.Published;
  * Like {@link PrintOrder}, the links are plain associations a modeller can also draw by hand, and changes come as one
  * command, so Undo takes them back.
  * <p>
- * The name of a link says what kind of change it is ({@link #KINDS}, or whatever the modeller writes). A work
+ * The name of a link says what kind of change it is ({@link #KINDS}, or whatever the modeller writes). A number at
+ * its start is the element's place in the work package's export: {@code 001}, {@code 002 change}. A work
  * package whose ticket is done is closed (the property {@link #CLOSED}): it stays in the model with its links, but
  * the dialogs and the exports of other things no longer list it.
  */
@@ -51,6 +58,9 @@ final class WorkPackages {
     private static final IArchimateFactory F = IArchimateFactory.eINSTANCE;
     /** A Jira issue key (project key, dash, number), optionally followed by a summary. */
     private static final Pattern NAME = Pattern.compile("[A-Z][A-Z0-9_]*-[0-9]+(\\s.*)?", Pattern.DOTALL);
+    /** The name of a link: the element's place in the export (a number at the start), then the kind of change. */
+    private static final Pattern LINK_NAME = Pattern.compile("^\\s*(?<position>\\d+)(?:[\\s.:)-]+|$)(?<kind>.*)$",
+            Pattern.DOTALL);
 
     /** On a work package: its ticket is done. Any value but "false" closes it. */
     static final String CLOSED = "doc:closed";
@@ -78,14 +88,103 @@ final class WorkPackages {
         return list;
     }
 
-    /** What kind of change the work package makes to the element: the name of their link; null when it has none. */
+    /**
+     * What kind of change the work package makes to the element: the name of their link without the number in front;
+     * null when it says none.
+     */
     static String kind(IWorkPackage wp, IArchimateElement element) {
         for (IArchimateRelationship r : links(wp).getOrDefault(element, List.of())) {
-            if (r.getName() != null && !r.getName().isBlank()) {
-                return r.getName().strip();
+            String kind = kind(r);
+            if (kind != null) {
+                return kind;
             }
         }
         return null;
+    }
+
+    /** The kind of change a link's name says, without the number in front; null for none. */
+    private static String kind(IArchimateRelationship r) {
+        String name = r.getName() == null ? "" : r.getName().strip();
+        Matcher m = LINK_NAME.matcher(name);
+        String kind = m.matches() ? m.group("kind").strip() : name;
+        return kind.isEmpty() ? null : kind;
+    }
+
+    /** The number a link's name starts with, as in {@code 001} or {@code 002 change}; null when it starts with none. */
+    static BigInteger position(IArchimateRelationship r) {
+        Matcher m = r.getName() == null ? null : LINK_NAME.matcher(r.getName());
+        return m != null && m.matches() ? new BigInteger(m.group("position")) : null;
+    }
+
+    /** The element's place in the work package's export: the smallest number its links start with; null for none. */
+    static BigInteger position(IWorkPackage wp, IArchimateElement element) {
+        return position(links(wp).getOrDefault(element, List.of()));
+    }
+
+    private static BigInteger position(List<IArchimateRelationship> links) {
+        BigInteger position = null;
+        for (IArchimateRelationship r : links) {
+            BigInteger p = position(r);
+            if (p != null && (position == null || p.compareTo(position) < 0)) {
+                position = p;
+            }
+        }
+        return position;
+    }
+
+    /**
+     * The elements in the order the links of the work packages give them: by work package, as listed; within one, by
+     * the number its link to the element starts with, then those without a number; the same number and no number by
+     * name. An element several of them change goes with the first. Elements none of them changes come last, by name.
+     */
+    static List<IArchimateElement> ordered(List<IWorkPackage> workPackages, Collection<IArchimateElement> elements) {
+        List<Map<IArchimateElement, List<IArchimateRelationship>>> links = workPackages.stream().map(WorkPackages::links)
+                .collect(Collectors.toList());
+        Map<IArchimateElement, Integer> group = new HashMap<>();
+        Map<IArchimateElement, BigInteger> positions = new HashMap<>();
+        for (IArchimateElement element : elements) {
+            int i = 0;
+            while (i < links.size() && !links.get(i).containsKey(element)) {
+                i++;
+            }
+            group.put(element, i);
+            positions.put(element, i < links.size() ? position(links.get(i).get(element)) : null);
+        }
+        List<IArchimateElement> list = new ArrayList<>(elements);
+        list.sort(Comparator.<IArchimateElement>comparingInt(group::get)
+                .thenComparing(positions::get, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(ModelReader::label, String.CASE_INSENSITIVE_ORDER));
+        return list;
+    }
+
+    /**
+     * Where a work package gives two or more elements the same number, so the export can only list those by name: a
+     * line per number, such as {@code RBWDP-7, 002: Beta, Gamma}. Empty when the numbers are all different.
+     *
+     * @param exported whether an element is in the export; the others never clash
+     */
+    static List<String> clashes(Collection<IWorkPackage> workPackages, Predicate<IArchimateElement> exported) {
+        List<String> clashes = new ArrayList<>();
+        for (IWorkPackage wp : workPackages) {
+            Map<BigInteger, List<IArchimateElement>> byNumber = new TreeMap<>();
+            Map<BigInteger, String> written = new HashMap<>();
+            links(wp).forEach((element, links) -> {
+                BigInteger position = position(links);
+                if (position != null && exported.test(element)) {
+                    byNumber.computeIfAbsent(position, k -> new ArrayList<>()).add(element);
+                    links.stream().filter(r -> position.equals(position(r))).findFirst()
+                            .ifPresent(r -> written.putIfAbsent(position, r.getName().strip().split("\\D", 2)[0]));
+                }
+            });
+            byNumber.forEach((number, elements) -> {
+                if (elements.size() > 1) {
+                    elements.sort(Comparator.comparing(ModelReader::label, String.CASE_INSENSITIVE_ORDER));
+                    clashes.add(ModelReader.label(wp) + ", " + written.get(number) + ": "
+                            + elements.stream().map(ModelReader::label).collect(Collectors.joining(", ")));
+                }
+            });
+        }
+        return clashes;
     }
 
     /** Closes the work packages or opens them again; null when nothing changes. */
@@ -222,6 +321,12 @@ final class WorkPackages {
         return links;
     }
 
+    /** The link's name for another kind of change: the number it starts with stays in front. */
+    static String renamed(IArchimateRelationship link, String kind) {
+        Matcher m = LINK_NAME.matcher(link.getName() == null ? "" : link.getName());
+        return m.matches() ? m.group("position") + " " + kind : kind;
+    }
+
     /** The work package with this name, ignoring case; null if there is none. */
     static IWorkPackage named(IArchimateModel model, String name) {
         String wanted = name.strip().toLowerCase(Locale.ROOT);
@@ -275,8 +380,9 @@ final class WorkPackages {
                     }
                     command.add(new PrintOrder.CreateLink("Link to Work Package", relationship, element, wp));
                 } else if (name != null && !name.equals(kind(wp, element)) && linked.containsKey(element)) {
-                    command.add(new EObjectFeatureCommand("Kind of Change", linked.get(element).get(0),
-                            IArchimatePackage.Literals.NAMEABLE__NAME, name));
+                    IArchimateRelationship first = linked.get(element).get(0);
+                    command.add(new EObjectFeatureCommand("Kind of Change", first,
+                            IArchimatePackage.Literals.NAMEABLE__NAME, renamed(first, name)));
                 }
             }
         }

@@ -233,6 +233,74 @@ class WorkPackagesTest {
                 .containsAll(ticket.getTargetRelationships());
     }
 
+    /** Names the element's link to the ticket. */
+    private void number(IArchimateElement element, String name) {
+        WorkPackages.links(ticket).get(element).get(0).setName(name);
+    }
+
+    @Test
+    void theNumbersOfTheLinksOrderTheExportAcrossViewsNotTheNamesNorThePrintOrder() {
+        IArchimateElement zeta = element(F.createApplicationComponent(), "Zeta");
+        IArchimateElement loose = element(F.createNode(), "Loose");
+        view("Zeta's view", zeta);
+        IArchimateElement printOrder = element(F.createGrouping(), "PrintOrder");
+        apps.getChildren().add(object(printOrder));
+        relate(F.createAssociationRelationship(), api, printOrder).setName("001");
+        relate(F.createAssociationRelationship(), portal, printOrder).setName("002");
+        run(WorkPackages.change(model, List.of(api, zeta, loose), List.of(ticket), List.of(), null));
+        number(zeta, "001");
+        number(portal, "002 change");
+        number(api, "003");
+
+        Doc doc = read(ticket);
+
+        assertThat(doc.pages.get(0).contents).extracting(l -> l.label).containsExactly("Zeta", "Portal", "API", "Loose");
+        assertThat(entry(read(model), ticket.getId()).changes).extracting(l -> l.label)
+                .containsExactly("Zeta", "Portal (change)", "API", "Loose"); // the number is not a kind of change
+        // a view's own page keeps the view's print order
+        assertThat(doc.pages.stream().filter(p -> p.title.equals("Applications")).findFirst().orElseThrow().entries)
+                .extracting(e -> e.name).containsExactly("API", "Portal");
+    }
+
+    private IDiagramModelArchimateObject object(IArchimateElement element) {
+        IDiagramModelArchimateObject object = F.createDiagramModelArchimateObject();
+        object.setArchimateElement(element);
+        return object;
+    }
+
+    @Test
+    void aNewKindOfChangeKeepsTheNumberInFrontOfIt() {
+        number(portal, "004");
+        run(WorkPackages.change(model, List.of(portal), List.of(ticket), List.of(), null, e -> "remove"));
+
+        assertThat(WorkPackages.links(ticket).get(portal).get(0).getName()).isEqualTo("004 remove");
+        assertThat(WorkPackages.kind(ticket, portal)).isEqualTo("remove");
+        assertThat(WorkPackages.position(ticket, portal)).isEqualTo(4);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = { "001, 1, ", "002 change, 2, change", "3. new, 3, new", "change, , change", "v2 change, , v2 change",
+            "'', , " }, nullValues = "")
+    void aLinkNameIsANumberAndAKindOfChange(String name, Integer position, String kind) {
+        number(portal, name);
+        assertThat(WorkPackages.position(ticket, portal)).isEqualTo(position == null ? null : java.math.BigInteger.valueOf(position));
+        assertThat(WorkPackages.kind(ticket, portal)).isEqualTo(kind);
+    }
+
+    @Test
+    void elementsWithTheSameNumberAreClashesListedByName() {
+        run(WorkPackages.change(model, List.of(api, db), List.of(ticket), List.of(), null));
+        number(portal, "005");
+        number(api, "005 new");
+        number(db, "001");
+
+        assertThat(WorkPackages.clashes(List.of(ticket), e -> true)).containsExactly("RBWDP-20025, 005: API, Portal");
+        assertThat(WorkPackages.clashes(List.of(ticket), e -> e != api)).isEmpty(); // left out: no clash
+        assertThat(read(ticket).pages.get(0).contents).extracting(l -> l.label).containsExactly("DB", "API", "Portal");
+        number(api, "006");
+        assertThat(WorkPackages.clashes(List.of(ticket), e -> true)).isEmpty();
+    }
+
     @Test
     void severalWorkPackagesAreEachDescribedOnTheFirstPage() {
         IWorkPackage other = workPackage("RBWDP-3");

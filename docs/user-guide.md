@@ -481,6 +481,13 @@ The export holds:
 - the views showing any of these elements – each with its full picture, but describing only those elements;
 - the elements that are on no view.
 
+**Order of the elements.** Start the name of each link with a number – `001`, `002`, `003`... – and the export lists
+and describes the elements in that order, on the first page and on the one-page export, whatever views they are on.
+A view's own page keeps the view's [print order](#7-print-order). A kind of change goes after the number: `002 change`
+(the documentation shows *change*, not the number). Elements whose link has no number follow, by name. If two
+elements have the same number, the export says which ones and asks: **Export Alphabetically** lists those by name,
+**Cancel** lets you number them again. The command line lists them by name and prints which ones they were.
+
 **Links stay in the document.** A link to an element the export describes jumps to that description, even when the
 element has a Confluence page or a ticket; only an element the export leaves out is linked to its Confluence page or
 ticket. For example, when the work package changes *Process ABC* and *Process DEF*, and both, like *Process XYZ*,

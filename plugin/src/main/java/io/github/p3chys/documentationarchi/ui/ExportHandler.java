@@ -87,8 +87,8 @@ public class ExportHandler extends AbstractHandler {
         // a profile's output is the export folder itself, as on the command line
         Path folder = profile != null && profile.output != null ? Path.of(dialog.folder())
                 : Path.of(dialog.folder()).resolve(Doc.slug(chosen.title()));
-        if (notEmpty(folder) && !MessageDialog.openQuestion(shell, "Export Documentation",
-                folder + " already exists. Replace the files in it?")) {
+        if (!orderConfirmed(shell, chosen) || notEmpty(folder) && !MessageDialog.openQuestion(shell,
+                "Export Documentation", folder + " already exists. Replace the files in it?")) {
             return;
         }
         start(Display.getCurrent(), chosen, folder, dialog.formats(), dialog.publish(), profile);
@@ -106,12 +106,29 @@ public class ExportHandler extends AbstractHandler {
             MessageDialog.openError(shell, "Export Documentation", e.getMessage());
             return;
         }
-        if (notEmpty(folder) && !MessageDialog.openQuestion(shell, "Export Documentation",
+        if (!orderConfirmed(shell, selection) || notEmpty(folder) && !MessageDialog.openQuestion(shell, "Export Documentation",
                 "Profile " + profile.name + " exports to " + folder + ", which already exists. Replace the files in it?")) {
             return;
         }
         start(Display.getCurrent(), selection, folder, Profiles.formats(profile, Prefs.formats()), profile.publish,
                 profile);
+    }
+
+    /**
+     * Whether to export when a work package gives two or more elements the same number on their links: their order
+     * is then by name. The user may cancel instead, to number the links again.
+     */
+    static boolean orderConfirmed(Shell shell, ModelReader.Selection selection) {
+        List<String> clashes = WorkPackages.clashes(selection.workPackages, selection.elements::contains);
+        if (clashes.isEmpty()) {
+            return true;
+        }
+        MessageDialog dialog = new MessageDialog(shell, "Export Documentation", null,
+                "The links to the work package give these elements the same number, so it does not say their order:\n\n"
+                        + String.join("\n", clashes) + "\n\nExport them in alphabetical order, or cancel to number the "
+                        + "links again?",
+                MessageDialog.WARNING, new String[] { "Export Alphabetically", "Cancel" }, 0);
+        return dialog.open() == 0;
     }
 
     /** The selected objects of the model tree or a view (the model objects of what a view shows). */

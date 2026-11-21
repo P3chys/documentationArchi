@@ -414,7 +414,7 @@ class HafConventionsTest {
     }
 
     @Test
-    void workPackageOnOnePageKeepsThePrintOrder() {
+    void workPackageOnOnePageFollowsTheNumbersOfItsLinksNotThePrintOrder() {
         IWorkPackage wp = element(F.createWorkPackage(), "RBWDP-9");
         IArchimateElement marker = element(F.createGrouping(), "PrintOrder");
         IArchimateElement alpha = element(F.createBusinessProcess(), "Alpha");
@@ -424,15 +424,16 @@ class HafConventionsTest {
         relate(F.createAssociationRelationship(), gamma, marker, "0001");
         relate(F.createAssociationRelationship(), alpha, marker, "0002");
         relate(F.createAssociationRelationship(), beta, marker, "0003");
-        for (IArchimateElement e : List.of(alpha, beta, gamma, delta)) {
-            relate(F.createAssociationRelationship(), wp, e, "");
-        }
+        relate(F.createAssociationRelationship(), beta, wp, "001");
+        relate(F.createAssociationRelationship(), alpha, wp, "002 change");
+        relate(F.createAssociationRelationship(), gamma, wp, "003");
+        relate(F.createAssociationRelationship(), delta, wp, "new"); // no number: after those with one
 
         Doc doc = read(KeywordRules.parseFile("workpackage one-page"), List.of(wp));
 
         assertThat(doc.pages).singleElement().satisfies(p -> {
-            assertThat(p.contents).extracting(l -> l.label).containsExactly("Gamma", "Alpha", "Beta", "Delta");
-            assertThat(p.entries).extracting(e -> e.name).containsExactly("Gamma", "Alpha", "Beta", "Delta");
+            assertThat(p.contents).extracting(l -> l.label).containsExactly("Beta", "Alpha", "Gamma", "Delta");
+            assertThat(p.entries).extracting(e -> e.name).containsExactly("Beta", "Alpha", "Gamma", "Delta");
         });
     }
 

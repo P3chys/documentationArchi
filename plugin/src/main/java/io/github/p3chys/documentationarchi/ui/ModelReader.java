@@ -467,7 +467,7 @@ final class ModelReader {
         }
         showing.forEach(view -> pages.add(viewPage(view, changed)));
         List<DocPage> views = new ArrayList<>(pages);
-        elementsPage(ordered(changed, null).stream().filter(e -> !described.contains(e.getId()))
+        elementsPage(byLinks(changed).stream().filter(e -> !described.contains(e.getId()))
                 .collect(Collectors.toList()), t("elements-not-in-any-view"), pages);
 
         List<IWorkPackage> workPackages = new ArrayList<>(selection.workPackages);
@@ -478,7 +478,7 @@ final class ModelReader {
             first.documentation = wp.getDocumentation();
             first.titleUrl = jira(wp);
             first.properties = properties(wp.getProperties());
-            ordered(changed, null).forEach(e -> first.contents.add(link(e)));
+            byLinks(changed).forEach(e -> first.contents.add(link(e)));
             WorkPackages.links(wp).values().forEach(exported::addAll);
             exported.add(wp);
         } else {
@@ -493,7 +493,8 @@ final class ModelReader {
 
     /**
      * {@code workpackage one-page}: one page, as HaF writes a work package: its description, then each element it
-     * changes described in full, in print order. Of several work packages, each is described first.
+     * changes described in full, in the order of the numbers its links start with (see {@link WorkPackages#ordered}).
+     * Of several work packages, each is described first.
      */
     private Doc onePage(Set<IArchimateElement> changed) {
         List<IWorkPackage> workPackages = new ArrayList<>(selection.workPackages);
@@ -510,11 +511,20 @@ final class ModelReader {
             page = new DocPage("work-packages", selection.title());
             describe(new ArrayList<>(workPackages), List.of(), page);
         }
-        // as the pages of the work package list them: by the numbers of the links to a PrintOrder, the rest by name
-        List<IArchimateElement> ordered = ordered(changed, null);
+        List<IArchimateElement> ordered = byLinks(changed);
         ordered.forEach(e -> page.contents.add(link(e)));
         describe(ordered, ordered, page);
         return localFirst(doc(selection.title(), List.of(page)));
+    }
+
+    /** The elements in the order the links of the exported work packages give them, see {@link WorkPackages#ordered}. */
+    private List<IArchimateElement> byLinks(Collection<IArchimateElement> elements) {
+        return byLinks(new ArrayList<>(selection.workPackages), elements);
+    }
+
+    private static List<IArchimateElement> byLinks(List<IWorkPackage> workPackages, Collection<IArchimateElement> elements) {
+        return WorkPackages.ordered(workPackages, elements.stream().filter(e -> !isPrintOrder(e) && !(e instanceof IJunction))
+                .collect(Collectors.toList()));
     }
 
     /** A work package's export links within itself first, to Confluence or Jira only for what it leaves out. */
@@ -801,7 +811,7 @@ final class ModelReader {
         if (element instanceof IWorkPackage) {
             Map<IArchimateElement, List<IArchimateRelationship>> links = WorkPackages.links((IWorkPackage) element);
             links.values().forEach(exported::addAll);
-            ordered(visible(links.keySet()), null).forEach(e -> changes.add(new Link(e.getId(),
+            byLinks(List.of((IWorkPackage) element), visible(links.keySet())).forEach(e -> changes.add(new Link(e.getId(),
                     label(e) + kind((IWorkPackage) element, e), typeName(e))));
         } else {
             for (IWorkPackage wp : WorkPackages.of(element)) {

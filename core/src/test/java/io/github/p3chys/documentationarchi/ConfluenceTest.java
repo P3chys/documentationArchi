@@ -197,6 +197,19 @@ class ConfluenceTest {
     }
 
     @Test
+    void neverSendsThePasswordOnToWhereARedirectPoints() {
+        server.createContext("/moved", x -> {
+            x.getResponseHeaders().add("Location", url + "rest/api/user/current");
+            x.sendResponseHeaders(302, -1);
+            x.close();
+        });
+
+        assertThatThrownBy(() -> new Confluence(url + "moved", "adam", "secret").currentUser())
+                .hasMessageContaining("sends the request on to " + url + "rest/api/user/current");
+        assertThat(auth).isEmpty(); // the address redirected to was never asked
+    }
+
+    @Test
     void refusesWhatIsNoAddressOrHasNoPassword() {
         assertThatThrownBy(() -> new Confluence("confluence", "a", "b")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new Confluence(url, "a", "")).isInstanceOf(IllegalArgumentException.class);

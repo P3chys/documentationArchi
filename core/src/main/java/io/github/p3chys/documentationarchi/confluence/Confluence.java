@@ -111,8 +111,9 @@ public final class Confluence {
         this.url = base;
         this.auth = user == null || user.isBlank() ? "Bearer " + password
                 : "Basic " + Base64.getEncoder().encodeToString((user.strip() + ":" + password).getBytes(StandardCharsets.UTF_8));
+        // never follow a redirect: the request carries the password, which must only go to the address given
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20))
-                .followRedirects(HttpClient.Redirect.NORMAL).proxy(ProxySelector.getDefault()).build();
+                .followRedirects(HttpClient.Redirect.NEVER).proxy(ProxySelector.getDefault()).build();
     }
 
     public String url() {
@@ -370,6 +371,11 @@ public final class Confluence {
         }
         int status = response.statusCode();
         String body = response.body();
+        if (status >= 300 && status < 400) {
+            String location = response.headers().firstValue("Location").orElse("another address");
+            throw new Failure(status, "Confluence at " + url + " sends the request on to " + location + ". Give the "
+                    + "address Confluence really has (the password is never sent on to another one).");
+        }
         if (status >= 200 && status < 300) {
             try {
                 return body == null || body.isBlank() ? Map.of() : Json.parse(body);

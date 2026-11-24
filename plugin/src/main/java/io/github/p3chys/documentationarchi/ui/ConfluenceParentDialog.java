@@ -3,7 +3,6 @@ package io.github.p3chys.documentationarchi.ui;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
@@ -17,17 +16,15 @@ import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TreeViewer;
-import org.eclipse.jface.viewers.Viewer;
-import org.eclipse.jface.viewers.ViewerFilter;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Button;
+import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.dialogs.PreferencesUtil;
@@ -35,8 +32,9 @@ import org.eclipse.ui.dialogs.PreferencesUtil;
 import io.github.p3chys.documentationarchi.confluence.Confluence;
 
 /**
- * Shows the spaces of Confluence and their page trees, read as they are opened, to choose the page an export goes
- * under (or a space, for its top). Confluence is read in the background, so the window never hangs on it.
+ * Shows a space of Confluence (by its key: a company has too many to list) and its page tree, read as it is opened,
+ * to choose the page an export goes under (or the space, for its top). Confluence is read in the background, so
+ * the window never hangs on it.
  */
 final class ConfluenceParentDialog extends TitleAreaDialog {
 
@@ -68,7 +66,7 @@ final class ConfluenceParentDialog extends TitleAreaDialog {
 
     private Confluence confluence;
     private TreeViewer tree;
-    private Text filter;
+    private Combo spaceKey;
     private Label chosen;
     /** The spaces, or LOADING, or what went wrong. */
     private List<Object> roots = new ArrayList<>(List.of(LOADING));
@@ -97,28 +95,30 @@ final class ConfluenceParentDialog extends TitleAreaDialog {
         GridDataFactory.fillDefaults().grab(true, true).applyTo(c);
         setTitle("Where the export goes");
 
-        new Label(c, SWT.NONE).setText("&Filter spaces:");
-        filter = new Text(c, SWT.BORDER | SWT.SEARCH | SWT.ICON_CANCEL);
-        filter.setMessage("name or key");
-        GridDataFactory.fillDefaults().grab(true, false).applyTo(filter);
+        Composite row = new Composite(c, SWT.NONE);
+        GridLayoutFactory.fillDefaults().numColumns(3).applyTo(row);
+        GridDataFactory.fillDefaults().span(2, 1).grab(true, false).applyTo(row);
+        new Label(row, SWT.NONE).setText("&Space key:");
+        spaceKey = new Combo(row, SWT.DROP_DOWN);
+        spaceKey.setItems(Prefs.confluenceSpaces().toArray(new String[0]));
+        spaceKey.setToolTipText("The key of the space, as in its address: ARCH in /display/ARCH/. Only that space is "
+                + "read, not all of Confluence.");
+        GridDataFactory.fillDefaults().grab(true, false).applyTo(spaceKey);
+        Button open = new Button(row, SWT.PUSH);
+        open.setText("&Open");
+        open.addListener(SWT.Selection, e -> openSpace());
+        spaceKey.addListener(SWT.Traverse, e -> { // Enter in the field opens the space, it does not close the window
+            if (e.detail == SWT.TRAVERSE_RETURN) {
+                e.doit = false;
+                openSpace();
+            }
+        });
+        spaceKey.addListener(SWT.Selection, e -> openSpace()); // a key from the list
 
         tree = new TreeViewer(c, SWT.BORDER | SWT.SINGLE | SWT.V_SCROLL | SWT.H_SCROLL);
         GridDataFactory.fillDefaults().span(2, 1).grab(true, true).hint(480, 360).applyTo(tree.getControl());
         tree.setContentProvider(new Content());
         tree.setLabelProvider(new Labels());
-        tree.addFilter(new ViewerFilter() {
-            @Override
-            public boolean select(Viewer viewer, Object parentElement, Object element) {
-                String text = filter.getText().strip().toLowerCase(Locale.ROOT);
-                if (text.isEmpty() || !(element instanceof Node) || ((Node) element).parent != null) {
-                    return true;
-                }
-                Confluence.Space space = ((Node) element).space;
-                return space.key.toLowerCase(Locale.ROOT).contains(text)
-                        || space.name != null && space.name.toLowerCase(Locale.ROOT).contains(text);
-            }
-        });
-        filter.addListener(SWT.Modify, e -> tree.refresh());
         tree.addSelectionChangedListener(e -> selected());
         tree.addDoubleClickListener(e -> {
             Object o = ((IStructuredSelection) e.getSelection()).getFirstElement();
@@ -131,12 +131,17 @@ final class ConfluenceParentDialog extends TitleAreaDialog {
         chosen = new Label(c, SWT.WRAP);
         GridDataFactory.fillDefaults().span(2, 1).grab(true, false).hint(480, SWT.DEFAULT).applyTo(chosen);
         ConfluenceTarget last = Prefs.confluenceTarget();
-        chosen.setText(last == null ? "Choose a page, or a space for its top." : "Last time: " + last.path);
+        chosen.setText(last == null ? "Choose a page, or the space for its top." : "Last time: " + last.path);
+        if (last != null) {
+            spaceKey.setText(last.spaceKey);
+        } else if (spaceKey.getItemCount() > 0) {
+            spaceKey.select(0);
+        }
         connect();
         return area;
     }
 
-    /** Reads the spaces with the settings of the preferences. */
+    /** Takes the settings of the preferences, then opens the space of the key given, if one is. */
     private void connect() {
         try {
             confluence = Prefs.confluence();
@@ -148,16 +153,31 @@ final class ConfluenceParentDialog extends TitleAreaDialog {
             return;
         }
         setErrorMessage(null);
-        setMessage("Confluence at " + confluence.url() + ". Choose the page the export goes under, or a space for its top. "
-                + "Pages already there with the titles of the export get a new version.");
+        setMessage("Confluence at " + confluence.url() + ". Give the key of the space, then choose the page the export "
+                + "goes under, or the space for its top. Pages already there with the titles of the export get a new version.");
+        if (spaceKey.getText().isBlank()) {
+            roots = new ArrayList<>(List.of("Give the key of the space and press Open."));
+            tree.refresh();
+        } else {
+            openSpace();
+        }
+    }
+
+    /** Reads the space of the key given, alone, and opens its page tree. */
+    private void openSpace() {
+        String key = spaceKey.getText().strip();
+        if (confluence == null || key.isEmpty()) {
+            return;
+        }
+        setErrorMessage(null);
         roots = new ArrayList<>(List.of(LOADING));
         tree.refresh();
-        Confluence reading = confluence;
-        load(reading::spaces, spaces -> {
-            List<Object> nodes = new ArrayList<>();
-            spaces.forEach(s -> nodes.add(new Node(null, s, null)));
-            roots = nodes.isEmpty() ? new ArrayList<>(List.of("No spaces this user can see.")) : nodes;
+        load(() -> confluence.space(key), space -> {
+            Node node = new Node(null, space, null);
+            roots = new ArrayList<>(List.of(node));
             tree.refresh();
+            tree.setExpandedState(node, true);
+            Prefs.confluenceSpaceUsed(space.key);
         }, error -> {
             roots = new ArrayList<>(List.of(error));
             setErrorMessage(error);

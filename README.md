@@ -512,11 +512,14 @@ Center / Server:
 1. **Preferences > Documentation Export > Confluence**: the address, your user name and password (**Test
    Connection** checks them). With the user name empty, the password is a personal access token. The password is kept
    in Eclipse's secure storage, not with the other settings.
-2. In the export dialog, tick **Confluence pages** and **Upload to Confluence under:**, and **Choose...** where: the
-   window shows the spaces you can see and their page trees (read as you expand them, with a filter for the spaces);
-   choose a page to put the export under, or a space for its top. The choice is remembered, the tick is not.
+2. In the export dialog, tick **Confluence pages** and **Upload to Confluence under:**, and **Choose...** where: give
+   the **Space key** (as in the space's address, `ARCH` in `/display/ARCH/`; the last ones used are in the list) and
+   **Open**. Only that space is read, never all of Confluence. Its page tree opens as you expand it; choose a page to
+   put the export under, or the space for its top. The choice is remembered, the tick is not.
 3. When the export is written, its pages are uploaded; the message at the end has **Open in Confluence**. A failed
-   upload leaves the export on disk as it is, and says what Confluence answered.
+   upload leaves the export on disk as it is, says which page and step failed and what Confluence answered, and can
+   simply be done again: the pages it made are found and finished. Pages with the export's titles elsewhere in the
+   space are only taken over (updated and moved under the chosen page) when you say so.
 
 The export also comes with a script that does the same (Python 3.8+, no packages needed), for a pipeline:
 

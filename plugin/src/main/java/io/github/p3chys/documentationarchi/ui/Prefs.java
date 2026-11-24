@@ -1,6 +1,8 @@
 package io.github.p3chys.documentationarchi.ui;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -25,6 +27,8 @@ final class Prefs {
     private static final String CONFLUENCE_SPACE = "confluence.space";
     private static final String CONFLUENCE_PARENT = "confluence.parent";
     private static final String CONFLUENCE_PATH = "confluence.path";
+    private static final String CONFLUENCE_SPACES = "confluence.spaces";
+    private static final int RECENT_SPACES = 10;
 
     private Prefs() {
     }
@@ -178,5 +182,23 @@ final class Prefs {
         store().setValue(CONFLUENCE_SPACE, target.spaceKey);
         store().setValue(CONFLUENCE_PARENT, target.pageId == null ? "" : target.pageId);
         store().setValue(CONFLUENCE_PATH, target.path);
+    }
+
+    /** The keys of the spaces opened last, the latest first. */
+    static List<String> confluenceSpaces() {
+        List<String> keys = new ArrayList<>();
+        for (String key : store().getString(CONFLUENCE_SPACES).split(",")) {
+            if (!key.isBlank()) {
+                keys.add(key.strip());
+            }
+        }
+        return keys;
+    }
+
+    static void confluenceSpaceUsed(String key) {
+        List<String> keys = confluenceSpaces();
+        keys.removeIf(k -> k.equalsIgnoreCase(key));
+        keys.add(0, key);
+        store().setValue(CONFLUENCE_SPACES, String.join(",", keys.subList(0, Math.min(keys.size(), RECENT_SPACES))));
     }
 }

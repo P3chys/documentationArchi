@@ -111,8 +111,9 @@ public final class Confluence {
         this.url = base;
         this.auth = user == null || user.isBlank() ? "Bearer " + password
                 : "Basic " + Base64.getEncoder().encodeToString((user.strip() + ":" + password).getBytes(StandardCharsets.UTF_8));
-        // never follow a redirect: the request carries the password, which must only go to the address given
-        this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20))
+        // Redirects are followed by hand, and only within the address given: the request carries the password.
+        // HTTP/1.1 as the upload script speaks it: no HTTP/2 upgrade, which some servers and proxies refuse.
+        this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).version(HttpClient.Version.HTTP_1_1)
                 .followRedirects(HttpClient.Redirect.NEVER).proxy(ProxySelector.getDefault()).build();
     }
 
@@ -140,26 +141,27 @@ public final class Confluence {
     }
 
     /**
-     * The spaces the user can see, in the order Confluence gives them, and the user's own personal space last (not
-     * the personal spaces of everyone else, of which a company has thousands).
+     * The space of that key (as in its address, {@code /display/ARCH}), read alone: a company has too many spaces to
+     * list them all.
+     *
+     * @throws Failure if there is none, or the user may not see it
      */
-    public List<Space> spaces() throws IOException {
-        List<Space> spaces = new ArrayList<>();
-        for (Object s : all("/space?type=global")) {
-            spaces.add(new Space(Json.string(s, "key"), Json.string(s, "name")));
+    public Space space(String key) throws IOException {
+        String k = key == null ? "" : key.strip();
+        if (k.isEmpty()) {
+            throw new IllegalArgumentException("Give the key of the space, such as ARCH");
         }
-        String user = Json.string(get("/user/current"), "username");
-        if (user != null) {
-            try {
-                Object own = get("/space/" + encode("~" + user));
-                spaces.add(new Space(Json.string(own, "key"), Json.string(own, "name")));
-            } catch (Failure e) {
-                if (e.status != 404 && e.status != 403) {
-                    throw e;
-                }
+        try {
+            Object space = get("/space/" + encode(k));
+            return new Space(Json.string(space, "key"), Json.string(space, "name"));
+        } catch (Failure e) {
+            if (e.status == 404 || e.status == 403) {
+                throw new Failure(e.status, "Confluence has no space with the key " + k + " that this user may see. "
+                        + "The key is in the space's address, such as /display/" + k.toUpperCase(java.util.Locale.ROOT)
+                        + "/.");
             }
+            throw e;
         }
-        return spaces;
     }
 
     /** The pages at the top of a space. */
@@ -197,9 +199,9 @@ public final class Confluence {
             check(progress);
             String title = Json.string(entry, "title");
             List<?> found = Json.list(get("/content?type=page&spaceKey=" + encode(spaceKey) + "&title=" + encode(title)
-                    + "&expand=version,ancestors"), "results");
-            if (!found.isEmpty()) {
-                existing.put(title, found.get(0));
+                    + "&expand=version"), "results");
+            if (!found.isEmpty()) { // read again by its id: a search does not always give the ancestors
+                existing.put(title, get("/content/" + encode(Json.string(found.get(0), "id")) + "?expand=version,ancestors"));
             }
         }
         checkParent(parentId, existing);
@@ -215,7 +217,7 @@ public final class Confluence {
             String title = Json.string(entry, "title");
             String parent = Json.string(entry, "parent");
             Object page = existing.containsKey(title) ? existing.get(title)
-                    : create(spaceKey, title, parent == null ? parentId : ids.get(parent));
+                    : about(title, "creating", () -> create(spaceKey, title, parent == null ? parentId : ids.get(parent)));
             ids.put(title, Json.string(page, "id"));
             Object number = Json.at(page, "version", "number");
             versions.put(title, number instanceof Double ? ((Double) number).intValue() : 1);
@@ -226,13 +228,34 @@ public final class Confluence {
             progress.page(title);
             String id = ids.get(title);
             for (Object name : Json.list(entry, "attachments")) {
-                attach(id, folder.resolve("attachments").resolve(name.toString()));
+                Path file = folder.resolve("attachments").resolve(name.toString());
+                about(title, "attaching " + name, () -> {
+                    attach(id, file);
+                    return null;
+                });
             }
             String parent = Json.string(entry, "parent");
             String body = Files.readString(folder.resolve(Json.string(entry, "file")));
-            update(id, title, versions.get(title) + 1, body, parent == null ? parentId : ids.get(parent));
+            about(title, "writing", () -> {
+                update(id, title, versions.get(title) + 1, body, parent == null ? parentId : ids.get(parent));
+                return null;
+            });
         }
         return ids.get(Json.string(entries.get(0), "title"));
+    }
+
+    /** A step of the upload of a page. */
+    private interface Step {
+        Object run() throws IOException;
+    }
+
+    /** Runs the step, saying in a failure which page and step it was. */
+    private static Object about(String title, String doing, Step step) throws IOException {
+        try {
+            return step.run();
+        } catch (Failure e) {
+            throw new Failure(e.status, "The page \"" + title + "\" (" + doing + "): " + e.getMessage());
+        }
     }
 
     private static void check(Progress progress) {
@@ -315,11 +338,8 @@ public final class Confluence {
                 + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
         body.writeBytes(Files.readAllBytes(file));
         body.writeBytes(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
-        HttpRequest request = request(path + (existing.isEmpty() ? "" : "/" + encode(Json.string(existing.get(0), "id")) + "/data"))
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .header("X-Atlassian-Token", "nocheck")
-                .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build();
-        call(request);
+        call("POST", path + (existing.isEmpty() ? "" : "/" + encode(Json.string(existing.get(0), "id")) + "/data"),
+                "multipart/form-data; boundary=" + boundary, body.toByteArray());
     }
 
     private static List<Page> pages(List<Object> results) {
@@ -346,36 +366,55 @@ public final class Confluence {
     }
 
     private Object get(String path) throws IOException {
-        return call(request(path).GET().build());
+        return call("GET", path, null, null);
     }
 
     private Object send(String method, String path, String json) throws IOException {
-        return call(request(path).header("Content-Type", "application/json")
-                .method(method, HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8)).build());
+        return call(method, path, "application/json", json.getBytes(StandardCharsets.UTF_8));
     }
 
-    private HttpRequest.Builder request(String path) {
-        return HttpRequest.newBuilder(URI.create(url + "/rest/api" + path)).timeout(Duration.ofMinutes(2))
-                .header("Authorization", auth).header("Accept", "application/json");
-    }
-
-    private Object call(HttpRequest request) throws IOException {
+    /**
+     * Sends a request. A redirect is followed (keeping the method and the body) only to the same scheme, host and
+     * port as the address given, since the request carries the password.
+     *
+     * @param contentType of the body, null for none
+     */
+    private Object call(String method, String path, String contentType, byte[] content) throws IOException {
+        URI uri = URI.create(url + "/rest/api" + path);
+        HttpRequest request;
         HttpResponse<String> response;
-        try {
-            response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new CancellationException("The connection to Confluence was interrupted");
-        } catch (IOException e) {
-            throw new IOException("Confluence at " + url + " cannot be reached: " + e, e);
+        for (int redirects = 0;; redirects++) {
+            HttpRequest.Builder builder = HttpRequest.newBuilder(uri).timeout(Duration.ofMinutes(2))
+                    .header("Authorization", auth).header("Accept", "application/json")
+                    .method(method, content == null ? HttpRequest.BodyPublishers.noBody()
+                            : HttpRequest.BodyPublishers.ofByteArray(content));
+            if (contentType != null) {
+                builder.header("Content-Type", contentType).header("X-Atlassian-Token", "nocheck");
+            }
+            request = builder.build();
+            try {
+                response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new CancellationException("The connection to Confluence was interrupted");
+            } catch (IOException e) {
+                throw new IOException("Confluence at " + url + " cannot be reached: " + e, e);
+            }
+            int status = response.statusCode();
+            if (status < 300 || status >= 400 || status == 304) {
+                break;
+            }
+            String location = response.headers().firstValue("Location").orElse(null);
+            URI next = location == null ? null : uri.resolve(location);
+            if (next == null || !sameOrigin(next) || redirects >= 5) {
+                throw new Failure(status, "Confluence at " + url + " sends the request on to "
+                        + (location == null ? "another address" : location) + ". Give the address Confluence really has "
+                        + "(the password is never sent to another one).");
+            }
+            uri = next;
         }
         int status = response.statusCode();
         String body = response.body();
-        if (status >= 300 && status < 400) {
-            String location = response.headers().firstValue("Location").orElse("another address");
-            throw new Failure(status, "Confluence at " + url + " sends the request on to " + location + ". Give the "
-                    + "address Confluence really has (the password is never sent on to another one).");
-        }
         if (status >= 200 && status < 300) {
             try {
                 return body == null || body.isBlank() ? Map.of() : Json.parse(body);
@@ -408,6 +447,17 @@ public final class Confluence {
         String path = request.uri().getRawPath().replaceFirst("^.*?/rest/api", "");
         return (status == 404 ? "Not found in Confluence" : status == 403 ? "Confluence does not allow it"
                 : "Confluence answered " + status) + " (" + request.method() + " " + path + ")" + (said.isEmpty() ? "" : ": " + said);
+    }
+
+    /** Whether the address has the scheme, host and port of the address given. */
+    private boolean sameOrigin(URI other) {
+        URI base = URI.create(url);
+        return base.getScheme().equalsIgnoreCase(other.getScheme()) && other.getHost() != null
+                && base.getHost().equalsIgnoreCase(other.getHost()) && port(base) == port(other);
+    }
+
+    private static int port(URI uri) {
+        return uri.getPort() != -1 ? uri.getPort() : "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
     }
 
     private static String encode(String value) {

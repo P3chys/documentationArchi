@@ -53,6 +53,8 @@ class ConfluenceTest {
     private HttpServer server;
     private final Map<String, FakePage> pages = new LinkedHashMap<>();
     private final List<String> auth = new ArrayList<>();
+    /** How many page writes fail next. */
+    private int failWrites;
     private String url;
 
     @BeforeEach
@@ -94,8 +96,13 @@ class ConfluenceTest {
         } else if ((m = Pattern.compile("/content/(\\d+)/child/page").matcher(path)).matches()) {
             String id = m.group(1);
             reply(x, 200, list(p -> id.equals(p.parent)));
-        } else if (path.equals("/content") && method.equals("GET")) {
-            reply(x, 200, list(p -> p.title.equals(query.get("title"))));
+        } else if (path.equals("/content") && method.equals("GET")) { // a search: without the ancestors
+            List<String> found = new ArrayList<>();
+            pages.values().stream().filter(p -> p.title.equals(query.get("title"))).forEach(p -> found.add(
+                    "{\"id\": \"" + p.id + "\", \"title\": \"" + p.title + "\", \"version\": {\"number\": " + p.version + "}}"));
+            reply(x, 200, "{\"results\": [" + String.join(", ", found) + "]}");
+        } else if (path.equals("/space/ARCH")) {
+            reply(x, 200, "{\"key\": \"ARCH\", \"name\": \"Architecture\"}");
         } else if (path.equals("/content") && method.equals("POST")) {
             FakePage page = new FakePage(Integer.toString(100 + pages.size()), field(body, "title"), ancestor(body));
             pages.put(page.id, page);
@@ -103,6 +110,11 @@ class ConfluenceTest {
         } else if ((m = Pattern.compile("/content/(\\d+)").matcher(path)).matches() && method.equals("GET")) {
             reply(x, 200, json(pages.get(m.group(1))));
         } else if ((m = Pattern.compile("/content/(\\d+)").matcher(path)).matches() && method.equals("PUT")) {
+            if (failWrites > 0) {
+                failWrites--;
+                reply(x, 500, "{\"message\": \"Something broke\"}");
+                return;
+            }
             FakePage page = pages.get(m.group(1));
             page.title = field(body, "title");
             page.parent = ancestor(body);
@@ -170,12 +182,15 @@ class ConfluenceTest {
     }
 
     @Test
-    void listsTheSpacesPageByPageAndTheOwnPersonalSpace() throws Exception {
-        List<Confluence.Space> spaces = new Confluence(url, "adam", "secret").spaces();
+    void readsOnlyTheSpaceOfTheKeyGiven() throws Exception {
+        Confluence confluence = new Confluence(url, "adam", "secret");
 
-        assertThat(spaces).extracting(s -> s.key).containsExactly("ARCH", "DEV", "~adam");
+        assertThat(confluence.space(" ARCH ").name).isEqualTo("Architecture");
+        assertThat(auth).hasSize(1);
         assertThat(auth.get(0)).isEqualTo("Basic " + java.util.Base64.getEncoder()
                 .encodeToString("adam:secret".getBytes(StandardCharsets.UTF_8)));
+        assertThatThrownBy(() -> confluence.space("NOPE")).hasMessageContaining("no space with the key NOPE");
+        assertThatThrownBy(() -> confluence.space("")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -197,16 +212,45 @@ class ConfluenceTest {
     }
 
     @Test
-    void neverSendsThePasswordOnToWhereARedirectPoints() {
+    void neverSendsThePasswordOnToAnotherAddress() {
+        String elsewhere = url.replace("127.0.0.1", "localhost") + "rest/api/user/current"; // the same server, another host
         server.createContext("/moved", x -> {
-            x.getResponseHeaders().add("Location", url + "rest/api/user/current");
+            x.getResponseHeaders().add("Location", elsewhere);
             x.sendResponseHeaders(302, -1);
             x.close();
         });
 
         assertThatThrownBy(() -> new Confluence(url + "moved", "adam", "secret").currentUser())
-                .hasMessageContaining("sends the request on to " + url + "rest/api/user/current");
+                .hasMessageContaining("sends the request on to " + elsewhere);
         assertThat(auth).isEmpty(); // the address redirected to was never asked
+    }
+
+    @Test
+    void followsARedirectWithinTheAddressGiven() throws Exception {
+        server.createContext("/moved", x -> {
+            x.getResponseHeaders().add("Location", "/rest/api/user/current");
+            x.sendResponseHeaders(302, -1);
+            x.close();
+        });
+
+        assertThat(new Confluence(url + "moved", "adam", "secret").currentUser()).isEqualTo("Adam P");
+    }
+
+    @Test
+    void aFailedUploadCanBeDoneAgain(@TempDir Path dir) throws Exception {
+        Path export = export(dir);
+        Confluence confluence = new Confluence(url, "adam", "secret");
+        failWrites = 1;
+
+        assertThatThrownBy(() -> confluence.upload(export, "ARCH", "10", NEVER_TAKE_OVER))
+                .hasMessageContaining("The page \"Model\" (writing)").hasMessageContaining("Something broke");
+        int made = pages.size();
+
+        String top = confluence.upload(export, "ARCH", "10", NEVER_TAKE_OVER); // the half-made page is ours, not a stranger
+
+        assertThat(pages).hasSize(made); // the pages made the first time are used again
+        assertThat(pages.get(top).parent).isEqualTo("10");
+        assertThat(pages.get(top).version).isEqualTo(2);
     }
 
     @Test

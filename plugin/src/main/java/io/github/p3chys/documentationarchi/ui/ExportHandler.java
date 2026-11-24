@@ -36,6 +36,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 
 import com.archimatetool.model.IArchimateModel;
 
+import io.github.p3chys.documentationarchi.confluence.Confluence;
 import io.github.p3chys.documentationarchi.doc.Catalogs;
 import io.github.p3chys.documentationarchi.doc.DataIndex;
 import io.github.p3chys.documentationarchi.doc.Doc;
@@ -87,11 +88,21 @@ public class ExportHandler extends AbstractHandler {
         // a profile's output is the export folder itself, as on the command line
         Path folder = profile != null && profile.output != null ? Path.of(dialog.folder())
                 : Path.of(dialog.folder()).resolve(Doc.slug(chosen.title()));
+        Confluence confluence = null;
+        if (dialog.upload() != null) {
+            try {
+                confluence = Prefs.confluence(); // here: the secure storage may ask the user something
+            } catch (IllegalArgumentException e) {
+                MessageDialog.openError(shell, "Export Documentation", e.getMessage());
+                return;
+            }
+        }
         if (!orderConfirmed(shell, chosen) || notEmpty(folder) && !MessageDialog.openQuestion(shell,
                 "Export Documentation", folder + " already exists. Replace the files in it?")) {
             return;
         }
-        start(Display.getCurrent(), chosen, folder, dialog.formats(), dialog.publish(), profile);
+        start(Display.getCurrent(), chosen, folder, dialog.formats(), dialog.publish(), profile, confluence,
+                dialog.upload());
     }
 
     /** Runs a profile of the model's rules without asking; what it does not set comes from the preferences. */
@@ -111,7 +122,7 @@ public class ExportHandler extends AbstractHandler {
             return;
         }
         start(Display.getCurrent(), selection, folder, Profiles.formats(profile, Prefs.formats()), profile.publish,
-                profile);
+                profile, null, null);
     }
 
     /**
@@ -173,14 +184,31 @@ public class ExportHandler extends AbstractHandler {
         }
     }
 
+    /** What became of the upload to Confluence. */
+    private static final class Upload {
+        final ConfluenceTarget target;
+        /** The address of the first page uploaded, null if the upload failed. */
+        String url;
+        /** What went wrong, null if nothing did. */
+        String error;
+
+        Upload(ConfluenceTarget target) {
+            this.target = target;
+        }
+    }
+
+    /** @param confluence where to upload the export's Confluence pages to, null for no upload */
     private static void start(Display display, ModelReader.Selection selection, Path folder, Set<Format> formats,
-            boolean publish, ExportProfile profile) {
+            boolean publish, ExportProfile profile, Confluence confluence, ConfluenceTarget target) {
         Job job = new Job("Exporting documentation") {
             @Override
             protected IStatus run(IProgressMonitor monitor) {
                 try {
-                    Result result = exportAll(selection, folder, formats, null, monitor, publish, profile);
-                    display.asyncExec(() -> finished(display, folder, result, publish));
+                    SubMonitor progress = SubMonitor.convert(monitor, confluence == null ? 1 : 2);
+                    Result result = exportAll(selection, folder, formats, null, progress.split(1), publish, profile);
+                    Upload upload = confluence == null ? null
+                            : upload(display, confluence, target, folder.resolve("confluence"), progress.newChild(1)); // a cancel now still reports the export
+                    display.asyncExec(() -> finished(display, folder, result, publish, upload));
                     return Status.OK_STATUS;
                 } catch (CancellationException | OperationCanceledException e) { // the previous export is as it was
                     return Status.CANCEL_STATUS;
@@ -309,6 +337,11 @@ public class ExportHandler extends AbstractHandler {
         }
         Exporter exporter = new Exporter(generatedDoc, rules).version(selection.model.getName(),
                 selection.model.getFile() == null ? null : selection.model.getFile().toPath(), LocalDateTime.now());
+        // a folder named after what is exported gets a PDF of that name too; a folder given as such (a profile's
+        // output, the command line's) keeps the document's, so a renamed view does not leave an old PDF behind there
+        if (folder.getFileName() != null && folder.getFileName().toString().equals(Doc.slug(selection.title()))) {
+            exporter.name(selection.title());
+        }
         exporter.export(folder, formats, new Exporter.Progress() {
             @Override
             public void step(String task) {
@@ -345,6 +378,52 @@ public class ExportHandler extends AbstractHandler {
         }
     }
 
+    /** Uploads the written Confluence pages; a failure is told with the export's result, which stays. */
+    private static Upload upload(Display display, Confluence confluence, ConfluenceTarget target, Path pages,
+            IProgressMonitor monitor) {
+        Upload upload = new Upload(target);
+        SubMonitor progress = SubMonitor.convert(monitor, "Uploading to Confluence", 100);
+        boolean[] declined = { false };
+        try {
+            String top = confluence.upload(pages, target.spaceKey, target.pageId, new Confluence.Progress() {
+                @Override
+                public void page(String title) {
+                    progress.subTask("Uploading " + title);
+                    progress.setWorkRemaining(100);
+                    progress.worked(1);
+                }
+
+                @Override
+                public boolean cancelled() {
+                    return progress.isCanceled();
+                }
+
+                @Override
+                public boolean takeOver(List<String> found) {
+                    boolean[] yes = { false };
+                    display.syncExec(() -> yes[0] = MessageDialog.openQuestion(display.getActiveShell(),
+                            "Upload to Confluence", "The space already has pages with titles of this export, elsewhere "
+                                    + "than under " + target.path + ":\n\n"
+                                    + found.stream().limit(MAX_PROBLEMS).collect(Collectors.joining("\n"))
+                                    + (found.size() > MAX_PROBLEMS ? "\n... and " + (found.size() - MAX_PROBLEMS) + " more" : "")
+                                    + "\n\nReplace their content with the export's and move them under " + target.path
+                                    + "? Confluence keeps their earlier versions. No uploads nothing."));
+                    declined[0] = !yes[0];
+                    return yes[0];
+                }
+            });
+            upload.url = confluence.pageUrl(top);
+        } catch (CancellationException e) {
+            upload.error = declined[0] ? "Nothing was uploaded, so that the pages of the same titles elsewhere in the "
+                    + "space stay as they are."
+                    : "The upload was cancelled; the pages uploaded before stay in Confluence.";
+        } catch (IOException | RuntimeException e) {
+            Activator.log("The upload to Confluence failed", e);
+            upload.error = e.getMessage() != null ? e.getMessage() : e.toString();
+        }
+        return upload;
+    }
+
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private static void check(IProgressMonitor monitor) {
@@ -353,7 +432,7 @@ public class ExportHandler extends AbstractHandler {
         }
     }
 
-    private static void finished(Display display, Path folder, Result result, boolean published) {
+    private static void finished(Display display, Path folder, Result result, boolean published, Upload upload) {
         List<String> problems = result.problems;
         String message = "Exported to " + folder + (published ? "\n\nNoted as published in " + Published.FILE
                 + " next to the model file. Share that file with the model so your colleagues' marks follow." : "");
@@ -368,10 +447,22 @@ public class ExportHandler extends AbstractHandler {
                     + problems.stream().limit(MAX_PROBLEMS).map(p -> "- " + p).collect(Collectors.joining("\n"))
                     + (problems.size() > MAX_PROBLEMS ? "\n... and " + (problems.size() - MAX_PROBLEMS) + " more" : "");
         }
+        boolean uploaded = upload != null && upload.error == null;
+        if (upload != null) {
+            message += uploaded ? "\n\nUploaded to Confluence under " + upload.target.path + ":\n" + upload.url
+                    : "\n\nThe upload to Confluence under " + upload.target.path + " failed: " + upload.error;
+        }
+        List<String> buttons = new ArrayList<>(List.of("Open Folder", "Close"));
+        if (uploaded) {
+            buttons.add(0, "Open in Confluence");
+        }
         MessageDialog dialog = new MessageDialog(display.getActiveShell(), "Export Documentation", null, message,
-                problems.isEmpty() ? MessageDialog.INFORMATION : MessageDialog.WARNING,
-                new String[] { "Open Folder", "Close" }, 0);
-        if (dialog.open() == 0) {
+                problems.isEmpty() && (upload == null || uploaded) ? MessageDialog.INFORMATION : MessageDialog.WARNING,
+                buttons.toArray(new String[0]), 0);
+        int pressed = dialog.open();
+        if (uploaded && pressed == 0) {
+            Program.launch(upload.url);
+        } else if (pressed == (uploaded ? 1 : 0)) {
             Program.launch(folder.toString());
         }
     }

@@ -1,6 +1,7 @@
 package io.github.p3chys.documentationarchi.ui;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -11,7 +12,9 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.dialogs.ProgressMonitorDialog;
 import org.eclipse.jface.layout.GridDataFactory;
 import org.eclipse.jface.layout.GridLayoutFactory;
 import org.eclipse.jface.preference.PreferencePage;
@@ -28,6 +31,7 @@ import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.SWT;
+
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.layout.GridData;
@@ -48,6 +52,7 @@ import org.eclipse.ui.dialogs.ElementListSelectionDialog;
 import com.archimatetool.editor.model.IEditorModelManager;
 import com.archimatetool.model.IArchimateModel;
 
+import io.github.p3chys.documentationarchi.confluence.Confluence;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 import io.github.p3chys.documentationarchi.text.KeywordRules.Kind;
 import io.github.p3chys.documentationarchi.text.KeywordRules.Rule;
@@ -63,6 +68,8 @@ import io.github.p3chys.documentationarchi.text.Texts;
 public class DocumentationPreferencePage extends PreferencePage implements IWorkbenchPreferencePage {
 
     static final String ID = "io.github.p3chys.documentationarchi.prefs";
+    /** The data that opens the page on the Confluence tab, see {@link #applyData(Object)}. */
+    static final String CONFLUENCE_TAB = "confluence";
 
     private final List<Rule> keywords = new ArrayList<>();
     /** Rules about the export rather than looks (exclusions...): not listed, but kept; "Edit as Text..." shows them. */
@@ -90,6 +97,13 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     private Button htmlSingleFile;
     private Text hidden;
     private Text excluded;
+    private TabFolder tabs;
+    private TabItem confluenceTab;
+    private boolean showConfluence;
+    private Text confluenceUrl;
+    private Text confluenceUser;
+    private Text confluencePassword;
+    private Label confluenceTarget;
     /** True while the General tab is filled from the rules, which is no change by the user. */
     private boolean showing;
     /** False until the list is changed: saved rules that could not be loaded are not overwritten by an empty list. */
@@ -98,7 +112,8 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     @Override
     public void init(IWorkbench workbench) {
         setDescription("The documentation export (HTML, PDF and Confluence). General: where links go and what the "
-                + "output holds. Formatting: how the parts of the pages and keywords in descriptions look.");
+                + "output holds. Formatting: how the parts of the pages and keywords in descriptions look. "
+                + "Confluence: where to upload and who signs in.");
     }
 
     @Override
@@ -107,7 +122,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         GridLayoutFactory.fillDefaults().numColumns(3).applyTo(c);
         resources = new LocalResourceManager(JFaceResources.getResources(), c);
 
-        TabFolder tabs = new TabFolder(c, SWT.TOP);
+        tabs = new TabFolder(c, SWT.TOP);
         GridDataFactory.fillDefaults().span(3, 1).grab(true, true).applyTo(tabs);
         TabItem generalTab = new TabItem(tabs, SWT.NONE);
         generalTab.setText("&General");
@@ -115,6 +130,12 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         TabItem formattingTab = new TabItem(tabs, SWT.NONE);
         formattingTab.setText("&Formatting");
         formattingTab.setControl(formatting(tabs));
+        confluenceTab = new TabItem(tabs, SWT.NONE);
+        confluenceTab.setText("&Confluence");
+        confluenceTab.setControl(confluence(tabs));
+        if (showConfluence) {
+            tabs.setSelection(confluenceTab);
+        }
 
         projectLine = new Label(c, SWT.WRAP);
         GridDataFactory.fillDefaults().grab(true, false).hint(420, SWT.DEFAULT).applyTo(projectLine);
@@ -192,6 +213,89 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         ((GridData) ignoreLayout.getLayoutData()).horizontalIndent = 16;
         marks.addListener(SWT.Selection, e -> ignoreLayout.setEnabled(marks.getSelection()));
         return c;
+    }
+
+    /** The Confluence tab: where Confluence is and who signs in, this computer's own settings. */
+    private Control confluence(Composite parent) {
+        Composite c = new Composite(parent, SWT.NONE);
+        GridLayoutFactory.swtDefaults().applyTo(c);
+
+        Group connection = group(c, "Connection");
+        confluenceUrl = plainField(connection, "Add&ress:", "https://confluence.example.com", SWT.NONE);
+        confluenceUser = plainField(connection, "&User name:", "", SWT.NONE);
+        confluencePassword = plainField(connection, "Pass&word:", "", SWT.PASSWORD);
+        confluenceUrl.setText(Prefs.confluenceUrl());
+        confluenceUser.setText(Prefs.confluenceUser());
+        confluencePassword.setText(Secrets.confluencePassword());
+        new Label(connection, SWT.NONE);
+        hint(connection, "Confluence Data Center or Server. With the user name empty, the password is a personal "
+                + "access token. The password is kept in Eclipse's secure storage, not with the other settings.");
+        new Label(connection, SWT.NONE);
+        GridDataFactory.swtDefaults().applyTo(button(connection, "Te&st Connection", this::testConfluence));
+
+        Group upload = group(c, "Upload");
+        new Label(upload, SWT.NONE).setText("Goes under:");
+        confluenceTarget = new Label(upload, SWT.WRAP);
+        GridDataFactory.fillDefaults().grab(true, false).hint(360, SWT.DEFAULT).applyTo(confluenceTarget);
+        showConfluenceTarget();
+        new Label(upload, SWT.NONE);
+        hint(upload, "The export dialog uploads the Confluence pages when \"Upload to Confluence\" is ticked, and "
+                + "shows the spaces and pages to choose from. Page titles are the names of the views and elements.");
+        return c;
+    }
+
+    private Text plainField(Composite parent, String label, String example, int style) {
+        new Label(parent, SWT.NONE).setText(label);
+        Text text = new Text(parent, SWT.BORDER | style);
+        text.setMessage(example);
+        GridDataFactory.fillDefaults().grab(true, false).hint(360, SWT.DEFAULT).applyTo(text);
+        return text;
+    }
+
+    private void showConfluenceTarget() {
+        ConfluenceTarget target = Prefs.confluenceTarget();
+        confluenceTarget.setText(target == null ? "(chosen in the export dialog)" : target.path);
+    }
+
+    /** Signs in with what the fields say, without keeping it. */
+    private void testConfluence() {
+        String[] result = new String[1];
+        boolean[] ok = { false };
+        String url = confluenceUrl.getText();
+        String user = confluenceUser.getText();
+        String password = confluencePassword.getText();
+        try { // in the background, so that a slow or unreachable Confluence never freezes Archi
+            new ProgressMonitorDialog(getShell()).run(true, false, monitor -> {
+                monitor.beginTask("Signing in to Confluence", IProgressMonitor.UNKNOWN);
+                try {
+                    Confluence confluence = new Confluence(url, user, password);
+                    String name = confluence.currentUser();
+                    int spaces = confluence.spaces().size();
+                    result[0] = "Signed in to " + confluence.url() + " as " + name + ", who sees " + spaces + " space(s).";
+                    ok[0] = true;
+                } catch (IOException | RuntimeException e) {
+                    result[0] = e.getMessage() != null ? e.getMessage() : e.toString();
+                } finally {
+                    monitor.done();
+                }
+            });
+        } catch (InvocationTargetException | InterruptedException e) {
+            result[0] = e.toString();
+        }
+        if (ok[0]) {
+            MessageDialog.openInformation(getShell(), "Confluence", result[0]);
+        } else {
+            MessageDialog.openError(getShell(), "Confluence", result[0]);
+        }
+    }
+
+    /** {@link #CONFLUENCE_TAB} opens the page on the Confluence tab. */
+    @Override
+    public void applyData(Object data) {
+        showConfluence = CONFLUENCE_TAB.equals(data);
+        if (showConfluence && tabs != null && !tabs.isDisposed()) {
+            tabs.setSelection(confluenceTab);
+        }
     }
 
     /** The Formatting tab: the page parts and keywords, and how each looks. */
@@ -626,6 +730,12 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         }
         if (changed) {
             Prefs.keywords(all().format());
+        }
+        Prefs.confluence(confluenceUrl.getText(), confluenceUser.getText());
+        if (!confluencePassword.getText().equals(Secrets.confluencePassword())
+                && !Secrets.confluencePassword(confluencePassword.getText())) {
+            MessageDialog.openWarning(getShell(), "Confluence", "There is no secure storage to keep the Confluence "
+                    + "password in, so it is kept only until Archi closes.");
         }
         Prefs.showViews(showViews.getSelection());
         Prefs.showWorkPackages(showWorkPackages.getSelection());

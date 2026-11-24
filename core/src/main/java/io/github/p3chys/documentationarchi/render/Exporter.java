@@ -52,7 +52,7 @@ import io.github.p3chys.documentationarchi.text.KeywordRules;
  * Writes a {@link Doc} to a folder:
  * <pre>
  * html/index.html, html/&lt;view&gt;.html, html/elements_a-z.html, html/elements_by-type.html, html/search.js, html/nav.js, html/images/, html/assets/, html/style.css
- * &lt;title&gt;.pdf, assets/ (the files the PDF links to)
+ * &lt;name&gt;.pdf, assets/ (the files the PDF links to)
  * confluence/pages/&lt;view&gt;.xml, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
  * </pre>
  * Each output carries its own copy of the assets it uses, so the export folder can be moved or sent without losing
@@ -69,10 +69,18 @@ public final class Exporter {
     private final Doc doc;
     private final KeywordRules rules;
     private String version;
+    private String name;
 
     public Exporter(Doc doc, KeywordRules rules) {
         this.doc = doc;
         this.rules = rules;
+        this.name = doc.title;
+    }
+
+    /** Names the PDF file after what is exported (a view, an element...) rather than the document's title. */
+    public Exporter name(String name) {
+        this.name = name;
+        return this;
     }
 
     /**
@@ -121,7 +129,7 @@ public final class Exporter {
      */
     public void export(Path folder, Set<Format> formats, Progress progress) throws IOException {
         Files.createDirectories(folder);
-        Path pdf = folder.resolve(Doc.slug(doc.title) + ".pdf");
+        Path pdf = folder.resolve(Doc.slug(name) + ".pdf");
         Path assets = folder.resolve("assets");
         List<Path> targets = new ArrayList<>();
         if (formats.contains(Format.HTML)) {
@@ -584,10 +592,12 @@ public final class Exporter {
         return null;
     }
 
-    /** Page titles are unique per Confluence space, ignoring case, so the model name goes in front of each view's. */
-    private String confluenceTitle(String name, Set<String> taken) {
-        String title = name.equals(doc.title) ? name : doc.title + " - " + name;
-        title = title.length() > MAX_TITLE ? title.substring(0, MAX_TITLE) : title;
+    /**
+     * A page is titled as the view, element or folder it is for. Titles are unique per Confluence space, ignoring
+     * case: two pages of the export with the same title get " (2)" and on.
+     */
+    private static String confluenceTitle(String name, Set<String> taken) {
+        String title = name.length() > MAX_TITLE ? name.substring(0, MAX_TITLE) : name;
         String candidate = title;
         for (int i = 2; !taken.add(candidate.toLowerCase(Locale.ROOT)); i++) {
             candidate = title + " (" + i + ")";

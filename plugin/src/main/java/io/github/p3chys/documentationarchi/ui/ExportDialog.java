@@ -43,6 +43,11 @@ final class ExportDialog extends Dialog {
     private Button browse;
     private ExportProfile profile;
     private boolean broken;
+    private Button uploadButton;
+    private Label uploadTarget;
+    private Button chooseTarget;
+    private ConfluenceTarget target = Prefs.confluenceTarget();
+    private ConfluenceTarget upload;
 
     /**
      * @param canPublish the model has a file, next to which what is published can be noted
@@ -103,6 +108,7 @@ final class ExportDialog extends Dialog {
         format(c, Format.HTML, "HTML pages", selected);
         format(c, Format.PDF, "PDF document", selected);
         format(c, Format.CONFLUENCE, "Confluence pages (storage format, with an upload script)", selected);
+        uploadRow(c);
 
         // never remembered: publishing is a decision each time
         publishButton = new Button(c, SWT.CHECK);
@@ -161,8 +167,63 @@ final class ExportDialog extends Dialog {
         browse.setEnabled(!fixedFolder);
         formatButtons.values().forEach(b -> b.setEnabled(chosen == null || chosen.formats.isEmpty()));
         publishButton.setEnabled(canPublish && (chosen == null || !chosen.publish));
+        updateUpload();
         label.getParent().layout();
         updateOk();
+    }
+
+    /** Under the Confluence format: upload its pages, under the page chosen (never remembered, as publishing). */
+    private void uploadRow(Composite c) {
+        uploadButton = new Button(c, SWT.CHECK);
+        uploadButton.setText("&Upload to Confluence under:");
+        uploadButton.setToolTipText("Uploads the Confluence pages after the export, with the address, user name and "
+                + "password of Preferences > Documentation Export > Confluence. Pages already there with the same titles "
+                + "get a new version.");
+        GridDataFactory.fillDefaults().indent(20, 0).applyTo(uploadButton);
+        uploadTarget = new Label(c, SWT.NONE);
+        GridDataFactory.fillDefaults().grab(true, false).align(SWT.FILL, SWT.CENTER).hint(240, SWT.DEFAULT) // a long path stays in the tooltip
+                .applyTo(uploadTarget);
+        chooseTarget = new Button(c, SWT.PUSH);
+        chooseTarget.setText("C&hoose...");
+        chooseTarget.addListener(SWT.Selection, e -> {
+            if (chooseTarget()) {
+                uploadButton.setSelection(true);
+            }
+        });
+        uploadButton.addListener(SWT.Selection, e -> {
+            if (uploadButton.getSelection() && target == null && !chooseTarget()) {
+                uploadButton.setSelection(false);
+            }
+        });
+        formatButtons.get(Format.CONFLUENCE).addListener(SWT.Selection, e -> updateUpload());
+        showTarget();
+        updateUpload();
+    }
+
+    /** @return whether a place was chosen */
+    private boolean chooseTarget() {
+        ConfluenceParentDialog dialog = new ConfluenceParentDialog(getShell());
+        if (dialog.open() != OK) {
+            return false;
+        }
+        target = dialog.target();
+        showTarget();
+        return true;
+    }
+
+    private void showTarget() {
+        uploadTarget.setText(target == null ? "(choose a page)" : target.path);
+        uploadTarget.setToolTipText(target == null ? null : target.path);
+        uploadTarget.getParent().layout();
+    }
+
+    private void updateUpload() {
+        boolean confluence = formatButtons.get(Format.CONFLUENCE).getSelection();
+        uploadButton.setEnabled(confluence); // also when a profile locks the format: uploading is still a choice
+        chooseTarget.setEnabled(confluence);
+        if (!confluence) {
+            uploadButton.setSelection(false);
+        }
     }
 
     private static List<String> scope(ExportProfile p) {
@@ -202,6 +263,7 @@ final class ExportDialog extends Dialog {
             }
         });
         publish = publishButton.getSelection();
+        upload = uploadButton.getSelection() && formats.contains(Format.CONFLUENCE) ? target : null;
         if (profile == null) { // a profile's values are not what the next export starts with
             Prefs.folder(folder);
             Prefs.formats(formats);
@@ -224,5 +286,10 @@ final class ExportDialog extends Dialog {
 
     boolean publish() {
         return publish;
+    }
+
+    /** Where in Confluence to upload the export, null for no upload. */
+    ConfluenceTarget upload() {
+        return upload;
     }
 }

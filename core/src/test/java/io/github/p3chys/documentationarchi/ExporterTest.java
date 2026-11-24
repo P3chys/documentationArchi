@@ -116,7 +116,7 @@ class ExporterTest {
 
         String view1 = Files.readString(folder.resolve("confluence/pages/prehled-souhrn.xml"));
         assertThat(view1)
-                .contains("<ac:link ac:anchor=\"e-e2\"><ri:page ri:content-title=\"Žluťoučký model - Přehled\"/>"
+                .contains("<ac:link ac:anchor=\"e-e2\"><ri:page ri:content-title=\"Přehled\"/>"
                         + "<ac:link-body>Portal</ac:link-body></ac:link>")
                 .contains("<ac:structured-macro ac:name=\"anchor\"><ac:parameter ac:name=\"\">e-e1</ac:parameter>")
                 .contains("<ac:structured-macro ac:name=\"warning\"><ac:parameter ac:name=\"title\">WARNING</ac:parameter>"
@@ -130,7 +130,7 @@ class ExporterTest {
         assertThat(folder.resolve("confluence/upload_to_confluence.py")).exists();
         assertThat(Files.readString(folder.resolve("confluence/manifest.json")))
                 .contains("{\"title\": \"Žluťoučký model\", \"parent\": null, \"file\": \"pages/index.xml\", \"attachments\": []}")
-                .contains("{\"title\": \"Žluťoučký model - Přehled & <souhrn>\", \"parent\": \"Žluťoučký model\", "
+                .contains("{\"title\": \"Přehled & <souhrn>\", \"parent\": \"Žluťoučký model\", "
                         + "\"file\": \"pages/prehled-souhrn.xml\", \"attachments\": [\"prehled-souhrn.png\"]}");
     }
 
@@ -145,7 +145,7 @@ class ExporterTest {
 
         assertThat(Files.readString(folder.resolve("confluence/pages/index.xml")))
                 .contains("<ac:link ac:anchor=\"e-b\"><ac:link-body>B</ac:link-body></ac:link>");
-        assertThat(Files.readString(folder.resolve("confluence/manifest.json"))).contains("\"title\": \"Model - View\"");
+        assertThat(Files.readString(folder.resolve("confluence/manifest.json"))).contains("\"title\": \"View\"").doesNotContain("Model - ");
     }
 
     @Test
@@ -155,7 +155,7 @@ class ExporterTest {
         export(Format.CONFLUENCE);
 
         assertThat(Files.readString(folder.resolve("confluence/manifest.json")))
-                .contains("\"title\": \"M - View\"").contains("\"title\": \"M - VIEW (2)\"");
+                .contains("\"title\": \"View\"").contains("\"title\": \"VIEW (2)\"");
         assertThat(folder.resolve("confluence/pages/view.xml")).exists();
         assertThat(folder.resolve("confluence/pages/view-2.xml")).exists();
     }

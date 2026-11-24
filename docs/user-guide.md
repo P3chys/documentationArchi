@@ -38,7 +38,7 @@ Every right-click command is in the **Documentation** submenu of the context men
 
 | Function | Where | What it takes | What it gives |
 |----------|-------|---------------|---------------|
-| [Export Documentation...](#5-export-documentation) | Right-click in the Models tree or in a view | A model, folder, views, elements, relationships or work packages; a target folder; the formats | HTML pages, a PDF and Confluence pages in a folder named after the model |
+| [Export Documentation...](#5-export-documentation) | Right-click in the Models tree or in a view | A model, folder, views, elements, relationships or work packages; a target folder; the formats | HTML pages, a PDF and Confluence pages in a folder named after what is exported, optionally uploaded to Confluence |
 | [Print Order...](#7-print-order) | Right-click a view (tree or view editor) | A view | The order in which the export describes the view's elements, saved in the model |
 | [Work Packages...](#8-work-packages-jira-tickets) | Right-click anything in a model | A model; selected elements to link | All work packages, what they change and what isn't exported yet; ticks link the selected elements |
 | [Insert Reference...](#10-formatting-descriptions) | Right-click one object | One element, relationship, view, note or the model; the element or view to refer to | A `[[ref:id]]` link at the end of the description, showing the target's current name |
@@ -146,8 +146,9 @@ Produces the documentation of whatever you right-clicked.
 
 **What it gives**
 
-- A folder named after the model (or the work package) inside the target folder, holding the HTML pages, the PDF
-  and the Confluence pages.
+- A folder named after what is exported (the model, the work package, the view, the element or the folder) inside
+  the target folder, holding the HTML pages, the PDF and the Confluence pages; and, if you ask, the pages uploaded
+  to Confluence.
 
 ### What gets exported
 
@@ -170,9 +171,13 @@ What you right-click decides the content:
 - The first line says what will be exported, for example *Whole model "Online Insurance"* or *2 view(s) and
   3 element(s) of "Online Insurance"*.
 - **Folder** – where the export goes; **Browse...** picks it. The export itself goes into a subfolder named after
-  the model, for example `online-insurance`.
+  what is exported: the model (`online-insurance`), the work package, the view (`sales-overview`), the element or
+  the folder; several views or elements give the first three names and "and 2 more". The PDF has the same name, so
+  exporting one view never replaces the export of another.
 - **HTML pages**, **PDF document**, **Confluence pages** – the formats. **Export** stays disabled until at least one
   is ticked.
+- **Upload to Confluence under:** – with **Confluence pages** ticked, uploads them after the export, under the page
+  that **Choose...** picks; see [Publishing to Confluence](#13-publishing-to-confluence).
 
 The folder and the formats are remembered for the next export. If the subfolder already holds files, you're asked
 before they are replaced.
@@ -667,7 +672,9 @@ is exported as shown in [Element descriptions](#element-descriptions).
 ## 11. Documentation Formatting (changing the look)
 
 **Where:** **Tools > Documentation > Settings...**, **Documentation > Settings...** in any context menu, or
-**Preferences > Documentation Export** (the same page). It has two tabs, **General** and **Formatting**.
+**Preferences > Documentation Export** (the same page). It has three tabs, **General**, **Formatting** and
+**Confluence** (the address, user name and password for uploading, see
+[Publishing to Confluence](#13-publishing-to-confluence)).
 
 **What it gives:** the settings of every later export, in all three formats. They are kept in Archi's preferences on
 your computer, not in the model – **Save as Project Rules...** at the bottom writes them next to a model so everyone
@@ -947,14 +954,33 @@ can't pull other files from your computer into an export.
 ## 13. Publishing to Confluence
 
 The Confluence export contains ready-made pages in Confluence's storage format – links, panels, labels, code blocks,
-pictures and assets as attachments – plus a script that uploads them to **Confluence Data Center / Server**.
+pictures and assets as attachments. The plugin uploads them to **Confluence Data Center / Server** itself; a script
+that does the same comes with the export, for pipelines.
 
-**What it takes:** Python 3.8+, the Confluence URL, a space key and a personal access token (or user name and
-password).
+**What it takes:** the Confluence address, and a user name and password (or a personal access token).
 
 **What it gives:** one Confluence page per exported page, with its attachments. When the overview lists the views
 under their folders, each folder gets a page too, with its description and links to what is in it, and the pages go
 under it, so the uploaded pages form the same tree as the folders.
+
+### Upload from Archi
+
+1. **Preferences > Documentation Export**, tab **Confluence**: the **Address** (`https://confluence.example.com`),
+   your **User name** and **Password**. Leave the user name empty to give a personal access token as the password.
+   **Test Connection** signs in and says how many spaces you see. The password is kept in Eclipse's secure storage,
+   never with the other settings or in the model.
+2. In the export dialog, tick **Confluence pages**, then **Upload to Confluence under:**. The first time, a window
+   shows the spaces you can see; expand one to see its pages, and the pages under them as you go (they are read from
+   Confluence as you open them). **Filter spaces** narrows the list by name or key. Choose a page to put the export
+   under, or a space to put it at its top, then **Choose**. **Connection...** opens the settings of step 1.
+3. **Export**. The pages are uploaded when the files are written; the Progress view shows which. The message at the
+   end gives the address of the first page and **Open in Confluence**. If the upload fails, the export is still on
+   disk and the message says what Confluence answered.
+
+The place you chose is remembered for the next export (**Choose...** changes it); the tick is not, so each upload is
+a decision.
+
+### Upload with the script
 
 ```bash
 CONFLUENCE_TOKEN=<personal access token> python online-insurance/confluence/upload_to_confluence.py \
@@ -970,7 +996,10 @@ CONFLUENCE_TOKEN=<personal access token> python online-insurance/confluence/uplo
 | `CONFLUENCE_USER`, `CONFLUENCE_PASSWORD` | used when there is no token |
 
 Pages are matched by title, and existing ones get a new version, so you can upload the same export again after
-changes. Page titles start with the model name, because Confluence titles must be unique in a space.
+changes. A page has the title of its view, element or folder, without the model name: the view *[microservice]
+Hello* becomes the page *[microservice] Hello*. Titles are unique in a Confluence space, so a page with that title
+already in the space is the one updated (and moved under the chosen page); two pages of one export with the same
+title get " (2)".
 
 The pictures of views are plain pictures in Confluence: clicking an element in them leads nowhere, unlike in the HTML
 pages and the PDF.

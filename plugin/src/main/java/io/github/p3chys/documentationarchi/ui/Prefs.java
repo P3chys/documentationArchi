@@ -6,6 +6,7 @@ import java.util.Set;
 
 import org.eclipse.jface.preference.IPreferenceStore;
 
+import io.github.p3chys.documentationarchi.confluence.Confluence;
 import io.github.p3chys.documentationarchi.render.Exporter.Format;
 import io.github.p3chys.documentationarchi.text.KeywordRules;
 
@@ -19,6 +20,11 @@ final class Prefs {
     private static final String IGNORE_LAYOUT = "marks.ignoreLayout";
     private static final String SHOW_VIEWS = "entry.views";
     private static final String SHOW_WORK_PACKAGES = "entry.workPackages";
+    private static final String CONFLUENCE_URL = "confluence.url";
+    private static final String CONFLUENCE_USER = "confluence.user";
+    private static final String CONFLUENCE_SPACE = "confluence.space";
+    private static final String CONFLUENCE_PARENT = "confluence.parent";
+    private static final String CONFLUENCE_PATH = "confluence.path";
 
     private Prefs() {
     }
@@ -128,5 +134,49 @@ final class Prefs {
         for (Format format : Format.values()) {
             store().setValue(FORMAT + format.name().toLowerCase(Locale.ROOT), formats.contains(format));
         }
+    }
+
+    /** The address of Confluence, such as https://confluence.example.com; empty if not set up. */
+    static String confluenceUrl() {
+        return store().getString(CONFLUENCE_URL);
+    }
+
+    /** The user name for Confluence; empty: the password is a personal access token. */
+    static String confluenceUser() {
+        return store().getString(CONFLUENCE_USER);
+    }
+
+    static void confluence(String url, String user) {
+        store().setValue(CONFLUENCE_URL, url.strip());
+        store().setValue(CONFLUENCE_USER, user.strip());
+    }
+
+    /**
+     * Confluence as set up in the preferences, with the password from the secure storage.
+     *
+     * @throws IllegalArgumentException if something is missing, saying what
+     */
+    static Confluence confluence() {
+        if (confluenceUrl().isBlank()) {
+            throw new IllegalArgumentException("Confluence is not set up yet: give its address, user name and password "
+                    + "in Preferences > Documentation Export > Confluence.");
+        }
+        return new Confluence(confluenceUrl(), confluenceUser(), Secrets.confluencePassword());
+    }
+
+    /** Where in Confluence the last upload went, null for nowhere yet. */
+    static ConfluenceTarget confluenceTarget() {
+        String space = store().getString(CONFLUENCE_SPACE);
+        if (space.isEmpty()) {
+            return null;
+        }
+        String parent = store().getString(CONFLUENCE_PARENT);
+        return new ConfluenceTarget(space, parent.isEmpty() ? null : parent, store().getString(CONFLUENCE_PATH));
+    }
+
+    static void confluenceTarget(ConfluenceTarget target) {
+        store().setValue(CONFLUENCE_SPACE, target.spaceKey);
+        store().setValue(CONFLUENCE_PARENT, target.pageId == null ? "" : target.pageId);
+        store().setValue(CONFLUENCE_PATH, target.path);
     }
 }

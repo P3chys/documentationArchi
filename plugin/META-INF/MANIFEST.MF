@@ -15,5 +15,6 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.gef,
  com.archimatetool.model,
  com.archimatetool.editor,
- com.archimatetool.commandline;resolution:=optional
+ com.archimatetool.commandline;resolution:=optional,
+ org.eclipse.equinox.security;resolution:=optional
 DynamicImport-Package: javax.*,org.w3c.*,org.xml.*

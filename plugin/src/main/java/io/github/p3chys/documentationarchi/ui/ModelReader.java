@@ -147,20 +147,44 @@ final class ModelReader {
         final Set<Object> exempt = new LinkedHashSet<>();
         /** The whole model or a folder: the views' pages go under their folders. */
         boolean folders;
+        /** The names of what the user selected (views, elements, folders...), which name a partial export. */
+        final Set<String> names = new LinkedHashSet<>();
 
         private Selection(IArchimateModel model, boolean wholeModel) {
             this.model = model;
             this.wholeModel = wholeModel;
         }
 
-        /** Work packages: their names; anything else: the model's. Names the export folder and the document. */
+        /**
+         * The whole model: its name; work packages: theirs; anything else: the names of what was selected (the view,
+         * the element, the folder...). Names the export folder and the PDF, so that exporting one view does not
+         * replace the export of another.
+         */
         String title() {
-            if (workPackages.isEmpty()) {
-                return label(model);
+            List<String> titles = !workPackages.isEmpty()
+                    ? workPackages.stream().map(ModelReader::label).collect(Collectors.toList())
+                    : wholeModel || names.isEmpty() ? List.of(label(model)) : new ArrayList<>(names);
+            return titles.size() <= 3 ? String.join(", ", titles)
+                    : String.join(", ", titles.subList(0, 3)) + " and " + (titles.size() - 3) + " more";
+        }
+
+        /** The name of a selected object, as {@link #title()} uses it; null for what is not named so. */
+        private static String name(Object o) {
+            if (o instanceof IDiagramModelArchimateComponent) {
+                return name(((IDiagramModelArchimateComponent) o).getArchimateConcept());
             }
-            List<String> names = workPackages.stream().map(ModelReader::label).collect(Collectors.toList());
-            return names.size() <= 3 ? String.join(", ", names)
-                    : String.join(", ", names.subList(0, 3)) + " and " + (names.size() - 3) + " more";
+            if (o instanceof IDiagramModel || o instanceof IFolder || o instanceof IArchimateElement && !(o instanceof IJunction)) {
+                return label((INameable) o);
+            }
+            if (o instanceof IArchimateRelationship) {
+                IArchimateRelationship r = (IArchimateRelationship) o;
+                return r.getName() == null || r.getName().isBlank() ? name(r.getSource()) + " – " + name(r.getTarget())
+                        : r.getName();
+            }
+            if (o instanceof IDiagramModelComponent) { // a note or group: its view
+                return label(((IDiagramModelComponent) o).getDiagramModel());
+            }
+            return null;
         }
 
         /** What the rules leave out of this export. */
@@ -226,6 +250,7 @@ final class ModelReader {
                 });
             } else {
                 objects.forEach(selection::add);
+                objects.stream().map(Selection::name).filter(n -> n != null).forEach(selection.names::add);
             }
             if (selection.views.isEmpty() && selection.elements.isEmpty() && !selection.wholeModel) {
                 throw new IllegalArgumentException("The selection holds no views or elements to export.");

@@ -213,6 +213,30 @@ class ModelReaderTest {
     }
 
     @Test
+    void anExportIsNamedAfterWhatWasSelected() {
+        IDiagramModelArchimateObject onDiagram = (IDiagramModelArchimateObject) second.getChildren().get(0);
+        IDiagramModelNote note = (IDiagramModelNote) first.getChildren().get(2);
+        IArchimateDiagramModel third = view("Third");
+        IArchimateDiagramModel fourth = view("Fourth");
+        IArchimateRelationship serving = (IArchimateRelationship) model.getFolder(FolderType.RELATIONS).getElements().get(0);
+
+        assertThat(title(model)).isEqualTo("Test model");
+        assertThat(title(first)).isEqualTo("First");
+        assertThat(title(portal)).isEqualTo("Portal");
+        assertThat(title(onDiagram, actor)).isEqualTo("Client");
+        assertThat(title(note)).isEqualTo("First");
+        assertThat(title(serving)).isEqualTo("serves");
+        assertThat(title(model.getFolder(FolderType.DIAGRAMS))).isEqualTo("Views");
+        assertThat(title(first, second, third, fourth)).isEqualTo("First, Second, Third and 1 more");
+        serving.setName("");
+        assertThat(title(serving)).isEqualTo("Portal – Client");
+    }
+
+    private static String title(Object... objects) {
+        return ModelReader.Selection.of(List.of(objects)).title();
+    }
+
+    @Test
     void diagramObjectsMeanTheirElementOrView() {
         IDiagramModelArchimateObject onDiagram = (IDiagramModelArchimateObject) second.getChildren().get(0);
         IDiagramModelNote note = (IDiagramModelNote) first.getChildren().get(2);

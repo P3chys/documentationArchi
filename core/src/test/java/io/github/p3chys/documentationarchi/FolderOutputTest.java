@@ -104,15 +104,15 @@ class FolderOutputTest {
         String manifest = Files.readString(folder.resolve("confluence/manifest.json"));
         assertThat(manifest).containsSubsequence(
                 "{\"title\": \"Shop\", \"parent\": null",
-                "{\"title\": \"Shop - Sales\", \"parent\": \"Shop\", \"file\": \"pages/sales.xml\"",
-                "{\"title\": \"Shop - Orders\", \"parent\": \"Shop - Sales\", \"file\": \"pages/orders.xml\"",
-                "{\"title\": \"Shop - Alpha\", \"parent\": \"Shop\"",
-                "{\"title\": \"Shop - Pricing\", \"parent\": \"Shop - Sales\"",
-                "{\"title\": \"Shop - Order flow\", \"parent\": \"Shop - Orders\"");
+                "{\"title\": \"Sales\", \"parent\": \"Shop\", \"file\": \"pages/sales.xml\"",
+                "{\"title\": \"Orders\", \"parent\": \"Sales\", \"file\": \"pages/orders.xml\"",
+                "{\"title\": \"Alpha\", \"parent\": \"Shop\"",
+                "{\"title\": \"Pricing\", \"parent\": \"Sales\"",
+                "{\"title\": \"Order flow\", \"parent\": \"Orders\"");
         String sales = Files.readString(folder.resolve("confluence/pages/sales.xml"));
         assertThat(sales).contains("<p>What we sell</p>")
-                .contains("<li><ac:link><ri:page ri:content-title=\"Shop - Pricing\"/><ac:link-body>Pricing</ac:link-body></ac:link></li>")
-                .contains("ri:content-title=\"Shop - Orders\"");
+                .contains("<li><ac:link><ri:page ri:content-title=\"Pricing\"/><ac:link-body>Pricing</ac:link-body></ac:link></li>")
+                .contains("ri:content-title=\"Orders\"");
     }
 
     @Test
@@ -123,6 +123,6 @@ class FolderOutputTest {
         export(Format.CONFLUENCE);
 
         assertThat(Files.readString(folder.resolve("confluence/manifest.json")))
-                .contains("{\"title\": \"Shop - Sales (2)\", \"parent\": \"Shop\", \"file\": \"pages/sales-2.xml\"");
+                .contains("{\"title\": \"Sales (2)\", \"parent\": \"Shop\", \"file\": \"pages/sales-2.xml\"");
     }
 }

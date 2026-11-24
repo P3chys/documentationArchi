@@ -57,13 +57,14 @@ What you right-clicked decides what is exported:
 | objects in a view | their elements; a note or group means its view |
 
 The dialog asks for a folder and the formats (HTML, PDF, Confluence). The export goes into a subfolder named after
-the model (or the work package), and you're asked before files in it are replaced. When it finishes, **Open Folder** shows the result:
+what is exported: the model, the work package, the view, the element or the folder (several: the first three names
+and "and 2 more"), so exporting one view does not replace the export of another, and you're asked before files in it are replaced. When it finishes, **Open Folder** shows the result:
 
 ```
-<model>/
+<name>/
   html/index.html, html/<view>.html, html/elements_a-z.html, html/elements_by-type.html, html/search.js,
   html/images/, html/assets/, html/style.css
-  <model>.pdf, assets/                 (assets/ holds the files the PDF links to)
+  <name>.pdf, assets/                  (assets/ holds the files the PDF links to)
   confluence/pages/, confluence/attachments/, confluence/manifest.json, confluence/upload_to_confluence.py
 ```
 
@@ -373,7 +374,8 @@ described (a relationship, to the element it is described with).
 
 **Views and work packages:** untick **Show the views an element appears on** or **Show the work packages that change an element** in **Preferences > Documentation Export** to leave the *Views: ...* or *Work packages: ...* line out of every element's description. The ticks belong to your computer and apply to every export from it, whichever rules file the model has; to leave them out for everyone, put an `entry` line without `views` or `workpackages` in `documentation.rules`.
 
-**Tools > Documentation > Settings...** (the same page as **Preferences > Documentation Export**) has two tabs. **General**
+**Tools > Documentation > Settings...** (the same page as **Preferences > Documentation Export**) has three tabs. **Confluence** holds where Confluence is
+and who signs in, see [Confluence](#confluence). **General**
 holds the **Jira address**, the language, the element type style, the work package export, the assets folder, the PDF
 and HTML layout, the properties and labels to leave out, and the change marks. **Formatting** lists everything whose
 look you can change:
@@ -504,8 +506,19 @@ overrides it and may name any folder, absolute too.
 ## Confluence
 
 The Confluence export is ready-made pages in Confluence's storage format: links between pages and to elements,
-panels, labels, code blocks, pictures and assets as attachments. Upload it with the script it comes with (Python 3.8+,
-no packages needed), for Confluence Data Center / Server:
+panels, labels, code blocks, pictures and assets as attachments. The plugin uploads them itself, to Confluence Data
+Center / Server:
+
+1. **Preferences > Documentation Export > Confluence**: the address, your user name and password (**Test
+   Connection** checks them). With the user name empty, the password is a personal access token. The password is kept
+   in Eclipse's secure storage, not with the other settings.
+2. In the export dialog, tick **Confluence pages** and **Upload to Confluence under:**, and **Choose...** where: the
+   window shows the spaces you can see and their page trees (read as you expand them, with a filter for the spaces);
+   choose a page to put the export under, or a space for its top. The choice is remembered, the tick is not.
+3. When the export is written, its pages are uploaded; the message at the end has **Open in Confluence**. A failed
+   upload leaves the export on disk as it is, and says what Confluence answered.
+
+The export also comes with a script that does the same (Python 3.8+, no packages needed), for a pipeline:
 
 ```bash
 CONFLUENCE_TOKEN=<personal access token> python <model>/confluence/upload_to_confluence.py --url https://confluence.example.com --space ARCH
@@ -516,7 +529,10 @@ CONFLUENCE_TOKEN=<personal access token> python <model>/confluence/upload_to_con
 - Views in folders go under a page per folder, as in the Models tree.
 - Pages are matched by title. Existing ones get a new version, so you can upload the same export again after
   changes.
-- Page titles start with the model name, because Confluence titles must be unique in a space.
+- A page has the title of its view, element or folder, without the model name: a view *[microservice] Hello* is
+  the page *[microservice] Hello*. Titles are unique in a Confluence space, so a page of that title already in the
+  space is the one updated (and moved under the chosen page); two pages of one export with the same title get
+  " (2)".
 - The pictures of views are plain pictures there: clicking an element in them leads nowhere (it does in the HTML
   pages and the PDF).
 

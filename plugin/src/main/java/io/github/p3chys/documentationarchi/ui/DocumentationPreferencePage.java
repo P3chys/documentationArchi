@@ -269,9 +269,8 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
                 monitor.beginTask("Signing in to Confluence", IProgressMonitor.UNKNOWN);
                 try {
                     Confluence confluence = new Confluence(url, user, password);
-                    String name = confluence.currentUser();
-                    int spaces = confluence.spaces().size();
-                    result[0] = "Signed in to " + confluence.url() + " as " + name + ", who sees " + spaces + " space(s).";
+                    String name = confluence.currentUser(); // only that: listing every space takes too long
+                    result[0] = "Signed in to " + confluence.url() + " as " + name + ".";
                     ok[0] = true;
                 } catch (IOException | RuntimeException e) {
                     result[0] = e.getMessage() != null ? e.getMessage() : e.toString();

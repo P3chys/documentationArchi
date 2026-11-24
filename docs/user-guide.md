@@ -967,15 +967,22 @@ under it, so the uploaded pages form the same tree as the folders.
 
 1. **Preferences > Documentation Export**, tab **Confluence**: the **Address** (`https://confluence.example.com`),
    your **User name** and **Password**. Leave the user name empty to give a personal access token as the password.
-   **Test Connection** signs in and says how many spaces you see. The password is kept in Eclipse's secure storage,
+   **Test Connection** signs in and says as whom. The password is kept in Eclipse's secure storage,
    never with the other settings or in the model.
 2. In the export dialog, tick **Confluence pages**, then **Upload to Confluence under:**. The first time, a window
-   shows the spaces you can see; expand one to see its pages, and the pages under them as you go (they are read from
-   Confluence as you open them). **Filter spaces** narrows the list by name or key. Choose a page to put the export
-   under, or a space to put it at its top, then **Choose**. **Connection...** opens the settings of step 1.
+   asks for the **Space key**: the key in the space's address (`ARCH` in `https://confluence.example.com/display/ARCH/`).
+   The keys used last are in its list. **Open** (or Enter) reads that space alone, never all of Confluence; expand it
+   to see its pages, and the pages under them as you go (they are read from Confluence as you open them). Choose a
+   page to put the export under, or the space to put it at its top, then **Choose**. **Connection...** opens the
+   settings of step 1.
 3. **Export**. The pages are uploaded when the files are written; the Progress view shows which. The message at the
    end gives the address of the first page and **Open in Confluence**. If the upload fails, the export is still on
-   disk and the message says what Confluence answered.
+   disk and the message says which page and step failed and what Confluence answered. Export again to retry: the
+   pages the failed upload made are found and finished, not made twice.
+
+Pages are found by title in the whole space. If pages with the export's titles are elsewhere in the space, not
+under the chosen page, you are asked first: **Yes** updates them and moves them under it (Confluence keeps their
+earlier versions), **No** uploads nothing.
 
 The place you chose is remembered for the next export (**Choose...** changes it); the tick is not, so each upload is
 a decision.

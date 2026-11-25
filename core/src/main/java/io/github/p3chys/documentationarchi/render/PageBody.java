@@ -220,6 +220,12 @@ final class PageBody {
     private void entry(Entry entry) {
         String name = entry.headingUrl == null ? Xml.escape(entry.name) : external(entry.headingUrl, Xml.escape(entry.name));
         out.append(dialect.entryHeading(entry, styled(rules.heading(3), type(entry.type) + name)));
+        home(entry);
+        if (entry.form == Entry.Form.BRIEF) {
+            description(entry.documentation);
+            relationTable(entry.relations.stream().filter(r -> !r.outside).collect(java.util.stream.Collectors.toList()));
+            return;
+        }
         List<Relation> inside = new ArrayList<>();
         Map<String, List<Relation>> outside = new LinkedHashMap<>();
         for (Relation r : entry.relations) {
@@ -268,6 +274,16 @@ final class PageBody {
                 default: // the rules check the names
             }
         }
+    }
+
+    /** "Defined in: Order Service" under a copy or brief, to the page with the element's full description. */
+    private void home(Entry entry) {
+        Doc.Location full = doc.locate(entry.id);
+        if (entry.form == Entry.Form.FULL || entry.home == null || full == null || full.page == page) {
+            return;
+        }
+        out.append("<p><small>").append(grey(Xml.escape(t("defined-in")) + ": "))
+                .append(dialect.link(full, page, Xml.escape(entry.home))).append("</small></p>");
     }
 
     /** A description with what its tokens write in their places. */
@@ -570,7 +586,7 @@ final class PageBody {
      * jumps within it; to its Confluence page or ticket only when the export describes it nowhere.
      */
     private String contentsLink(Link link) {
-        Doc.Location to = doc.locate(link.id);
+        Doc.Location to = doc.locate(link.id, page);
         if (to == null) {
             return link(link);
         }
@@ -593,7 +609,7 @@ final class PageBody {
      * round: its description here, the Confluence page or ticket only when the export describes it nowhere.
      */
     private String target(String id, String escapedLabel) {
-        Doc.Location to = doc.locate(id);
+        Doc.Location to = doc.locate(id, page);
         if (to != null && doc.localFirst) {
             return dialect.link(to, page, escapedLabel);
         }

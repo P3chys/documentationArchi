@@ -157,7 +157,7 @@ public final class Published {
                 }
                 texts.put(page.id, item);
             }
-            for (Entry entry : page.entries) {
+            for (Entry entry : page.described()) {
                 Item item = new Item();
                 item.kind = "element";
                 item.name = entry.name;

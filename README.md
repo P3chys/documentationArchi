@@ -12,6 +12,7 @@ function, with screenshots.
 - [Install](#install)
 - [Export documentation](#export-documentation)
 - [What a page contains](#what-a-page-contains)
+- [Structure by microservice](#structure-by-microservice)
 - [Documentation Preview](#documentation-preview)
 - [Print order](#print-order)
 - [Check Documentation](#check-documentation)
@@ -126,6 +127,42 @@ on, and its relationships to elements outside the view, grouped by type.
 - Junctions are never described or listed. A relationship to a junction is followed through it (and through
   junctions after it) to the elements on the other side, and shown as one relationship to all of them: *→ Triggering:
   Check claim or Reject claim* for an Or junction, *and* for an And junction.
+
+## Structure by microservice
+
+By default an element is described once, on the first view that shows it. A model that is organised by microservice
+can instead be documented by microservice: put `structure microservices` in the rules (or choose **Structure: By
+microservices** in the preferences). It applies to exports of the whole model and of folders.
+
+A folder directly below **Views** is a microservice, and so is a folder of the same name (case and spaces around it
+don't matter) directly below **Application**, **Business** or another folder of elements:
+
+```
+Application/Orders/Order Service, API orders/getOrder, ...      the microservice's elements
+Views/Orders/BE/Orders API, Create order process                its views
+Views/Orders/FE/...
+Views/Application Landscape                                     a view of no microservice
+Views/Landscape/Booking end to end                              also: no folder of elements is called Landscape
+```
+
+- **Each microservice gets a page** named after it, with the description of its folder (the one below Views, else the
+  one below Application) and **all its elements described in full**, by layer and under their type (*Application
+  Interface*, *Application Process*...). Links to an element from anywhere lead there; so do the Elements A–Z and
+  by type pages, and the search. In Confluence this page is the microservice's folder page, with its views below.
+- **Its views describe its elements again**, in full, with a line *Defined in: Orders* to the microservice's page,
+  so each view's page reads on its own.
+- **Views of another microservice show the element in brief**: the first sentence of its description, its
+  relationships on that view (*→ is used by Web Shop – checkout*) and *Defined in: Orders*. A view directly in
+  Views (a landscape) shows all its elements so, and so does a view in a folder of views that no folder of elements
+  matches, such as *Views/Landscape*: a plain folder, which keeps such views together in Confluence.
+- **Elements of no microservice** (directly in Application or another folder of elements) are described on a page
+  **Shared**; work packages keep their own page in an export of the whole model. A folder of elements without views
+  (*Technology/Platform*) still gets a page of its own.
+- **Confluence titles of the folders in a microservice** start with its name, *Orders – BE*, *Web Shop – FE*: titles
+  are unique in a Confluence space, and each microservice has its BE and FE.
+- **Check Documentation** lists the elements on a microservice's views that are in no microservice's folder (views
+  in a plain folder such as *Landscape* aren't a microservice's).
+- **Describe Here** does not apply: the folder decides.
 
 ## Documentation Preview
 
@@ -288,7 +325,8 @@ Right-click anything in a model and choose **Documentation > Check...** to list 
 - `˝˝NAME˝˝` and `˝NAME˝` tokens in an element's description that match no relationship of the element (a relationship
   named exactly like the token),
 - malformed tokens: an odd number of `˝`, or a `¨` typed for one,
-- work packages that change no element.
+- work packages that change no element,
+- with `structure microservices`: elements on a microservice's views that are in no microservice's folder.
 
 Objects the rules leave out of the export are not checked.
 
@@ -411,6 +449,7 @@ defaults off                    in documentation.rules: without the built-in pan
 jira https://jira.example.com/browse/   work packages named like a ticket link to it
 type style haf                  types as «Process»Pay
 workpackage one-page            a work package's export is one page
+structure microservices         pages by microservice, see "Structure by microservice"
 ```
 
 **HaF look:** `type style haf` also switches the pages to HaF's look: thin grey lines between parts and elements,
@@ -435,7 +474,7 @@ properties are never printed. What you select directly is still exported, and th
 the rules left out.
 
 **Language:** the fixed texts of the output are English; the rule line `language cs` prints them in Czech, and
-`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `documentation`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `recursive-reference`, `input-parameters`, `output`, `request`, `response`).
+`text contents = Table of contents` replaces any single one (keys: `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `defined-in`, `shared`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `documentation`, `unsupported-asset`, `missing-reference`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`, `changes-since`, `changes-summary`, `changes-none`, `added`, `changed`, `removed`, `before`, `after`, `new`, `triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`, `role-and-higher`, `role-only`, `recursive-reference`, `input-parameters`, `output`, `request`, `response`).
 
 **Page template:** `page description contents picture properties notes related elements` gives the sections of a
 view's page to print, in that order (leave one out and it is not printed), and `entry description properties relations

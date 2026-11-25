@@ -91,9 +91,16 @@ public final class Doc {
             assets.reserve(page.slug + ".png"); // the picture of the view, next to the assets in the export
             locations.put(page.id, new Location(page, null));
             names.put(page.id, page.title);
-            for (Entry entry : page.entries) {
+            for (Entry entry : page.described()) {
                 locations.put(entry.id, new Location(page, entry.anchor()));
                 names.put(entry.id, entry.name);
+            }
+        }
+        for (DocPage page : pages) { // an element shown only in part leads to the first page that shows it
+            for (Entry entry : page.entries) {
+                entry.on = entry.form == Entry.Form.FULL ? null : page.slug;
+                locations.putIfAbsent(entry.id, new Location(page, entry.anchor()));
+                names.putIfAbsent(entry.id, entry.name);
             }
         }
         Map<DocFolder, Node> nodes = new HashMap<>();
@@ -101,6 +108,10 @@ public final class Doc {
             node(page == pages.get(0) ? null : page.folder, nodes).add(new Node(null, page));
         }
         for (DocFolder folder : folders) {
+            if (folder.page != null && pages.contains(folder.page)) { // Confluence writes that page as the folder's
+                folder.slug = folder.page.slug;
+                continue;
+            }
             folder.slug = unique(slug(folder.name), slugs);
             slugs.add(folder.slug);
         }
@@ -129,6 +140,19 @@ public final class Doc {
 
     /** Where this view or element is documented, null if it is not part of the export. */
     public Location locate(String id) {
+        return locations.get(id);
+    }
+
+    /**
+     * Where a link on this page to the view or element leads: to the element on the page itself when the page shows
+     * it (in full or not), else as {@link #locate(String)}.
+     */
+    public Location locate(String id, DocPage from) {
+        for (Entry entry : from.entries) {
+            if (entry.id.equals(id)) {
+                return new Location(from, entry.anchor());
+            }
+        }
         return locations.get(id);
     }
 

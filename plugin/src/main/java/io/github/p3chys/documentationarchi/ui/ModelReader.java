@@ -24,6 +24,7 @@ import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
 import org.osgi.framework.FrameworkUtil;
 
+import com.archimatetool.model.FolderType;
 import com.archimatetool.model.IAccessRelationship;
 import com.archimatetool.model.IArchimateConcept;
 import com.archimatetool.model.IArchimateDiagramModel;
@@ -382,26 +383,34 @@ final class ModelReader {
 
         List<DocPage> pages = new ArrayList<>();
         views.forEach(view -> viewPages.put(view.getId(), shown(view)));
-        List<IDiagramModel> order = new ArrayList<>(views);
-        boolean nested = selection.folders && order.stream().anyMatch(v -> !path(v).isEmpty());
-        if (nested) {
-            order.sort(ModelReader::treeOrder);
+        List<IArchimateElement> rest;
+        if (byMicroservice()) {
+            rest = microservicePages(pages);
+        } else {
+            List<IDiagramModel> order = new ArrayList<>(views);
+            boolean nested = selection.folders && order.stream().anyMatch(v -> !path(v).isEmpty());
+            if (nested) {
+                order.sort(ModelReader::treeOrder);
+            }
+            Map<IFolder, DocFolder> folders = new HashMap<>();
+            for (IDiagramModel view : order) {
+                DocPage page = viewPage(view, null);
+                page.folder = nested ? folder(path(view), folders) : null;
+                pages.add(page);
+            }
+            rest = ordered(elements, null).stream()
+                    .filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
         }
-        Map<IFolder, DocFolder> folders = new HashMap<>();
-        for (IDiagramModel view : order) {
-            DocPage page = viewPage(view, null);
-            page.folder = nested ? folder(path(view), folders) : null;
-            pages.add(page);
-        }
-
-        List<IArchimateElement> rest = ordered(elements, null).stream()
-                .filter(e -> !described.contains(e.getId())).collect(Collectors.toList());
         // of the whole model, the work packages get a page of their own: the overview of the Jira tickets
         List<IArchimateElement> workPackages = selection.wholeModel
                 ? rest.stream().filter(IWorkPackage.class::isInstance).collect(Collectors.toList()) : new ArrayList<>();
         rest.removeAll(workPackages);
         workPackages.removeIf(wp -> WorkPackages.closed((IWorkPackage) wp)); // done: exported only when asked for
-        elementsPage(rest, selection.wholeModel ? t("elements-not-in-any-view") : t("selected-elements"), pages);
+        if (byMicroservice()) {
+            sharedPage(rest, pages);
+        } else {
+            elementsPage(rest, selection.wholeModel ? t("elements-not-in-any-view") : t("selected-elements"), pages);
+        }
         if (!workPackages.isEmpty()) {
             workPackages.sort(Comparator.comparing(ModelReader::label, ModelReader::compareNatural));
             DocPage page = new DocPage("work-packages", t("work-packages"));
@@ -424,6 +433,198 @@ final class ModelReader {
             pages.forEach(p -> p.folder = null); // one page: nothing to put under folders
         }
         return doc(label(model), pages);
+    }
+
+    /** With {@code structure microservices}: the microservices by their key, see {@link Microservices#key}. */
+    private final Map<String, Microservice> microservices = new HashMap<>();
+
+    /** A microservice: its folders, and the page that describes its elements. */
+    private static final class Microservice {
+        final String key;
+        /** Its folder below Views, null when it has none. */
+        IFolder views;
+        /** A folder of elements named like it, Application's first: its name when it has no views. */
+        IFolder elements;
+        DocPage page;
+
+        Microservice(String key) {
+            this.key = key;
+        }
+
+        String name() {
+            return label(views != null ? views : elements).strip();
+        }
+    }
+
+    /**
+     * {@code structure microservices}, for the whole model or folders: each microservice gets a page describing its
+     * elements, its views describe them again, other views show them in brief.
+     */
+    private boolean byMicroservice() {
+        return rules.microservices() && (selection.wholeModel || selection.folders);
+    }
+
+    /**
+     * The pages laid out by microservice, in the order of the model tree: the views directly in Views, then per
+     * microservice its page and its views. A microservice is in the export with all its elements when any of its
+     * views or elements is.
+     *
+     * @return the elements of the export that belong to no microservice, for the Shared page
+     */
+    private List<IArchimateElement> microservicePages(List<DocPage> pages) {
+        IArchimateModel model = selection.model;
+        for (IFolder top : model.getFolders()) {
+            for (IFolder f : top.getFolders()) {
+                Microservice m = microservices.computeIfAbsent(Microservices.key(label(f)), Microservice::new);
+                if (top.getType() == FolderType.DIAGRAMS) {
+                    m.views = m.views == null ? f : m.views;
+                } else if (m.elements == null || top.getType() == FolderType.APPLICATION
+                        && ((IFolder) m.elements.eContainer()).getType() != FolderType.APPLICATION) {
+                    m.elements = f;
+                }
+            }
+        }
+        Set<IArchimateElement> candidates = new LinkedHashSet<>(elements);
+        Set<String> keys = new LinkedHashSet<>();
+        for (IDiagramModel view : views) {
+            candidates.addAll(viewPages.get(view.getId()));
+            if (Microservices.of(view) != null) {
+                keys.add(Microservices.of(view));
+            }
+        }
+        candidates.stream().map(Microservices::of).filter(k -> k != null).forEach(keys::add);
+        Map<String, List<IArchimateElement>> owned = new HashMap<>();
+        model.eAllContents().forEachRemaining(o -> {
+            if (o instanceof IArchimateElement && !exclusion.excluded(o)) {
+                String key = Microservices.of((IArchimateElement) o);
+                if (key != null && keys.contains(key)) {
+                    owned.computeIfAbsent(key, k -> new ArrayList<>()).add((IArchimateElement) o);
+                }
+            }
+        });
+
+        List<IDiagramModel> order = new ArrayList<>(views);
+        order.sort(ModelReader::treeOrder);
+        List<Microservice> listed = keys.stream().map(microservices::get)
+                .sorted(Comparator.comparing(Microservice::name, TREE).thenComparing(m -> m.key))
+                .collect(Collectors.toList());
+        Map<IFolder, DocFolder> folders = new HashMap<>();
+        for (IDiagramModel view : order) {
+            if (Microservices.of(view) == null) {
+                DocPage page = viewPage(view, null);
+                page.folder = folder(path(view), folders);
+                pages.add(page);
+            }
+        }
+        for (Microservice m : listed) {
+            List<IArchimateElement> own = owned.getOrDefault(m.key, List.of());
+            if (!own.isEmpty()) {
+                m.page = microservicePage(m, own, folders);
+                pages.add(m.page);
+            }
+            for (IDiagramModel view : order) {
+                if (m.key.equals(Microservices.of(view))) {
+                    DocPage page = viewPage(view, null);
+                    page.folder = folder(path(view), folders);
+                    pages.add(page);
+                }
+            }
+        }
+        return candidates.stream().filter(e -> Microservices.of(e) == null && !isPrintOrder(e) && !(e instanceof IJunction))
+                .collect(Collectors.toList());
+    }
+
+    /** A microservice's page: the description of its folder, then its elements in full, by layer and type. */
+    private DocPage microservicePage(Microservice m, List<IArchimateElement> own, Map<IFolder, DocFolder> folders) {
+        DocFolder folder;
+        if (m.views != null) {
+            folder = folder(List.of(m.views), folders);
+        } else {
+            folder = new DocFolder(m.elements.getId(), m.name(), null);
+        }
+        DocPage page = new DocPage("microservice-" + folder.id, m.name());
+        String documentation = m.views != null && !m.views.getDocumentation().isBlank() ? m.views.getDocumentation()
+                : m.elements != null ? m.elements.getDocumentation() : "";
+        page.documentation = documentation;
+        folder.documentation = documentation;
+        page.folder = folder;
+        folder.page = page;
+        catalog(own, page);
+        return page;
+    }
+
+    /** The elements of no microservice described in full (and the work packages, unless they have their own page). */
+    private void sharedPage(List<IArchimateElement> rest, List<DocPage> pages) {
+        if (!rest.isEmpty()) {
+            DocPage page = new DocPage("shared", t("shared"));
+            catalog(rest, page);
+            pages.add(page);
+        }
+    }
+
+    /** Describes the elements on the page, listed by layer and type under the type's name. */
+    private void catalog(List<IArchimateElement> elements, DocPage page) {
+        List<IArchimateElement> sorted = elements.stream().filter(e -> !isPrintOrder(e) && !(e instanceof IJunction))
+                .sorted(Comparator.comparingInt(Microservices::layer)
+                        .thenComparing((IArchimateElement e) -> typeName((INameable) e), TREE)
+                        .thenComparing(e -> label(e), TREE))
+                .collect(Collectors.toList());
+        sorted.forEach(e -> {
+            page.contents.add(link(e));
+            page.groups.put(e.getId(), typeName((INameable) e));
+        });
+        describe(sorted, sorted, page);
+    }
+
+    /**
+     * A view's elements laid out by microservice: those of the view's microservice in full, a copy of their
+     * description; the others in brief. Each says where its description is.
+     */
+    private void describeByMicroservice(IDiagramModel view, List<IArchimateElement> listed, List<IArchimateElement> shown,
+            DocPage page) {
+        String here = Microservices.of(view);
+        Set<IArchimateConcept> inside = new HashSet<>(shown);
+        for (IArchimateElement element : listed) {
+            String key = Microservices.of(element);
+            Entry entry = entry(element, inside);
+            if (key != null && key.equals(here)) {
+                entry.form = Entry.Form.COPY;
+            } else {
+                entry = brief(entry);
+            }
+            entry.home = key != null ? microservices.get(key).name() : homeOfShared(element);
+            page.entries.add(entry);
+        }
+    }
+
+    /** The page an element of no microservice is described on: Work packages or Shared; null for none. */
+    private String homeOfShared(IArchimateElement element) {
+        if (element instanceof IWorkPackage && selection.wholeModel) {
+            return WorkPackages.closed((IWorkPackage) element) ? null : t("work-packages");
+        }
+        return t("shared");
+    }
+
+    /** The element in brief: the first sentence of its description, and its relationships on the view. */
+    private static Entry brief(Entry full) {
+        Entry brief = new Entry(full.id, full.name, full.type, firstSentence(full.documentation), List.of(),
+                full.relations, List.of());
+        brief.form = Entry.Form.BRIEF;
+        brief.headingUrl = full.headingUrl;
+        return brief;
+    }
+
+    private static final Pattern PARAGRAPH = Pattern.compile("\\R\\s*\\R");
+    private static final Pattern SENTENCE_END = Pattern.compile("[.!?](?=\\s|$)");
+
+    /** The first paragraph of a description up to its first full stop; "" when it starts with a block, such as SQL. */
+    static String firstSentence(String text) {
+        String paragraph = text == null ? "" : PARAGRAPH.split(text.strip(), 2)[0].strip();
+        if (paragraph.startsWith("<")) {
+            return "";
+        }
+        Matcher end = SENTENCE_END.matcher(paragraph);
+        return end.find() ? paragraph.substring(0, end.end()) : paragraph;
     }
 
     /** The folders of the view below the model's Views folder, the outermost first. */
@@ -572,7 +773,7 @@ final class ModelReader {
             if (viewPages.containsKey(page.id)) {
                 labelled(texts, new Link(page.id, page.title), found);
             }
-            for (Entry entry : page.entries) {
+            for (Entry entry : page.described()) {
                 List<String> own = new ArrayList<>(List.of(entry.documentation));
                 entry.properties.forEach(p -> own.add(p.value));
                 labelled(own, new Link(entry.id, entry.name, entry.type), found);
@@ -756,7 +957,11 @@ final class ModelReader {
         List<IArchimateElement> fresh = listed.stream().filter(e -> !described.contains(e.getId()) && describedOn(e, view))
                 .collect(Collectors.toList());
         listed.forEach(e -> page.contents.add(link(e)));
-        describe(fresh, shown, page);
+        if (byMicroservice()) {
+            describeByMicroservice(view, listed, shown, page);
+        } else {
+            describe(fresh, shown, page);
+        }
         return page;
     }
 

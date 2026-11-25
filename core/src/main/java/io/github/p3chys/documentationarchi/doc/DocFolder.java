@@ -11,6 +11,11 @@ public final class DocFolder {
     /** The folder it is in; null directly in the Views folder. */
     public final DocFolder parent;
     public String documentation = "";
+    /**
+     * The folder's own page, such as a microservice's with its elements: one of the pages in it, which Confluence
+     * writes as the folder's page. Null for a folder whose page only lists what is in it.
+     */
+    public DocPage page;
 
     /** Name for its Confluence page file, unique among the pages. Set by {@link Doc}. */
     String slug;

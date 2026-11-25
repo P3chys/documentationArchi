@@ -41,7 +41,7 @@ public final class Catalogs {
             }
             List<Entry> entries = new ArrayList<>();
             for (DocPage page : doc.pages) {
-                for (Entry entry : page.entries) {
+                for (Entry entry : page.described()) {
                     if (catalog.matches(entry.type) && (inFolder == null || inFolder.contains(entry.id))
                             && !entry.id.startsWith("changes-")) {
                         entries.add(entry);

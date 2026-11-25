@@ -51,7 +51,7 @@ public final class DocPage {
     public final List<ObjectText> texts = new ArrayList<>();
     /** Views this view refers to with a diagram reference. */
     public final List<Link> relatedViews = new ArrayList<>();
-    /** The elements described on this page. */
+    /** The elements described on this page, in full or not, see {@link Entry.Form}. */
     public final List<Entry> entries = new ArrayList<>();
     /** What the page holds: the pages of the export on the overview, every element of the view on a view's page. */
     public final List<Link> contents = new ArrayList<>();
@@ -73,5 +73,12 @@ public final class DocPage {
 
     public String slug() {
         return slug;
+    }
+
+    /** The elements whose one description is on this page: the {@link Entry.Form#FULL} entries. */
+    public List<Entry> described() {
+        List<Entry> full = new ArrayList<>();
+        entries.stream().filter(e -> e.form == Entry.Form.FULL).forEach(full::add);
+        return full;
     }
 }

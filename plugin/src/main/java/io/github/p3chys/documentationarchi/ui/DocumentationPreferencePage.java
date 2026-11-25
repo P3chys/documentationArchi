@@ -90,6 +90,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
     private Combo language;
     private Combo typeStyle;
     private Combo workPackage;
+    private Combo structure;
     private Text assets;
     private Button pdfCover;
     private Button pdfContents;
@@ -185,6 +186,9 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
                 "As HaF writes them: «Process»Pay");
         new Label(output, SWT.NONE).setText("&Work package export:");
         workPackage = combo(output, "A page per view and element", "One page: the ticket, then each element it changes");
+        new Label(output, SWT.NONE).setText("&Structure:");
+        structure = combo(output, "By views: an element is described on the first view that shows it",
+                "By microservices: the folders below Views and Application of one name");
         assets = field(output, "&Assets folder:", "Assets",
                 "Where [[asset:name]] files are read from: relative to the model's folder, or absolute. Empty: Assets");
         new Label(output, SWT.NONE).setText("PDF:");
@@ -399,6 +403,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         language.select(Math.max(0, Texts.LANGUAGES.indexOf(s.language)));
         typeStyle.select(s.hafTypes ? 1 : 0);
         workPackage.select(s.workPackageOnePage ? 1 : 0);
+        structure.select(s.microservices ? 1 : 0);
         assets.setText(s.assets);
         pdfCover.setSelection(s.pdf.contains("cover"));
         pdfContents.setSelection(s.pdf.contains("contents"));
@@ -416,6 +421,7 @@ public class DocumentationPreferencePage extends PreferencePage implements IWork
         s.language = Texts.LANGUAGES.get(Math.max(0, language.getSelectionIndex()));
         s.hafTypes = typeStyle.getSelectionIndex() == 1;
         s.workPackageOnePage = workPackage.getSelectionIndex() == 1;
+        s.microservices = structure.getSelectionIndex() == 1;
         s.assets = assets.getText().strip();
         s.pdf.clear();
         if (pdfCover.getSelection()) {

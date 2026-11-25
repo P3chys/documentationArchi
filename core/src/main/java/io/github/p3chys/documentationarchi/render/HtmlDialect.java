@@ -204,7 +204,7 @@ final class HtmlDialect implements Dialect {
         List<DocPage.Area> areas = new ArrayList<>();
         List<Doc.Location> targets = new ArrayList<>();
         for (DocPage.Area area : page.areas) {
-            Doc.Location to = doc.locate(area.id);
+            Doc.Location to = doc.locate(area.id, page);
             if (to != null && to.anchor != null) { // an element described somewhere in this export
                 areas.add(area);
                 targets.add(to);

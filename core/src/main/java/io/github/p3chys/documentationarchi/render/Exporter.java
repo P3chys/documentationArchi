@@ -522,13 +522,23 @@ public final class Exporter {
         Path attachments = Files.createDirectories(folder.resolve("attachments"));
         Set<String> taken = new HashSet<>();
         Map<DocPage, String> titles = new LinkedHashMap<>();
-        doc.pages.forEach(p -> titles.put(p, confluenceTitle(p.title, taken)));
         Map<DocFolder, String> folders = new LinkedHashMap<>();
-        doc.folders.forEach(f -> folders.put(f, confluenceTitle(f.name, taken)));
+        // a folder with a page of its own (a microservice) is that page: its title first, the page has no other
+        Set<DocPage> folderPages = new HashSet<>();
+        doc.folders.stream().filter(f -> f.page != null).forEach(f -> {
+            folders.put(f, confluenceTitle(folderTitle(f), taken));
+            titles.put(f.page, folders.get(f));
+            folderPages.add(f.page);
+        });
+        doc.pages.stream().filter(p -> !folderPages.contains(p)).forEach(p -> titles.put(p, confluenceTitle(p.title, taken)));
+        doc.folders.stream().filter(f -> f.page == null).forEach(f -> folders.put(f, confluenceTitle(folderTitle(f), taken)));
         StorageDialect dialect = new StorageDialect(titles);
         List<String> entries = new ArrayList<>();
         for (DocPage page : doc.pages) {
             check(progress);
+            if (folderPages.contains(page)) {
+                continue; // written as its folder's page
+            }
             Set<Assets.Asset> used = new LinkedHashSet<>();
             Files.writeString(pages.resolve(page.slug() + ".xml"), PageBody.render(doc, page, dialect, rules, used));
             List<String> files = new ArrayList<>();
@@ -543,6 +553,7 @@ public final class Exporter {
         // after the first page, each folder before what is in it, so that the upload makes the parents first
         List<String> folderEntries = new ArrayList<>();
         for (DocFolder f : doc.folders) {
+            check(progress);
             Set<Assets.Asset> used = new LinkedHashSet<>();
             Files.writeString(pages.resolve(f.slug() + ".xml"), folderPage(f, dialect, titles, folders, used));
             String parent = f.parent == null ? titles.get(doc.pages.get(0)) : folders.get(f.parent);
@@ -563,19 +574,44 @@ public final class Exporter {
                 + ", \"file\": " + json("pages/" + slug + ".xml") + ", \"attachments\": [" + String.join(", ", files) + "]}";
     }
 
-    /** The page of a folder: its description, then links to what is in it, pages and folders. */
+    /**
+     * The page of a folder: its description, or its own page ({@link DocFolder#page}), then links to what is in it,
+     * pages and folders.
+     */
     private String folderPage(DocFolder folder, StorageDialect dialect, Map<DocPage, String> titles,
             Map<DocFolder, String> folders, Set<Assets.Asset> used) {
-        DocPage page = new DocPage(folder.id, folder.name);
-        page.documentation = folder.documentation;
+        DocPage page = folder.page;
+        if (page == null) {
+            page = new DocPage(folder.id, folder.name);
+            page.documentation = folder.documentation;
+        }
         StringBuilder list = new StringBuilder();
         for (Doc.Node node : node(doc.outline, folder).children) {
+            if (node.page != null && node.page == folder.page) {
+                continue;
+            }
             String title = node.page != null ? titles.get(node.page) : folders.get(node.folder);
             String label = Xml.escape(node.page != null ? node.page.title : node.folder.name);
             list.append("<li>").append(StorageDialect.pageLink(title, label)).append("</li>");
         }
         String description = PageBody.render(doc, page, dialect, rules, used);
-        return description + (description.isEmpty() ? "" : "<hr/>") + "<ul>" + list + "</ul>";
+        return description + (description.isEmpty() || list.length() == 0 ? "" : "<hr/>")
+                + (list.length() == 0 ? "" : "<ul>" + list + "</ul>");
+    }
+
+    /**
+     * A folder's name, with the name of the folder it is in first ("Orders – BE") when several folders of the export
+     * have the name, and always in a microservice (a folder with a page of its own), so its title stays when another
+     * microservice gets a folder of that name.
+     */
+    private String folderTitle(DocFolder folder) {
+        String name = folder.name.strip();
+        boolean shared = doc.folders.stream().filter(f -> f.name.strip().equalsIgnoreCase(name)).count() > 1;
+        boolean inService = false;
+        for (DocFolder f = folder.parent; f != null; f = f.parent) {
+            inService |= f.page != null;
+        }
+        return (shared || inService) && folder.parent != null ? folder.parent.name.strip() + " – " + name : folder.name;
     }
 
     /** The node of a folder in the outline, null if it is not there. */

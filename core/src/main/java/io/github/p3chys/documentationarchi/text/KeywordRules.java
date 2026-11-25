@@ -41,6 +41,7 @@ import java.util.regex.Pattern;
  * jira https://jira.example.com/browse/   work packages named like a ticket (ABC-123) link to it there
  * type style haf                 types as HaF writes them: «Process»Pay instead of <<Business Process>> Pay
  * workpackage one-page           a work package's export is one page: its description, then each element
+ * structure microservices        pages by microservice: the folders below Views and the element folders of one name
  * </pre>
  * Keywords ignore case. Panel styles and tag colours are the ones Confluence offers, so all outputs look alike.
  */
@@ -61,6 +62,8 @@ public final class KeywordRules {
         TYPE_STYLE(true),
         /** {@code workpackage one-page|pages}: whether a work package's export is one page. */
         WORK_PACKAGE(true),
+        /** {@code structure microservices|views}: whether the export is laid out by microservice folders. */
+        STRUCTURE(true),
         /** The PDF's layout: {@code pdf cover|contents|landscape off}. */
         PDF(true),
         /** The HTML format's layout: {@code html single-file [on|off]}. */
@@ -131,6 +134,7 @@ public final class KeywordRules {
             "# entry <part>...   the parts of an element's description to print, in this order: description properties relations views workpackages other",
             "# pdf <cover|contents|landscape> <on|off>   the PDF's cover, table of contents, landscape pages for wide views",
             "# html single-file [on|off]   the HTML format writes one self-contained file per page: style and pictures inside, no sidebar or search",
+            "# structure microservices   pages by microservice: a folder below Views and the folders of the same name below Application, Business... are one microservice, its page describes its elements",
             "# profile <name> <setting>...   a named export set-up: folders= views= workpackages= formats= exclude= hide= language= output= publish",
             "# catalog \"<title>\" type=<element type>[|<type>] [folder=<path>] columns=name,<property>,description   a table page of the elements of a type",
             "# index <tables|variables|constants>   a page listing every [table], {variable} or 'constant' of the descriptions, with where it is used",
@@ -445,6 +449,15 @@ public final class KeywordRules {
             return new Rule(Kind.WORK_PACKAGE, l, null, null, null, null, false);
         }
 
+        /** @param structure {@code microservices} or {@code views} */
+        public static Rule structure(String structure) {
+            String s = structure.strip().toLowerCase(Locale.ROOT);
+            if (!s.equals("microservices") && !s.equals("views")) {
+                throw new IllegalArgumentException("expected: structure microservices (or views)");
+            }
+            return new Rule(Kind.STRUCTURE, s, null, null, null, null, false);
+        }
+
         /** @param sections names out of {@link KeywordRules#PAGE_SECTIONS}, in the order to print them */
         public static Rule page(List<String> sections) {
             return new Rule(Kind.PAGE, names(sections, PAGE_SECTIONS, "section"), null, null, null, null, false);
@@ -490,6 +503,7 @@ public final class KeywordRules {
                 case JIRA: return "jira " + keyword;
                 case TYPE_STYLE: return "type style " + keyword;
                 case WORK_PACKAGE: return "workpackage " + keyword;
+                case STRUCTURE: return "structure " + keyword;
                 case TEXT: return "text " + keyword + " = " + value;
                 case EXCLUDE_LABEL: return "exclude label " + keyword;
                 case HIDE_PROPERTY: return "hide property " + keyword;
@@ -519,7 +533,7 @@ public final class KeywordRules {
         String key() {
             if (kind == Kind.LANGUAGE || kind == Kind.ASSETS || kind == Kind.PAGE || kind == Kind.ENTRY
                     || kind == Kind.DEFAULTS || kind == Kind.JIRA
-                    || kind == Kind.TYPE_STYLE || kind == Kind.WORK_PACKAGE) {
+                    || kind == Kind.TYPE_STYLE || kind == Kind.WORK_PACKAGE || kind == Kind.STRUCTURE) {
                 return kind.name(); // one language
             }
             return kind + " " + keyword.toLowerCase(Locale.ROOT);
@@ -563,6 +577,7 @@ public final class KeywordRules {
     private String jira;
     private boolean hafTypes;
     private boolean workPackageOnePage;
+    private boolean microservices;
     private String assetsFolder;
     private Pattern styled;
 
@@ -602,6 +617,7 @@ public final class KeywordRules {
                 case JIRA: jira = rule.keyword; break;
                 case TYPE_STYLE: hafTypes = rule.keyword.equals("haf"); break;
                 case WORK_PACKAGE: workPackageOnePage = rule.keyword.equals("one-page"); break;
+                case STRUCTURE: microservices = rule.keyword.equals("microservices"); break;
                 case EXCLUDE_LABEL: excludedLabels.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 case HIDE_PROPERTY: hiddenProperties.add(rule.keyword.toLowerCase(Locale.ROOT)); break;
                 case PROFILE: profiles.put(rule.keyword.toLowerCase(Locale.ROOT), rule.profile); break;
@@ -817,6 +833,8 @@ public final class KeywordRules {
             }
             case "workpackage":
                 return Rule.workPackage(rest);
+            case "structure":
+                return Rule.structure(rest);
             case "profile":
                 return Rule.profile(ExportProfile.parse(rest));
             case "hide": {
@@ -842,7 +860,7 @@ public final class KeywordRules {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("unknown style \"" + parts[1] + "\"");
         }
-        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, assets, text, page, entry, pdf, html, profile, catalog, index, jira, type, workpackage or defaults");
+        throw new IllegalArgumentException("must start with panel, tag, bold, style, token, heading, sql, exclude, hide, language, assets, text, page, entry, pdf, html, profile, catalog, index, jira, type, workpackage, structure or defaults");
     }
 
     /** Whether a folder as written stays inside the folder it is relative to: not absolute, no way up out of it. */
@@ -996,6 +1014,16 @@ public final class KeywordRules {
     /** Whether a work package's export is one page: its description, then each element it changes. */
     public boolean workPackageOnePage() {
         return workPackageOnePage;
+    }
+
+    /**
+     * Whether the export is laid out by microservice ({@code structure microservices}): a folder directly below the
+     * Views folder is a microservice, and so is a folder of the same name directly below Application, Business or
+     * another folder of elements. The elements in it are its own: the microservice's page describes them, and so does
+     * each of its views that shows them.
+     */
+    public boolean microservices() {
+        return microservices;
     }
 
     /** Where tickets are, a work package's key goes after it; null when no rule says. */

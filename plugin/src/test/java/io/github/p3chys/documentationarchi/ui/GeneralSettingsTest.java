@@ -71,6 +71,7 @@ class GeneralSettingsTest {
         s.jira = "https://jira.example.com/browse/";
         s.assets = "Files";
         s.hafTypes = true;
+        s.microservices = true;
         s.pdf.remove("cover");
         s.excludedLabels.add("draft");
 
@@ -79,6 +80,7 @@ class GeneralSettingsTest {
         assertThat(back.jira).isEqualTo(s.jira);
         assertThat(back.assets).isEqualTo("Files");
         assertThat(back.hafTypes).isTrue();
+        assertThat(back.microservices).isTrue();
         assertThat(back.pdf).containsExactly("contents", "landscape");
         assertThat(back.excludedLabels).containsExactly("draft");
     }

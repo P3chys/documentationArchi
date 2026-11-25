@@ -43,7 +43,7 @@ public final class DataIndex {
                 texts.addAll(page.notes);
                 page.texts.forEach(t -> texts.add(t.text));
                 scan(texts, page.properties, kind, rules, pageLink, names, places);
-                for (Entry entry : page.entries) {
+                for (Entry entry : page.described()) {
                     List<String> own = new ArrayList<>();
                     own.add(entry.documentation);
                     entry.relations.forEach(r -> own.add(r.documentation));

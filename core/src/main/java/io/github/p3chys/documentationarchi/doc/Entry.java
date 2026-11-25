@@ -3,8 +3,21 @@ package io.github.p3chys.documentationarchi.doc;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The full description of one element. Each element has exactly one, on the first page that shows it. */
+/**
+ * The full description of one element. Each element has exactly one, on the first page that shows it; laid out by
+ * microservice, also a {@link Form#COPY} on each view of its microservice and a {@link Form#BRIEF} on other views.
+ */
 public final class Entry {
+
+    /** How much of the element a page shows. */
+    public enum Form {
+        /** Its one description, where links to the element lead. */
+        FULL,
+        /** The whole description again, on a view of the microservice it belongs to. */
+        COPY,
+        /** On a view of another microservice: the first sentence and its relationships on that view. */
+        BRIEF
+    }
 
     public final String id;
     public final String name;
@@ -29,6 +42,12 @@ public final class Entry {
     public final List<Section> sections = new ArrayList<>();
     /** Where the heading links to, such as a work package's ticket; null for no link. */
     public String headingUrl;
+    public Form form = Form.FULL;
+    /**
+     * For a {@link Form#COPY} or {@link Form#BRIEF}: the name of the page with its full description ("Defined in:
+     * Order Service"), which the line links to; null for no such line.
+     */
+    public String home;
 
     /**
      * The description as printed, when its tokens ({@code ˝˝NAME˝˝}) write relationships into it; empty to print
@@ -158,7 +177,11 @@ public final class Entry {
         this.changes = changes;
     }
 
+    /** The page a {@link Form#COPY} or {@link Form#BRIEF} is on, which its anchor names; set by {@link Doc}. */
+    String on;
+
+    /** Unique in the export: the element's id, and for a copy or brief the page it is on as well. */
     public String anchor() {
-        return "e-" + id;
+        return "e-" + id + (form == Form.FULL || on == null ? "" : "-" + on);
     }
 }

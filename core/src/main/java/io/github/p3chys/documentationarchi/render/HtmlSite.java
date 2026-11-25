@@ -96,7 +96,7 @@ final class HtmlSite {
         List<Entry> entries = new ArrayList<>();
         for (DocPage page : doc.pages) {
             if (!page.id.equals(CHANGES)) {
-                entries.addAll(page.entries);
+                entries.addAll(page.described());
             }
         }
         entries.sort(Comparator.comparing((Entry e) -> e.name, order).thenComparing(e -> e.type, order));
@@ -169,7 +169,7 @@ final class HtmlSite {
             item(page.title, texts.get(page.image != null ? "view" : "page"), file(page),
                     page.documentation, s);
             if (!page.id.equals(CHANGES)) {
-                for (Entry entry : page.entries) {
+                for (Entry entry : page.described()) {
                     item(entry.name, entry.type, file(page) + "#" + entry.anchor(), entry.documentation, s);
                 }
             }

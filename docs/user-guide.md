@@ -326,6 +326,50 @@ relationships to elements outside the view, grouped by type.
   through further junctions after it – to the elements on the other side, and shown as one relationship to all of
   them, joined by *and* (And junction) or *or* (Or junction): for example *→ Check claim or Reject claim*.
 
+### Structure by microservice
+
+When the model is organised by microservice, the export can follow that instead of describing each element on the
+first view that shows it. Choose **Structure: By microservices** in the [general settings](#general-settings) (rule
+line `structure microservices`). It applies when you export the whole model or folders.
+
+A folder directly below **Views** is a microservice, and a folder of the same name directly below **Application**
+(or **Business**, **Technology**...) holds its elements. Case and spaces around the name don't matter. Below the
+microservice's view folder there can be any folders, such as **BE** and **FE**, with any number of views.
+
+```
+Application
+  Orders                     Order Service, API orders/getOrder, API orders/createOrder, Create order...
+  Web Shop                   Web Shop
+  Identity Provider          (directly in Application: of no microservice)
+Views
+  Application Landscape      (directly in Views: of no microservice)
+  Landscape                  (no folder of elements has this name: a plain folder of views)
+    Booking end to end
+  Orders
+    BE                       Orders API, Create order process
+  Web Shop
+    FE                       Checkout, Order History
+```
+
+- **The microservice's page** (*Orders*) comes first in its folder: the description of its folder in Views (else of
+  the one in Application), then every element of the microservice described in full, by layer and under its type.
+  This is where every link to the element leads, and where the Elements A–Z and by type pages and the search find
+  it. In Confluence it is the folder's page, with *Orders – BE* and *Orders – FE* below it.
+- **A view of the microservice** (*Orders API*) describes its elements again, in full, each with
+  *Defined in: Orders* linking to the microservice's page. A reader of the view's page needs nothing else.
+- **A view of another microservice** (*Checkout* showing *API orders/createOrder*) shows the element in brief: the
+  first sentence of its description, its relationships drawn on that view, and *Defined in: Orders*. Views
+  directly in Views, such as a landscape, show all their elements so, and so do views in a folder that no folder of
+  elements matches (*Landscape* above). Such a folder keeps the views across microservices together in Confluence.
+- **Elements of no microservice** are described on a page **Shared**; in an export of the whole model the work
+  packages keep their own page. A folder of elements without views (*Technology/Platform*) still gets a page of its
+  own, named after the folder.
+- **Folders in a microservice** are titled with its name in Confluence (*Orders – BE*): Confluence titles must be
+  unique in a space, and every microservice has a BE.
+- **Check Documentation** lists elements on a microservice's views that sit in no microservice's folder, so you can
+  move them into one. Views in a plain folder such as *Landscape* aren't a microservice's, so it doesn't look there.
+- **Describe Here** is ignored with this structure: the folder an element is in decides.
+
 ### The PDF
 
 The PDF holds the same pages, with bookmarks for every page. The bookmarks nest as the folders of the views do on the
@@ -588,7 +632,9 @@ choose **Documentation > Check...**: it lists what it finds, grouped by kind wit
 - `˝˝NAME˝˝` and `˝NAME˝` tokens in an element's description that match no relationship of the element (a relationship
   named exactly like the token),
 - malformed tokens: an odd number of `˝`, or a `¨` typed for one,
-- work packages that change no element.
+- work packages that change no element,
+- with [structure by microservice](#structure-by-microservice): elements on a microservice's views that are in no
+  microservice's folder.
 
 Objects the rules leave out of the export are not checked.
 
@@ -689,6 +735,7 @@ gets the same (see [Project rules](#project-rules)). **Edit All as Text...** sho
 | **Language** | The language of the fixed texts of the output (English or Czech) | `language cs` |
 | **Element types** | `<<Business Process>> Pay` as Archi names them, or `«Process»Pay` as HaF writes them | `type style haf` |
 | **Work package export** | A page per view and element, or one page: the ticket, then each element it changes | `workpackage one-page` |
+| **Structure** | By views (an element is described on the first view that shows it) or [by microservices](#structure-by-microservice) | `structure microservices` |
 | **Assets folder** | Where `[[asset:name]]` files are read from; empty: `Assets` next to the model | `assets <folder>` |
 | **PDF** | Cover page, table of contents and landscape pages for wide views | `pdf cover off` ... |
 | **HTML** | One self-contained file per page | `html single-file` |
@@ -804,7 +851,7 @@ export finishes, its message says how many objects the rules left out. The rule 
 The fixed texts of the output ("Contents", "Notes", "Property", "Related views"...) are English. The rule line
 `language cs` prints them in Czech instead (`language en` is the default). To change a single one, add
 `text <key> = <replacement>`, for example `text contents = Table of contents`; this works in either language. The keys
-are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, the verbs of relationships (`triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`), `role-and-higher`, `role-only` (with `{role}`), `recursive-reference` (with `{name}`), `input-parameters`, `output`, `request`, `response`. `generated` keeps the placeholders `{time}` and `{model}`, `page-of` (the PDF footer) `{page}` and `{pages}`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`. The names of element and relationship types stay as
+are `contents`, `elements`, `notes`, `related-views`, `other-related-elements`, `changed-elements`, `work-packages`, `property`, `value`, `relationship`, `element`, `description`, `views`, `part-of`, `contains`, `labels`, `group`, `elements-not-in-any-view`, `selected-elements`, `other-pages`, `defined-in`, `shared`, `elements-a-z`, `elements-by-type`, `search`, `nothing-found`, `view`, `page`, `page-of`, `generated`, `missing-asset`, `unsupported-asset`, `missing-reference`, the verbs of relationships (`triggers`, `triggered-by`, `used-by`, `uses`, `composed-of`, `part-of-whole`, `provides`, `provided-by`, `publishes`, `published-by`, `generates`, `generated-by`, `implements`, `implemented-by`, `associated-with`, `realizes`, `realized-by`, `influences`, `influenced-by`, `flows-to`, `flows-from`, `access-from`, `access-into`, `read-by`, `written-by`, `read-written-by`), `role-and-higher`, `role-only` (with `{role}`), `recursive-reference` (with `{name}`), `input-parameters`, `output`, `request`, `response`. `generated` keeps the placeholders `{time}` and `{model}`, `page-of` (the PDF footer) `{page}` and `{pages}`, `name`, `token`, `used-in`, `tables-index`, `variables-index`, `constants-index`. The names of element and relationship types stay as
 Archi calls them, and so does the text you wrote. As every rule line, these work in the preferences, in
 `documentation.rules` and on the command line. A wrong language or key is reported with its line.
 

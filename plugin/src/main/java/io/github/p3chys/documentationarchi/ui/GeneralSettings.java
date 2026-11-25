@@ -19,7 +19,7 @@ final class GeneralSettings {
 
     /** The kinds of rules this tab owns: written from its fields, any other rule of these kinds is replaced. */
     static final Set<Kind> KINDS = EnumSet.of(Kind.JIRA, Kind.LANGUAGE, Kind.ASSETS, Kind.TYPE_STYLE, Kind.WORK_PACKAGE,
-            Kind.HTML, Kind.PDF, Kind.EXCLUDE_LABEL, Kind.HIDE_PROPERTY);
+            Kind.STRUCTURE, Kind.HTML, Kind.PDF, Kind.EXCLUDE_LABEL, Kind.HIDE_PROPERTY);
 
     /** Where tickets are, the key goes after it; empty for nowhere. */
     String jira = "";
@@ -28,6 +28,8 @@ final class GeneralSettings {
     String assets = "";
     boolean hafTypes;
     boolean workPackageOnePage;
+    /** {@code structure microservices}: pages by microservice. */
+    boolean microservices;
     boolean htmlSingleFile;
     /** The parts of {@link KeywordRules#PDF_PARTS} the PDF has. */
     final Set<String> pdf = new LinkedHashSet<>(KeywordRules.PDF_PARTS);
@@ -43,6 +45,7 @@ final class GeneralSettings {
         s.assets = rules.assetsFolder() == null ? "" : rules.assetsFolder();
         s.hafTypes = rules.hafTypes();
         s.workPackageOnePage = rules.workPackageOnePage();
+        s.microservices = rules.microservices();
         s.htmlSingleFile = rules.htmlSingleFile();
         s.pdf.removeIf(part -> !rules.pdf(part));
         for (Rule rule : settings) {
@@ -85,6 +88,9 @@ final class GeneralSettings {
         }
         if (workPackageOnePage) {
             rules.add(Rule.workPackage("one-page"));
+        }
+        if (microservices) {
+            rules.add(Rule.structure("microservices"));
         }
         if (htmlSingleFile) {
             rules.add(Rule.htmlSingleFile(true));

@@ -18,6 +18,7 @@ import com.archimatetool.model.IArchimateFactory;
 import com.archimatetool.model.IArchimateModel;
 import com.archimatetool.model.IDiagramModelArchimateObject;
 import com.archimatetool.model.IDiagramModelNote;
+import com.archimatetool.model.IFolder;
 import com.archimatetool.model.IProperty;
 import com.archimatetool.model.IWorkPackage;
 
@@ -89,6 +90,34 @@ class DocCheckTest {
         List<DocCheck.Finding> findings = check("");
 
         assertThat(of(findings, DocCheck.Kind.NO_DESCRIPTION)).containsExactlyInAnyOrder("Bare", "Bare view");
+    }
+
+    @Test
+    void withMicroservicesElementsOfNoMicroserviceOnTheirViewsAreFound() {
+        IFolder orders = F.createFolder();
+        orders.setName("Orders");
+        model.getFolder(FolderType.DIAGRAMS).getFolders().add(orders);
+        IFolder ordersElements = F.createFolder();
+        ordersElements.setName("orders");
+        model.getFolder(FolderType.BUSINESS).getFolders().add(ordersElements);
+        IArchimateDiagramModel api = view("Orders API", "text");
+        orders.getElements().add(api);
+        IArchimateElement own = element("Own", "text");
+        ordersElements.getElements().add(own);
+        add(api, own);
+        add(api, described); // directly in Business: of no microservice
+        IFolder landscape = F.createFolder(); // views across microservices: no folder of elements of that name
+        landscape.setName("Landscape");
+        model.getFolder(FolderType.DIAGRAMS).getFolders().add(landscape);
+        IArchimateDiagramModel overview = view("Overview", "text");
+        landscape.getElements().add(overview);
+        IArchimateElement actor = element("Customer", "text");
+        add(overview, actor);
+        add(overview, own);
+
+        assertThat(check("structure microservices")).filteredOn(f -> f.kind == DocCheck.Kind.NO_MICROSERVICE)
+                .extracting(DocCheck.Finding::line).containsExactly("Described: Business Actor, on Orders API of Orders");
+        assertThat(of(check(""), DocCheck.Kind.NO_MICROSERVICE)).isEmpty();
     }
 
     @Test

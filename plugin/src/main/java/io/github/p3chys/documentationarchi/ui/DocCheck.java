@@ -49,7 +49,9 @@ final class DocCheck {
         LABEL("Words that look like a label but are not one"),
         UNRESOLVED_TOKEN("˝tokens˝ that match no relationship"),
         MALFORMED_TOKEN("Malformed ˝tokens˝"),
-        WORK_PACKAGE("Work packages that change no element");
+        WORK_PACKAGE("Work packages that change no element"),
+        /** With {@code structure microservices}. */
+        NO_MICROSERVICE("Elements on a microservice's views that are in no microservice's folder");
 
         final String title;
 
@@ -169,6 +171,11 @@ final class DocCheck {
             }
         } else if (element.getReferencingDiagramComponents().isEmpty()) {
             findings.add(new Finding(Kind.ON_NO_VIEW, element, typeName(element)));
+        } else if (rules.microservices() && Microservices.of(element) == null) {
+            element.getReferencingDiagramComponents().stream().map(c -> c.getDiagramModel())
+                    .filter(v -> Microservices.hasElements(v) && !exclusion.excluded(v)).findFirst()
+                    .ifPresent(v -> findings.add(new Finding(Kind.NO_MICROSERVICE, element, typeName(element)
+                            + ", on " + ModelReader.label(v) + " of " + ModelReader.label(Microservices.folderOf(v)))));
         }
         if (blank(element.getDocumentation())) {
             findings.add(new Finding(Kind.NO_DESCRIPTION, element, typeName(element)));

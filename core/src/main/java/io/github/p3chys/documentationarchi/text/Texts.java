@@ -45,6 +45,8 @@ public final class Texts {
         add("elements-not-in-any-view", "Elements not in any view", "Prvky mimo pohledy");
         add("selected-elements", "Selected elements", "Vybrané prvky");
         add("other-pages", "Other pages", "Další stránky");
+        add("defined-in", "Defined in", "Popsáno v");
+        add("shared", "Shared", "Sdílené");
         add("elements-a-z", "Elements A–Z", "Prvky A–Z");
         add("elements-by-type", "Elements by type", "Prvky podle typu");
         add("search", "Search", "Hledat");
